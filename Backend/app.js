@@ -124,6 +124,67 @@ export function createApp({ client, db, config }) {
     const history = await db.collection("enquiry_history").find({}, { projection: { _id: 0 } }).sort({ changedAt: -1 }).limit(200).toArray();
     res.json({ history });
   });
+  const hotelStars = ["1-Star (Budget)", "2-Star (Tourist Class)", "3-Star (Mid-Scale / First Class)", "4-Star (Upscale / Deluxe)", "5-Star (Luxury / Superior Deluxe)"];
+  const parseMoney = (value) => Number.isFinite(Number(value)) && Number(value) >= 0 ? Math.round(Number(value) * 100) / 100 : null;
+  const parseHotel = (body) => {
+    const name = typeof body?.name === "string" ? body.name.trim().slice(0, 160) : "";
+    const starRating = typeof body?.starRating === "string" ? body.starRating : "";
+    const availableRooms = Number.parseInt(body?.availableRooms, 10);
+    const gst = parseMoney(body?.gst);
+    const amount = parseMoney(body?.amount);
+    if (!name || !hotelStars.includes(starRating) || !Number.isInteger(availableRooms) || availableRooms < 0 || availableRooms > 100000 || gst === null || gst > 100 || amount === null) return null;
+    return { name, starRating, availableRooms, gst, amount };
+  };
+  app.get("/api/admin/hotels", requireAdmin, async (_req, res) => {
+    const hotels = await db.collection("hotels").find({}, { projection: { name: 1, starRating: 1, availableRooms: 1, gst: 1, amount: 1, createdAt: 1, updatedAt: 1 } }).sort({ updatedAt: -1 }).limit(500).toArray();
+    res.json({ hotels });
+  });
+  app.post("/api/admin/hotels", requireAdmin, async (req, res) => {
+    const hotel = parseHotel(req.body);
+    if (!hotel) return res.status(400).json({ message: "Enter a valid hotel name, category, rooms, GST and amount." });
+    const now = new Date();
+    const result = await db.collection("hotels").insertOne({ ...hotel, createdAt: now, updatedAt: now });
+    res.status(201).json({ hotel: { _id: result.insertedId, ...hotel, createdAt: now, updatedAt: now } });
+  });
+  app.patch("/api/admin/hotels/:id", requireAdmin, async (req, res) => {
+    if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid hotel." });
+    const hotel = parseHotel(req.body);
+    if (!hotel) return res.status(400).json({ message: "Enter a valid hotel name, category, rooms, GST and amount." });
+    const updatedAt = new Date();
+    const result = await db.collection("hotels").updateOne({ _id: new ObjectId(req.params.id) }, { $set: { ...hotel, updatedAt } });
+    if (!result.matchedCount) return res.status(404).json({ message: "Hotel not found." });
+    res.json({ message: "Hotel updated." });
+  });
+  app.delete("/api/admin/hotels/:id", requireAdmin, async (req, res) => {
+    if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid hotel." });
+    const result = await db.collection("hotels").deleteOne({ _id: new ObjectId(req.params.id) });
+    if (!result.deletedCount) return res.status(404).json({ message: "Hotel not found." });
+    res.status(204).send();
+  });
+  app.get("/api/admin/vouchers", requireAdmin, async (_req, res) => {
+    const vouchers = await db.collection("journey_vouchers").find({}, { projection: { billing: 1, journey: 1, stops: 1, message: 1, voucherNumber: 1, createdAt: 1 } }).sort({ createdAt: -1 }).limit(200).toArray();
+    res.json({ vouchers });
+  });
+  app.post("/api/admin/vouchers", requireAdmin, async (req, res) => {
+    const billing = req.body?.billing;
+    const journey = req.body?.journey;
+    const stops = Array.isArray(req.body?.stops) ? req.body.stops : [];
+    const name = typeof billing?.name === "string" ? billing.name.trim().slice(0, 160) : "";
+    const visitingCardNo = typeof billing?.visitingCardNo === "string" ? billing.visitingCardNo.trim().slice(0, 80) : "";
+    const from = typeof journey?.from === "string" ? journey.from.trim().slice(0, 160) : "";
+    const message = typeof req.body?.message === "string" ? req.body.message.trim().slice(0, 500) : "";
+    const cleanStops = stops.map((stop) => ({
+      name: typeof stop?.name === "string" ? stop.name.trim().slice(0, 160) : "",
+      duration: typeof stop?.duration === "string" ? stop.duration.trim().slice(0, 80) : "",
+      departureDate: typeof stop?.departureDate === "string" ? stop.departureDate.slice(0, 10) : "",
+      arrivalDate: typeof stop?.arrivalDate === "string" ? stop.arrivalDate.slice(0, 10) : "",
+    })).filter((stop) => stop.name);
+    if (!name || !visitingCardNo || !from || !cleanStops.length || cleanStops.some((stop) => !stop.duration || !stop.departureDate || !stop.arrivalDate)) return res.status(400).json({ message: "Complete billing details and at least one journey stop." });
+    const now = new Date();
+    const voucher = { voucherNumber: `EIV-${now.getFullYear()}-${randomBytes(4).toString("hex").toUpperCase()}`, billing: { name, visitingCardNo }, journey: { from }, stops: cleanStops, message: message || "May every mile bring you closer to a beautiful memory." , createdAt: now };
+    const result = await db.collection("journey_vouchers").insertOne(voucher);
+    res.status(201).json({ voucher: { _id: result.insertedId, ...voucher } });
+  });
   app.patch("/api/admin/enquiries/:id", requireAdmin, async (req, res) => {
     if (!/^[a-f\d]{24}$/i.test(req.params.id) || !enquiryStatuses.includes(req.body?.status)) return res.status(400).json({ message: "Choose a valid enquiry and status." });
     const enquiryId = new ObjectId(req.params.id);

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../Common/api";
 import { Icon } from "../Common/SiteUI";
 import AdminDashboard from "../Common/AdminDashboard";
+import AdminTools from "../Common/AdminTools";
 import "./Admin.css";
 
 const emptyData = { enquiries: [], total: 0, pages: 1, stats: { total: 0, new: 0, pending: 0, confirmed: 0, cancelled: 0, contacted: 0, closed: 0 } };
@@ -28,7 +29,38 @@ export default function Admin() {
   const [selectedId, setSelectedId] = useState("");
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [activeTool, setActiveTool] = useState("");
+  const intentionalLogout = useRef(false);
   const selected = data.enquiries.find((entry) => entry._id === selectedId);
+
+  function clearAdminState() {
+    setAdmin(null); setData(emptyData); setSelectedId(""); setPage(1); setSearch(""); setSearchInput(""); setStatus(""); setHistory([]); setShowHistory(false); setActiveTool("");
+    setLoaded(false); setLastUpdated(null);
+  }
+
+  useEffect(() => {
+    const signOutOnPageExit = () => {
+      if (intentionalLogout.current) return;
+      void fetch("/api/admin/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+        keepalive: true,
+      }).catch((failure) => console.error("Could not sign out before leaving the admin panel.", failure));
+    };
+    const handlePageShow = (event) => {
+      if (!event.persisted) return;
+      clearAdminState();
+      navigate("/admin/login", { replace: true });
+    };
+    window.addEventListener("pagehide", signOutOnPageExit);
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      window.removeEventListener("pagehide", signOutOnPageExit);
+      window.removeEventListener("pageshow", handlePageShow);
+    };
+  }, [navigate]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -91,14 +123,15 @@ export default function Admin() {
     finally { setBusy(false); }
   }
   async function logout() {
+    intentionalLogout.current = true;
     setBusy(true);
     setError("");
     try {
       await api("/admin/logout", { method: "POST", body: "{}" });
-      setAdmin(null); setData(emptyData); setSelectedId(""); setPage(1); setSearch(""); setSearchInput(""); setStatus(""); setHistory([]); setShowHistory(false);
-      setLoaded(false); setLastUpdated(null);
+      clearAdminState();
+      intentionalLogout.current = false;
       navigate("/admin/login", { replace: true });
-    } catch (failure) { setError(failure.message); }
+    } catch (failure) { intentionalLogout.current = false; setError(failure.message); }
     finally { setBusy(false); }
   }
   async function updateStatus(id, nextStatus) {
@@ -144,7 +177,7 @@ export default function Admin() {
         <button className="button" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}<Icon size={18} /></button>
         <span className="admin-login-note">For Eternal India administrators.</span>
       </form>
-    </div> : <AdminDashboard
+    </div> : activeTool ? <AdminTools tool={activeTool} onBack={() => setActiveTool("")} onError={setError} /> : <AdminDashboard
       admin={admin} data={data} loaded={loaded} loading={loading} busy={busy}
       updating={updating} error={error} searchInput={searchInput} search={search}
       status={status} page={page} lastUpdated={lastUpdated} selected={selected}
@@ -155,7 +188,7 @@ export default function Admin() {
       onPage={(value) => { setPage(value); setSelectedId(""); }}
       onOpen={setSelectedId} onClose={() => setSelectedId("")}
       onUpdate={updateStatus} onDelete={deleteEnquiry} onRefresh={() => setRefresh((value) => value + 1)} onLogout={logout}
-      history={history} showHistory={showHistory} onToggleHistory={() => setShowHistory((value) => !value)}
+      history={history} showHistory={showHistory} onToggleHistory={() => setShowHistory((value) => !value)} onTool={setActiveTool}
     />}
     <footer className="admin-footer">Eternal India · Thoughtfully planned. Personally yours.</footer>
   </div>;

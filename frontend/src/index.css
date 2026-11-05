@@ -541,7 +541,7 @@ main:focus {
   padding-bottom: 43px;
 }
 .footer-brand img {
-  background: #f7f4ec;
+  background: transparent;
   padding: 8px;
   width: 185px;
   border-radius: 2px;

@@ -93,7 +93,7 @@ function EnquiryDrawer({ entry, onClose, onUpdate, onDelete, updating, error }) 
   </dialog>;
 }
 
-export default function AdminDashboard({ admin, data, loaded, loading, busy, updating, error, searchInput, search, status, page, lastUpdated, selected, onSearchInput, onSearch, onStatusFilter, onSelectStatus, onClearFilters, onPage, onOpen, onClose, onUpdate, onDelete, onRefresh, onLogout, history, showHistory, onToggleHistory }) {
+export default function AdminDashboard({ admin, data, loaded, loading, busy, updating, error, searchInput, search, status, page, lastUpdated, selected, onSearchInput, onSearch, onStatusFilter, onSelectStatus, onClearFilters, onPage, onOpen, onClose, onUpdate, onDelete, onRefresh, onLogout, history, showHistory, onToggleHistory, onTool }) {
   const viewButton = (entry) => <button className="dashboard-view dashboard-icon-button" type="button" aria-label={`View enquiry from ${entry.name}`} aria-haspopup="dialog" aria-controls="enquiry-details" onClick={() => onOpen(entry._id)}><DashboardIcon name="right" size={17} /></button>;
   const stats = data.stats;
   const count = (key) => loaded ? number(stats[key]) : "—";
@@ -104,6 +104,9 @@ export default function AdminDashboard({ admin, data, loaded, loading, busy, upd
       <nav className="dashboard-status-navigation" aria-label="Enquiry filters"><span className="dashboard-nav-heading">ENQUIRIES</span>
         {[{ key: "", label: "All enquiries", icon: "inbox" }, ...Object.entries(adminStatuses).map(([key, label]) => ({ key, label, icon: { new: "spark", pending: "clock", confirmed: "check", contacted: "chat", cancelled: "cancel", closed: "archive" }[key] }))].map((item) => <button key={item.key} type="button" aria-current={!showHistory && status === item.key ? "true" : undefined} onClick={() => { if (showHistory) onToggleHistory(); onSelectStatus(item.key); }}><DashboardIcon name={item.icon} size={18} /><span>{item.label}</span><span className="dashboard-nav-count">{count(item.key || "total")}</span></button>)}
         <button type="button" aria-current={showHistory ? "true" : undefined} onClick={() => { if (!showHistory) onToggleHistory(); }}><DashboardIcon name="clock" size={18} /><span>History</span></button>
+        <span className="dashboard-nav-heading dashboard-tools-heading">TOOLS</span>
+        <button type="button" onClick={() => onTool("hotels")}><DashboardIcon name="pin" size={18} /><span>Add hotel</span></button>
+        <button type="button" onClick={() => onTool("vouchers")}><DashboardIcon name="calendar" size={18} /><span>Journey Voucher</span></button>
       </nav>
       <div className="dashboard-sidebar-bottom"><Link className="dashboard-form-link" to="/request-quote"><span className="dashboard-section-label">THE NEXT JOURNEY</span><strong>See the guest experience</strong><span>Open trip enquiry form<DashboardIcon name="diagonal" size={16} /></span></Link><div className="dashboard-sidebar-account"><span className="dashboard-account-avatar" aria-hidden="true">AD</span><div><strong>Administrator</strong><span title={admin.email}>{admin.email}</span></div><button className="dashboard-sign-out dashboard-icon-button" type="button" aria-label="Sign out" title="Sign out" onClick={onLogout} disabled={busy}><DashboardIcon name="logout" size={18} /></button></div></div>
     </aside>
