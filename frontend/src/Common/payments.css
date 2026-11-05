@@ -1,0 +1,26 @@
+﻿.payment-banner {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 40px;
+  align-items: center;
+  padding: 36px;
+  border: 1px solid var(--line);
+  background: white;
+  border-radius: 4px;
+  margin-block: 0 75px;
+}
+.payment-banner-copy .eyebrow { margin-bottom: 15px; }
+.payment-banner-copy h2 { font-size: clamp(31px, 3.2vw, 45px); }
+.payment-banner-copy p { font-size: 13px; margin-block: 17px 23px; }
+.payment-banner-image { display: block; border-radius: 3px; overflow: hidden; }
+.payment-banner-image img { width: 100%; height: auto; }
+.payment-banner-image:hover { transform: translateY(-3px); }
+@media (max-width: 800px) {
+  .payment-banner { grid-template-columns: 1fr; gap: 15px; padding: 25px; margin-bottom: 45px; }
+  .payment-banner-image { max-width: 540px; width: 100%; justify-self: center; }
+}
+@media (max-width: 550px) {
+  .payment-banner { padding: 22px; }
+  .payment-banner-copy .eyebrow { font-size: 8px; letter-spacing: 1px; }
+  .payment-banner-copy h2 { font-size: 35px; }
+}

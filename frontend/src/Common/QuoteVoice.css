@@ -1,0 +1,11 @@
+.enquiry-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.quote-language { margin-top: 25px; }
+.quote-language > label { display: block; font-size: .75rem; font-weight: 600; line-height: 1.6; }
+.quote-language select { width: 100%; min-height: 45px; margin-top: 8px; padding: 12px 13px; border: 1px solid #d5d6c8; border-radius: 3px; background: #fcfaf7; color: var(--ink); font: inherit; font-size: 1rem; }
+.quote-language select:focus-visible { outline: 3px solid var(--pink); outline-offset: 3px; }
+.quote-language audio[hidden] { display: none; }
+.enquiry-form .button:disabled { opacity: .65; cursor: wait; transform: none; }
+.enquiry-error { margin-top: 18px; padding: 13px 15px; border-left: 3px solid #a62c60; background: #f9e9ed; color: #7e2144; font-size: .8125rem; }
+.form-grid [aria-invalid="true"] { border-color: #a62c60; }
+.form-grid .field-error { color: #8d2049; font-size: .75rem; }
+.form-actions .enquiry-submit { width: 100%; font-size: .875rem; }
