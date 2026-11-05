@@ -1,0 +1,10 @@
+{
+  "name": "eternal-india",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "verify": "npm --prefix frontend run verify",
+    "test:backend": "npm --prefix Backend test"
+  }
+}

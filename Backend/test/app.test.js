@@ -1,0 +1,112 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { randomBytes, randomUUID } from "node:crypto";
+import { once } from "node:events";
+import { readConfig } from "../config/env.js";
+import { connectDatabase } from "../config/database.js";
+import { ensureAdmin, verifyPassword } from "../lib/passwords.js";
+import { createApp } from "../app.js";
+
+test("MongoDB enquiry and administrator workflow", async (t) => {
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "test-admin@example.com", adminPassword: randomBytes(24).toString("hex") };
+  const { client, db } = await connectDatabase(config);
+  const admin = await ensureAdmin(db, config);
+  const configuredAdmin = await ensureAdmin(db, { ...config, adminEmail: "configured-admin@example.com", adminPassword: "LocalPass9" });
+  assert.ok(await verifyPassword("LocalPass9", configuredAdmin.passwordHash), "a configured nine-character password can create the local admin account");
+  await assert.rejects(ensureAdmin(db, { ...config, adminEmail: "invalid-admin@example.com", adminPassword: "short" }), /at least 8 characters/);
+  const { app } = createApp({ client, db, config });
+  const server = app.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const base = `http://127.0.0.1:${server.address().port}`;
+  let cookie;
+  let reference;
+  let id;
+  const enquiry = { submissionId: randomUUID(), name: "Integration Test Guest", email: "guest@example.com", phone: "+91 9000000000", travellers: "3", destination: "Rajasthan", date: "", message: "A quiet family trip.\nCulture & nature.", voiceLanguage: "hi" };
+  const request = (path, { method = "GET", body, sessionCookie = cookie, origin = "http://localhost:5173" } = {}) => fetch(`${base}/api${path}`, { method, headers: { "Content-Type": "application/json", Origin: origin, ...(sessionCookie ? { Cookie: sessionCookie } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  try {
+    await t.test("rejects unauthenticated access and unsafe requests", async () => {
+      assert.equal((await (await request("/health")).json()).service, "eternal-india-api");
+      assert.equal((await request("/admin/enquiries")).status, 401);
+      assert.equal((await request("/admin/me")).status, 401);
+      assert.equal((await request("/enquiries", { method: "POST", body: enquiry, origin: "https://untrusted.example" })).status, 403);
+      assert.equal((await request("/enquiries", { method: "POST", body: {}, origin: "http://127.0.0.1:5173" })).status, 400, "the development loopback alias reaches form validation");
+      assert.equal((await request("/enquiries", { method: "POST", body: {}, origin: "http://localhost:5174" })).status, 400, "a different local development port reaches form validation");
+      assert.equal((await fetch(`${base}/api/enquiries`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "name=Guest" })).status, 415);
+      assert.equal((await request("/enquiries", { method: "POST", body: { ...enquiry, name: { $ne: null }, email: "invalid", travellers: 101, voiceLanguage: "fr" } })).status, 400);
+      assert.equal(await db.collection("enquiries").countDocuments(), 0);
+    });
+    await t.test("saves an enquiry once and returns a public reference", async () => {
+      const replies = await Promise.all([request("/enquiries", { method: "POST", body: enquiry }), request("/enquiries", { method: "POST", body: enquiry })]);
+      assert.deepEqual(replies.map((reply) => reply.status).sort(), [200, 201]);
+      const [first, retry] = await Promise.all(replies.map((reply) => reply.json()));
+      reference = first.reference;
+      assert.match(reference, /^EI-[A-F0-9]{12}$/);
+      assert.equal(retry.reference, reference);
+      assert.equal(first.email, undefined, "public response does not expose guest details");
+      assert.equal(await db.collection("enquiries").countDocuments(), 1);
+      assert.equal((await request("/enquiries", { method: "POST", body: { ...enquiry, destination: "Kerala" } })).status, 409, "same id cannot overwrite a saved enquiry");
+      assert.equal((await request("/enquiries")).status, 404, "public clients cannot list enquiries");
+    });
+    await t.test("authenticates with a hashed password and HttpOnly session", async () => {
+      assert.notEqual(admin.passwordHash, config.adminPassword);
+      assert.ok(await verifyPassword(config.adminPassword, admin.passwordHash));
+      assert.equal((await request("/admin/login", { method: "POST", body: { email: config.adminEmail, password: "incorrect" } })).status, 401);
+      const login = await request("/admin/login", { method: "POST", body: { email: config.adminEmail, password: config.adminPassword } });
+      assert.equal(login.status, 200);
+      const header = login.headers.get("set-cookie");
+      assert.match(header, /HttpOnly/i);
+      assert.match(header, /SameSite=Strict/i);
+      cookie = header.split(";")[0];
+      assert.equal((await login.json()).admin.email, config.adminEmail);
+      assert.equal((await request("/admin/me")).status, 200);
+      assert.equal((await request("/admin/history")).status, 200);
+    });
+    await t.test("shows saved details, supports search and status updates", async () => {
+      const list = await (await request("/admin/enquiries")).json();
+      assert.equal(list.total, 1);
+      assert.equal(list.stats.new, 1);
+      const saved = list.enquiries[0];
+      id = saved._id;
+      assert.equal(saved.reference, reference);
+      assert.equal(saved.voiceLanguage, "hi");
+      assert.equal(saved.message, enquiry.message);
+      assert.equal(saved.submissionId, undefined);
+      assert.equal(saved.submissionHash, undefined);
+      assert.equal((await (await request("/admin/enquiries?search=rajasthan")).json()).total, 1);
+      assert.equal((await (await request("/admin/enquiries?search=Rajasthan.*")).json()).total, 0, "search treats regex characters as plain text");
+      assert.equal((await request(`/admin/enquiries/${id}`, { method: "PATCH", body: { status: "contacted" }, sessionCookie: "" })).status, 401);
+      assert.equal((await request(`/admin/enquiries/${id}`, { method: "PATCH", body: { status: "invalid" } })).status, 400);
+      assert.equal((await request(`/admin/enquiries/${id}`, { method: "PATCH", body: { status: "contacted" } })).status, 200);
+      assert.equal((await request(`/admin/enquiries/${id}`, { method: "PATCH", body: { status: "confirmed" } })).status, 200);
+      const filtered = await (await request("/admin/enquiries?status=new")).json();
+      assert.equal(filtered.total, 0);
+      assert.equal(filtered.stats.confirmed, 1);
+      assert.equal((await db.collection("enquiries").findOne({ reference })).status, "confirmed");
+      assert.ok((await (await request("/admin/history")).json()).history.some((item) => item.status === "confirmed"));
+      assert.equal((await request(`/admin/enquiries/${id}`, { method: "PATCH", body: { status: "pending" } })).status, 200);
+      assert.equal((await request(`/admin/enquiries/${id}`, { method: "PATCH", body: { status: "cancelled" } })).status, 200);
+      assert.equal((await request(`/admin/enquiries/${id}`, { method: "DELETE" })).status, 204);
+      assert.equal(await db.collection("enquiries").findOne({ reference }), null);
+      assert.ok((await (await request("/admin/history")).json()).history.some((item) => item.action === "deleted"));
+    });
+    await t.test("rotates login sessions and invalidates them on logout", async () => {
+      const oldCookie = cookie;
+      const login = await request("/admin/login", { method: "POST", body: { email: config.adminEmail, password: config.adminPassword } });
+      cookie = login.headers.get("set-cookie").split(";")[0];
+      assert.notEqual(cookie, oldCookie);
+      assert.equal((await request("/admin/me", { sessionCookie: oldCookie })).status, 401);
+      assert.equal((await request("/admin/logout", { method: "POST", body: {} })).status, 204);
+      assert.equal((await request("/admin/enquiries")).status, 401);
+    });
+    await t.test("limits repeated failed logins", async () => {
+      let last;
+      for (let attempt = 0; attempt < 11; attempt += 1) last = await request("/admin/login", { method: "POST", body: { email: config.adminEmail, password: "incorrect" } });
+      assert.equal(last.status, 429);
+    });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    if (!db.databaseName.startsWith("eternal_india_test_")) throw new Error("Refusing to remove a non-test database.");
+    await db.dropDatabase();
+    await client.close();
+  }
+});

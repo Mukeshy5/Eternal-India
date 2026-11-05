@@ -1,0 +1,162 @@
+import express from "express";
+import session from "express-session";
+import MongoStore from "connect-mongo";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
+import { ObjectId } from "mongodb";
+import { createHash, randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { verifyPassword } from "./lib/passwords.js";
+import { enquiryStatuses, validateEnquiry } from "./lib/validation.js";
+
+export function createApp({ client, db, config }) {
+  const app = express();
+  app.disable("x-powered-by");
+  app.use(helmet({ strictTransportSecurity: config.production ? undefined : false }));
+  app.use("/api", (req, res, next) => {
+    res.set("Cache-Control", "no-store");
+    const origin = req.get("Origin");
+    let isLoopbackOrigin = false;
+    if (!config.production && origin) {
+      try {
+        const url = new URL(origin);
+        isLoopbackOrigin = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+      } catch {
+        isLoopbackOrigin = false;
+      }
+    }
+    const allowed = config.origins.includes(origin) || isLoopbackOrigin;
+    if (origin && !allowed) return res.status(403).json({ message: "This request origin is not allowed." });
+    if (origin) {
+      res.set("Access-Control-Allow-Origin", origin);
+      res.set("Access-Control-Allow-Credentials", "true");
+      res.vary("Origin");
+    }
+    if (req.method === "OPTIONS") return res.set({ "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" }).sendStatus(204);
+    if (["POST", "PATCH"].includes(req.method) && !req.is("application/json")) return res.status(415).json({ message: "Use JSON to submit this request." });
+    next();
+  });
+  app.use(express.json({ limit: "16kb" }));
+
+  const store = MongoStore.create({ client, dbName: config.databaseName, collectionName: "admin_sessions", ttl: 8 * 60 * 60 });
+  store.on("error", () => console.error("Admin session storage is unavailable."));
+  const cookie = { httpOnly: true, secure: config.production, sameSite: "strict", path: "/api", maxAge: 8 * 60 * 60 * 1000 };
+  app.use("/api/admin", session({ name: "eternal_india.sid", secret: config.sessionSecret, store, resave: false, saveUninitialized: false, rolling: true, cookie }));
+
+  const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
+  const enquiryLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many enquiries. Please try again shortly." } });
+  const publicAdmin = (admin) => ({ id: admin._id.toString(), email: admin.email });
+  async function requireAdmin(req, res, next) {
+    if (!ObjectId.isValid(req.session?.adminId || "")) return res.status(401).json({ message: "Please sign in to continue." });
+    const admin = await db.collection("admins").findOne({ _id: new ObjectId(req.session.adminId) });
+    if (!admin || (admin.passwordChangedAt && new Date(req.session.signedInAt) <= admin.passwordChangedAt)) return res.status(401).json({ message: "Please sign in again." });
+    req.admin = admin;
+    next();
+  }
+
+  app.get("/api/health", async (_req, res) => {
+    await db.command({ ping: 1 });
+    res.json({ status: "ok", service: "eternal-india-api" });
+  });
+  app.post("/api/enquiries", enquiryLimit, async (req, res) => {
+    const { fields, errors, submissionId } = validateEnquiry(req.body);
+    if (Object.keys(errors).length) return res.status(400).json({ message: "Please check the highlighted details.", errors });
+    const submissionHash = createHash("sha256").update(JSON.stringify(fields)).digest("hex");
+    const entry = { ...fields, submissionId, submissionHash, reference: `EI-${randomBytes(6).toString("hex").toUpperCase()}`, status: "new", createdAt: new Date(), updatedAt: new Date() };
+    let created = true;
+    try {
+      await db.collection("enquiries").insertOne(entry);
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+      const saved = await db.collection("enquiries").findOne({ submissionId });
+      if (!saved || saved.submissionHash !== submissionHash) return res.status(409).json({ message: "These details changed. Refresh the form before submitting again." });
+      entry.reference = saved.reference;
+      created = false;
+    }
+    if (created) {
+      await db.collection("enquiry_history").insertOne({ enquiryId: entry._id, reference: entry.reference, action: "created", status: entry.status, changedAt: entry.createdAt });
+    }
+    res.status(created ? 201 : 200).json({ message: "Your enquiry has been submitted successfully.", reference: entry.reference });
+  });
+  app.post("/api/admin/login", loginLimit, async (req, res, next) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase().slice(0, 200) : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    if (!email || !password || password.length > 256) return res.status(401).json({ message: "Email or password is incorrect." });
+    const admin = await db.collection("admins").findOne({ email });
+    if (!admin || !await verifyPassword(password, admin.passwordHash)) return res.status(401).json({ message: "Email or password is incorrect." });
+    req.session.regenerate((error) => {
+      if (error) return next(error);
+      req.session.adminId = admin._id.toString();
+      req.session.signedInAt = new Date().toISOString();
+      req.session.save((saveError) => saveError ? next(saveError) : res.json({ admin: publicAdmin(admin) }));
+    });
+  });
+  app.get("/api/admin/me", requireAdmin, (req, res) => res.json({ admin: publicAdmin(req.admin) }));
+  app.post("/api/admin/logout", (req, res, next) => {
+    req.session.destroy((error) => {
+      if (error) return next(error);
+      res.clearCookie("eternal_india.sid", { path: "/api", httpOnly: true, sameSite: "strict", secure: config.production });
+      res.sendStatus(204);
+    });
+  });
+  app.get("/api/admin/enquiries", requireAdmin, async (req, res) => {
+    const page = Math.max(1, Math.min(100000, Number.parseInt(req.query.page, 10) || 1));
+    const limit = 20;
+    const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 120) : "";
+    const filter = {};
+    if (enquiryStatuses.includes(req.query.status)) filter.status = req.query.status;
+    if (search) {
+      const pattern = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      filter.$or = ["name", "email", "phone", "destination", "reference"].map((key) => ({ [key]: { $regex: pattern, $options: "i" } }));
+    }
+    const collection = db.collection("enquiries");
+    const [entries, total, counts] = await Promise.all([
+      collection.find(filter, { projection: { submissionId: 0, submissionHash: 0 } }).sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
+      collection.countDocuments(filter),
+      collection.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]).toArray(),
+    ]);
+    const stats = { total: 0, new: 0, pending: 0, confirmed: 0, cancelled: 0, contacted: 0, closed: 0 };
+    for (const group of counts) { stats[group._id] = group.count; stats.total += group.count; }
+    res.json({ enquiries: entries, total, page, pages: Math.max(1, Math.ceil(total / limit)), stats });
+  });
+  app.get("/api/admin/history", requireAdmin, async (req, res) => {
+    const history = await db.collection("enquiry_history").find({}, { projection: { _id: 0 } }).sort({ changedAt: -1 }).limit(200).toArray();
+    res.json({ history });
+  });
+  app.patch("/api/admin/enquiries/:id", requireAdmin, async (req, res) => {
+    if (!/^[a-f\d]{24}$/i.test(req.params.id) || !enquiryStatuses.includes(req.body?.status)) return res.status(400).json({ message: "Choose a valid enquiry and status." });
+    const enquiryId = new ObjectId(req.params.id);
+    const changedAt = new Date();
+    const current = await db.collection("enquiries").findOne({ _id: enquiryId }, { projection: { reference: 1, status: 1 } });
+    if (!current) return res.status(404).json({ message: "Enquiry not found." });
+    const result = await db.collection("enquiries").updateOne({ _id: enquiryId }, { $set: { status: req.body.status, updatedAt: changedAt } });
+    if (!result.matchedCount) return res.status(404).json({ message: "Enquiry not found." });
+    if (current.status !== req.body.status) await db.collection("enquiry_history").insertOne({ enquiryId, reference: current.reference, action: "status_changed", from: current.status, status: req.body.status, changedAt });
+    res.json({ message: "Enquiry status updated." });
+  });
+  app.delete("/api/admin/enquiries/:id", requireAdmin, async (req, res) => {
+    if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid enquiry." });
+    const enquiryId = new ObjectId(req.params.id);
+    const current = await db.collection("enquiries").findOne({ _id: enquiryId }, { projection: { reference: 1, status: 1 } });
+    if (!current) return res.status(404).json({ message: "Enquiry not found." });
+    const deletedAt = new Date();
+    await db.collection("enquiries").deleteOne({ _id: enquiryId });
+    await db.collection("enquiry_history").insertOne({ enquiryId, reference: current.reference, action: "deleted", from: current.status, changedAt: deletedAt });
+    res.status(204).send();
+  });
+  app.use("/api", (_req, res) => res.status(404).json({ message: "API endpoint not found." }));
+
+  const frontend = fileURLToPath(new URL("../frontend/dist/", import.meta.url));
+  if (existsSync(`${frontend}/index.html`)) {
+    app.use(express.static(frontend));
+    app.get("/{*path}", (_req, res) => res.sendFile(`${frontend}/index.html`));
+  }
+  app.use((error, _req, res, _next) => {
+    if (error.type === "entity.parse.failed") return res.status(400).json({ message: "Invalid JSON request." });
+    if (error.type === "entity.too.large") return res.status(413).json({ message: "This enquiry is too large." });
+    console.error("Request failed:", error.name);
+    res.status(503).json({ message: "We couldn't save your request. Please try again shortly." });
+  });
+  return { app, store };
+}
