@@ -42,8 +42,10 @@
 .dashboard-topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 77px; padding: 15px 36px; border-bottom: 1px solid var(--dashboard-line); background: #fffefa; }
 .dashboard-topbar > div { display: flex; align-items: center; gap: 13px; color: #879180; font-size: 11px; }
 .dashboard-topbar strong { font-weight: 500; color: #405444; }
-.dashboard-topbar > a { display: flex; align-items: center; gap: 9px; padding: 8px 0; color: #65765e; font-size: 11px; }
-.dashboard-topbar > a:hover { color: var(--pink); }
+.dashboard-topbar-actions { display: flex; align-items: center; gap: 18px; }
+.dashboard-topbar-actions > a { display: flex; align-items: center; gap: 9px; padding: 8px 0; color: #65765e; font-size: 11px; }
+.dashboard-topbar-actions > a:hover { color: var(--pink); }
+.dashboard-sign-out-button { min-height: 36px; padding: 8px 12px; }
 .dashboard-main { max-width: 1560px; margin-inline: auto; padding: 36px 36px 0; }
 .dashboard-section-label { display: block; color: #7b8873; font-size: 9px; line-height: 1.7; font-weight: 600; letter-spacing: .12em; }
 .dashboard-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
