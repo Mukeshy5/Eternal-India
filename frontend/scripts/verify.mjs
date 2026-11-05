@@ -11,6 +11,7 @@ import { verifyPaymentInteractions } from "./verify-payment.mjs";
 import { verifyNavigation } from "./verify-navigation.mjs";
 import { verifyEnquiryInteractions } from "./verify-enquiry.mjs";
 import { verifyAdminInteractions } from "./verify-admin.mjs";
+import { verifyVoucher } from "./verify-voucher.mjs";
 import { destinations, regions, tourPackages, indiaJourneys, destinationPath, regionPath, packagePath, indiaPath, travelPageTitles } from "../src/Common/travelCatalog.js";
 
 const server = await createServer({
@@ -194,6 +195,7 @@ try {
   await verifyNavigation(server);
   await verifyEnquiryInteractions(server);
   await verifyAdminInteractions(server);
+  await verifyVoucher(server);
 } finally {
   await server.close();
 }

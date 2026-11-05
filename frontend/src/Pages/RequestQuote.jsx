@@ -4,6 +4,7 @@ import { Eyebrow, Icon } from "../Common/SiteUI";
 import { buildEnquiryUrl } from "../Common/enquiries";
 import { api } from "../Common/api";
 import QuoteVoice, { useQuoteVoice } from "../Common/QuoteVoice";
+import planTripImage from "../assets/Plan your trip/Plan your trip.png";
 export default function RequestQuote() {
   const [params] = useSearchParams();
   const [prepared, setPrepared] = useState(null);
@@ -79,13 +80,14 @@ export default function RequestQuote() {
         <a className="text-link" href="tel:+919319140846">
           <Icon name="phone" size={18} /> +91 93191 40846
         </a>
-        <div className="quote-photo">
+        <div className="quote-photo quote-plan-art">
           <img
-            src="/images/kerala.jpg"
-            alt="Palm trees along the quiet backwaters of Kerala"
-            loading="lazy"
+            src={planTripImage}
+            alt="Stay connected with your personal Eternal India trip planning team"
+            width="1792"
+            height="889"
           />
-          <span>Leave the details to us.</span>
+          <span>Your journey. Our personal care.</span>
         </div>
       </div>
       <form

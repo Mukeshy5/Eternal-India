@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import "./AdminDashboard.css";
 
@@ -94,6 +94,7 @@ function EnquiryDrawer({ entry, onClose, onUpdate, onDelete, updating, error }) 
 }
 
 export default function AdminDashboard({ admin, data, loaded, loading, busy, updating, error, searchInput, search, status, page, lastUpdated, selected, onSearchInput, onSearch, onStatusFilter, onSelectStatus, onClearFilters, onPage, onOpen, onClose, onUpdate, onDelete, onRefresh, onLogout, history, showHistory, onToggleHistory, onTool }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const viewButton = (entry) => <button className="dashboard-view dashboard-icon-button" type="button" aria-label={`View enquiry from ${entry.name}`} aria-haspopup="dialog" aria-controls="enquiry-details" onClick={() => onOpen(entry._id)}><DashboardIcon name="right" size={17} /></button>;
   const stats = data.stats;
   const count = (key) => loaded ? number(stats[key]) : "—";
@@ -101,7 +102,8 @@ export default function AdminDashboard({ admin, data, loaded, loading, busy, upd
     <aside className="dashboard-sidebar" aria-label="Admin workspace">
       <div className="dashboard-brand"><Link to="/" aria-label="Eternal India home"><img src="/logo.webp" alt="Eternal India" width="183" height="58" /></Link><div className="dashboard-mobile-actions"><Link to="/" className="dashboard-icon-button" aria-label="View website"><DashboardIcon name="globe" size={19} /></Link><button className="dashboard-icon-button" type="button" aria-label="Sign out" onClick={onLogout} disabled={busy}><DashboardIcon name="logout" size={18} /></button></div></div>
       <div className="dashboard-workspace-label"><span className="dashboard-workspace-dot" />ADMIN WORKSPACE</div>
-      <nav className="dashboard-status-navigation" aria-label="Enquiry filters"><span className="dashboard-nav-heading">ENQUIRIES</span>
+      <button className="dashboard-mobile-menu" type="button" aria-expanded={menuOpen} aria-controls="admin-workspace-navigation" onClick={() => setMenuOpen((value) => !value)}><span>Workspace menu <strong>{showHistory ? "History" : adminStatuses[status] || "All enquiries"}</strong></span><DashboardIcon name={menuOpen ? "close" : "down"} size={19} /></button>
+      <nav id="admin-workspace-navigation" className={`dashboard-status-navigation${menuOpen ? " dashboard-navigation-open" : ""}`} aria-label="Enquiry filters and tools" onClick={(event) => { if (event.target.closest("button")) { setMenuOpen(false); window.scrollTo({ top: 0, left: 0, behavior: "instant" }); } }}><span className="dashboard-nav-heading">ENQUIRIES</span>
         {[{ key: "", label: "All enquiries", icon: "inbox" }, ...Object.entries(adminStatuses).map(([key, label]) => ({ key, label, icon: { new: "spark", pending: "clock", confirmed: "check", contacted: "chat", cancelled: "cancel", closed: "archive" }[key] }))].map((item) => <button key={item.key} type="button" aria-current={!showHistory && status === item.key ? "true" : undefined} onClick={() => { if (showHistory) onToggleHistory(); onSelectStatus(item.key); }}><DashboardIcon name={item.icon} size={18} /><span>{item.label}</span><span className="dashboard-nav-count">{count(item.key || "total")}</span></button>)}
         <button type="button" aria-current={showHistory ? "true" : undefined} onClick={() => { if (!showHistory) onToggleHistory(); }}><DashboardIcon name="clock" size={18} /><span>History</span></button>
         <span className="dashboard-nav-heading dashboard-tools-heading">TOOLS</span>

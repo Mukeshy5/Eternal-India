@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { Routes, Route, Navigate, useLocation, Link } from "react-router-dom";
 import Navbar from "./Comopents/Navbar";
 import Footer from "./Comopents/Footer";
@@ -28,24 +28,31 @@ const titles = {
   "/admin/login": "Admin login",
 };
 export default function App() {
-  const { pathname, hash } = useLocation();
+  const { pathname, hash, search, key } = useLocation();
   const isAdmin = /^\/admin(?:\/|$)/.test(pathname);
   useEffect(() => {
     document.title = `${titles[pathname] || "Page not found"} | Eternal India`;
+  }, [pathname]);
+  useLayoutEffect(() => {
     if (hash) document.getElementById(hash.slice(1))?.scrollIntoView();
     else {
-      window.scrollTo(0, 0);
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
       document.getElementById("main-content")?.focus({ preventScroll: true });
     }
-  }, [pathname, hash]);
+  }, [pathname, search, hash, key]);
+  useEffect(() => {
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    return () => { window.history.scrollRestoration = previous; };
+  }, []);
   useEffect(() => {
     const scrollToTopBeforeNavigation = (event) => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const link = event.target.closest("a");
+      const link = event.target.closest?.("a");
       if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
       const destination = new URL(link.href, window.location.href);
       if (destination.origin !== window.location.origin || destination.hash) return;
-      window.scrollTo(0, 0);
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     };
     document.addEventListener("click", scrollToTopBeforeNavigation, true);
     return () => document.removeEventListener("click", scrollToTopBeforeNavigation, true);

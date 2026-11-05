@@ -76,6 +76,8 @@ export async function verifyEnquiryInteractions(server) {
     assert.equal(submit.disabled, false);
 
     mode = "success";
+    // A successful submission resets required fields for the next enquiry.
+    for (const [name, value] of Object.entries({ name: "Next Guest", email: "next@example.com", destination: "Kerala", travellers: "2" })) form.elements.namedItem(name).value = value;
     await act(async () => { language.value = "en"; language.dispatchEvent(new testWindow.Event("change", { bubbles: true })); });
     await act(async () => send());
     assert.equal(requests.at(-1).voiceLanguage, "en");

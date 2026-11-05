@@ -89,6 +89,25 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       assert.equal(await db.collection("enquiries").findOne({ reference }), null);
       assert.ok((await (await request("/admin/history")).json()).history.some((item) => item.action === "deleted"));
     });
+    await t.test("saves voucher addresses and distances with a hotel snapshot", async () => {
+      const hotelReply = await request("/admin/hotels", { method: "POST", body: { name: "Voucher Test Stay", starRating: "4-Star (Upscale / Deluxe)", gst: 12, amount: 5000 } });
+      assert.equal(hotelReply.status, 201);
+      const { hotel } = await hotelReply.json();
+      const body = { billing: { name: "Voucher Guest", visitingCardNo: "TEST-123" }, journey: { from: "Delhi", fromAddress: "Terminal 3, Delhi Airport" }, stops: [{ name: "Jaipur", address: "Test Stay, Jaipur", distanceKm: 280.5, duration: "2 nights", arrivalDate: "2026-12-01", departureDate: "2026-12-03", hotelId: hotel._id }], message: "A wonderful journey ahead." };
+      assert.equal((await request("/admin/vouchers", { method: "POST", body, sessionCookie: "" })).status, 401);
+      const reply = await request("/admin/vouchers", { method: "POST", body });
+      assert.equal(reply.status, 201);
+      const { voucher } = await reply.json();
+      assert.equal(voucher.journey.fromAddress, body.journey.fromAddress);
+      assert.equal(voucher.stops[0].address, body.stops[0].address);
+      assert.equal(voucher.stops[0].distanceKm, 280.5);
+      assert.equal(voucher.stops[0].hotel.name, hotel.name);
+      const { vouchers } = await (await request("/admin/vouchers")).json();
+      assert.equal(vouchers[0].stops[0].distanceKm, 280.5, "saved distances survive retrieval");
+      for (const distanceKm of [-1, "bad", 100001, true]) assert.equal((await request("/admin/vouchers", { method: "POST", body: { ...body, stops: [{ ...body.stops[0], distanceKm }] } })).status, 400);
+      assert.equal((await request("/admin/vouchers", { method: "POST", body: { ...body, stops: Array(21).fill(body.stops[0]) } })).status, 400);
+      assert.equal((await request("/admin/vouchers", { method: "POST", body: { ...body, stops: [{ ...body.stops[0], departureDate: "2026-11-30" }] } })).status, 400);
+    });
     await t.test("rotates login sessions and invalidates them on logout", async () => {
       const oldCookie = cookie;
       const login = await request("/admin/login", { method: "POST", body: { email: config.adminEmail, password: config.adminPassword } });

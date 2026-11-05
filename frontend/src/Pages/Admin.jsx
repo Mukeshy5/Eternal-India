@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../Common/api";
 import { Icon } from "../Common/SiteUI";
@@ -32,6 +32,10 @@ export default function Admin() {
   const [activeTool, setActiveTool] = useState("");
   const intentionalLogout = useRef(false);
   const selected = data.enquiries.find((entry) => entry._id === selectedId);
+
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [activeTool, page, showHistory, status]);
 
   function clearAdminState() {
     setAdmin(null); setData(emptyData); setSelectedId(""); setPage(1); setSearch(""); setSearchInput(""); setStatus(""); setHistory([]); setShowHistory(false); setActiveTool("");
@@ -177,7 +181,7 @@ export default function Admin() {
         <button className="button" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}<Icon size={18} /></button>
         <span className="admin-login-note">For Eternal India administrators.</span>
       </form>
-    </div> : activeTool ? <AdminTools tool={activeTool} onBack={() => setActiveTool("")} onError={setError} /> : <AdminDashboard
+    </div> : activeTool ? <AdminTools tool={activeTool} onBack={() => { setActiveTool(""); setError(""); }} onError={setError} error={error} /> : <AdminDashboard
       admin={admin} data={data} loaded={loaded} loading={loading} busy={busy}
       updating={updating} error={error} searchInput={searchInput} search={search}
       status={status} page={page} lastUpdated={lastUpdated} selected={selected}
@@ -188,7 +192,7 @@ export default function Admin() {
       onPage={(value) => { setPage(value); setSelectedId(""); }}
       onOpen={setSelectedId} onClose={() => setSelectedId("")}
       onUpdate={updateStatus} onDelete={deleteEnquiry} onRefresh={() => setRefresh((value) => value + 1)} onLogout={logout}
-      history={history} showHistory={showHistory} onToggleHistory={() => setShowHistory((value) => !value)} onTool={setActiveTool}
+      history={history} showHistory={showHistory} onToggleHistory={() => setShowHistory((value) => !value)} onTool={(tool) => { setError(""); setActiveTool(tool); }}
     />}
     <footer className="admin-footer">Eternal India · Thoughtfully planned. Personally yours.</footer>
   </div>;

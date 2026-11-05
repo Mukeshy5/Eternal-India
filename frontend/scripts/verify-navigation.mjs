@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { act, createElement } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { Window } from "happy-dom";
 import { destinations, tourPackages, indiaJourneys, indiaPath } from "../src/Common/travelCatalog.js";
 
@@ -104,6 +104,26 @@ export async function verifyNavigation(server) {
     assert.equal(indiaPanel.hidden, true);
     assert.equal(testWindow.document.activeElement, indiaMenu);
     console.log("PASS all three menus: hover, click/tap, click-after-hover, outside click, keyboard focus, Escape, and mobile selection");
+    const { default: App } = await server.ssrLoadModule("/src/App.jsx");
+    let navigate;
+    function Driver() { navigate = useNavigate(); return createElement(App); }
+    const scrolls = [];
+    testWindow.scrollTo = (...args) => scrolls.push(args);
+    await act(async () => root.render(createElement(MemoryRouter, { key: "scroll-test", initialEntries: ["/about"] }, createElement(Driver))));
+    const expectTop = async (destination) => {
+      const before = scrolls.length;
+      await act(async () => navigate(destination));
+      assert.ok(scrolls.length > before, `scroll resets for ${destination}`);
+      assert.deepEqual(scrolls.at(-1), [{ top: 0, left: 0, behavior: "instant" }]);
+    };
+    await expectTop("/contact");
+    await expectTop("/contact?office=varanasi");
+    await expectTop("/contact?office=varanasi");
+    await expectTop(-1);
+    const beforeSameLink = scrolls.length;
+    await act(async () => container.querySelector('a[href="/contact"]').click());
+    assert.ok(scrolls.length > beforeSameLink, "same-page links reset scroll");
+    console.log("PASS page-top reset for new routes, query changes, same-route navigation and browser history");
   } finally {
     await act(async () => root.unmount());
     testWindow.close();
