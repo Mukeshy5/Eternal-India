@@ -178,8 +178,17 @@ export function createApp({ client, db, config }) {
       duration: typeof stop?.duration === "string" ? stop.duration.trim().slice(0, 80) : "",
       departureDate: typeof stop?.departureDate === "string" ? stop.departureDate.slice(0, 10) : "",
       arrivalDate: typeof stop?.arrivalDate === "string" ? stop.arrivalDate.slice(0, 10) : "",
+      hotelId: typeof stop?.hotelId === "string" ? stop.hotelId : "",
     })).filter((stop) => stop.name);
-    if (!name || !visitingCardNo || !from || !cleanStops.length || cleanStops.some((stop) => !stop.duration || !stop.departureDate || !stop.arrivalDate)) return res.status(400).json({ message: "Complete billing details and at least one journey stop." });
+    if (!name || !visitingCardNo || !from || !cleanStops.length || cleanStops.some((stop) => !stop.duration || !stop.departureDate || !stop.arrivalDate || !/^[a-f\d]{24}$/i.test(stop.hotelId))) return res.status(400).json({ message: "Complete billing details, journey stops and hotels for every stop." });
+    const hotelIds = cleanStops.map((stop) => new ObjectId(stop.hotelId));
+    const hotels = await db.collection("hotels").find({ _id: { $in: hotelIds } }, { projection: { name: 1, starRating: 1, availableRooms: 1, gst: 1, amount: 1 } }).toArray();
+    const hotelsById = new Map(hotels.map((hotel) => [hotel._id.toString(), hotel]));
+    for (const stop of cleanStops) {
+      const hotel = hotelsById.get(stop.hotelId);
+      if (!hotel) return res.status(400).json({ message: "Select a valid saved hotel for every stop." });
+      stop.hotel = { name: hotel.name, starRating: hotel.starRating, availableRooms: hotel.availableRooms, gst: hotel.gst, amount: hotel.amount };
+    }
     const now = new Date();
     const voucher = { voucherNumber: `EIV-${now.getFullYear()}-${randomBytes(4).toString("hex").toUpperCase()}`, billing: { name, visitingCardNo }, journey: { from }, stops: cleanStops, message: message || "May every mile bring you closer to a beautiful memory." , createdAt: now };
     const result = await db.collection("journey_vouchers").insertOne(voucher);

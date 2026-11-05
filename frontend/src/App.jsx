@@ -38,6 +38,18 @@ export default function App() {
       document.getElementById("main-content")?.focus({ preventScroll: true });
     }
   }, [pathname, hash]);
+  useEffect(() => {
+    const scrollToTopBeforeNavigation = (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target.closest("a");
+      if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
+      const destination = new URL(link.href, window.location.href);
+      if (destination.origin !== window.location.origin || destination.hash) return;
+      window.scrollTo(0, 0);
+    };
+    document.addEventListener("click", scrollToTopBeforeNavigation, true);
+    return () => document.removeEventListener("click", scrollToTopBeforeNavigation, true);
+  }, []);
   return (
     <>
       <a className="skip-link" href="#main-content">
