@@ -600,15 +600,33 @@ main:focus {
 }
 .home-hero {
   overflow: hidden;
+  position: relative;
+  min-height: 620px;
 }
 .home-hero-inner {
-  display: grid;
-  grid-template-columns: 1.08fr 1fr;
-  align-items: stretch;
-  gap: 65px;
+  min-height: 620px;
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 .home-hero-copy {
-  padding-block: 66px 51px;
+  position: relative;
+  z-index: 2;
+  width: min(560px, 100%);
+  padding: 48px;
+  color: white;
+}
+.home-hero-copy .eyebrow,
+.home-hero-copy > p:not(.eyebrow),
+.home-hero-copy .text-link,
+.home-hero-copy .hero-reassurance {
+  color: white;
+}
+.home-hero-copy h1 {
+  color: white;
+}
+.home-hero-copy h1 em {
+  color: #f4d7b1;
 }
 .home-hero-copy h1 {
   font-size: clamp(2.125rem, 1.45rem + 3.4vw, 4.4375rem);
@@ -635,13 +653,16 @@ main:focus {
 }
 .home-hero-photo {
   position: relative;
-  margin-right: calc((min(1200px, 100vw - 96px) - 100vw) / 2);
+  position: absolute;
+  inset: 0 calc((min(1200px, 100vw - 96px) - 100vw) / 2);
+  z-index: 0;
 }
 .home-hero-photo:after {
   content: "";
   position: absolute;
-  inset: 40% 0 0;
-  background: linear-gradient(transparent, #14291f99);
+  inset: 0;
+  background: linear-gradient(90deg, #14291f66 0%, transparent 65%),
+    linear-gradient(0deg, #14291f99, transparent 45%);
 }
 .home-hero-photo > img {
   width: 100%;
@@ -666,6 +687,25 @@ main:focus {
 .home-hero-photo .photo-caption {
   left: 30px;
   bottom: 28px;
+}
+.hero-slide-dots {
+  position: absolute;
+  right: 30px;
+  bottom: 28px;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+}
+.hero-slide-dots button {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 1px solid white;
+  border-radius: 50%;
+  background: transparent;
+}
+.hero-slide-dots button.active {
+  background: white;
 }
 .trust-strip {
   border-bottom: 1px solid var(--line);
@@ -1650,9 +1690,11 @@ main:focus {
   .home-hero-inner {
     grid-template-columns: 1fr;
     gap: 0;
+    min-height: 620px;
   }
   .home-hero-copy {
     padding-block: 38px 30px;
+    padding-inline: 30px;
   }
   .home-hero-copy h1 {
     font-size: clamp(2.125rem, 1.4rem + 3.9vw, 2.875rem);
@@ -1678,8 +1720,8 @@ main:focus {
     font-size: 0.6875rem;
   }
   .home-hero-photo {
-    height: 300px;
-    margin-inline: -20px;
+    height: auto;
+    margin-inline: 0;
   }
   .hero-photo-label {
     left: 23px;
@@ -1687,6 +1729,9 @@ main:focus {
   }
   .home-hero-photo .photo-caption {
     left: 23px;
+  }
+  .hero-slide-dots {
+    right: 23px;
   }
   .trust-strip > .container {
     gap: 18px 14px;
