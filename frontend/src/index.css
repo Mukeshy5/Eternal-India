@@ -1915,12 +1915,13 @@ main:focus {
     font-size: 9px;
   }
   .home-hero-inner {
-    grid-template-columns: 1fr;
-    gap: 0;
-    min-height: 620px;
+    display: block;
+    min-height: 0;
   }
   .home-hero-copy {
-    padding-block: 38px 30px;
+    width: 100%;
+    padding: 390px 30px 42px;
+    background: #243f35;
     padding-inline: 30px;
   }
   .home-hero-copy h1 {
@@ -1947,8 +1948,9 @@ main:focus {
     font-size: 0.6875rem;
   }
   .home-hero-photo {
-    height: auto;
+    height: 360px;
     margin-inline: 0;
+    inset: 0;
   }
   .hero-photo-label {
     right: 23px;
@@ -2001,10 +2003,10 @@ main:focus {
       width: calc(100% - 28px);
     }
     .home-hero-inner {
-      min-height: 590px;
+      min-height: 0;
     }
     .home-hero-copy {
-      padding-inline: 20px;
+      padding: 350px 20px 36px;
     }
     .hero-actions {
       align-items: flex-start;
