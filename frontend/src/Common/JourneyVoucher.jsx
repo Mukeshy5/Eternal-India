@@ -6,12 +6,24 @@ import voucherAsset from "../assets/Journey Voucher/Journey Voucher (2).png";
 import mapAsset from "../assets/Journey Voucher/Journey map.png";
 import VoucherPrintDocument from "./VoucherPrintDocument";
 
-const blankStop = { name: "", address: "", distanceKm: "", duration: "", departureDate: "", arrivalDate: "", hotelId: "" };
+const blankStop = { name: "", address: "", distanceKm: "", duration: "", departureDate: "", arrivalDate: "", hotelId: "", flightNumber: "", airportReceiveTime: "", airportExitTime: "", stopoverDetails: "", dayNight: "", checkpoint: "", checkpointTime: "", meals: [], foodNotes: "", datePlans: {} };
 const dateLabel = (value) => value ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }).format(new Date(`${value.slice(0, 10)}T12:00:00+05:30`)) : "Dates to be confirmed";
+function dateRange(start, end) {
+  if (!start || !end || end < start) return [];
+  const dates = [];
+  const current = new Date(`${start}T12:00:00Z`);
+  const last = new Date(`${end}T12:00:00Z`);
+  while (current <= last && dates.length < 31) {
+    dates.push(current.toISOString().slice(0, 10));
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+  return dates;
+}
+const hasDatePlan = (stop) => Object.values(stop.datePlans || {}).some((plan) => Object.values(plan).some(Boolean));
+const hasJourneySchedule = (stop) => stop.meals?.length || stop.foodNotes || stop.stopoverDetails || stop.dayNight || stop.checkpoint || stop.checkpointTime || stop.flightNumber || stop.airportReceiveTime || stop.airportExitTime || hasDatePlan(stop);
 function Field({ label, children, wide = false }) {
   return <label className={`admin-tool-field${wide ? " admin-tool-field-wide" : ""}`}><span>{label}</span>{children}</label>;
 }
-
 export default function JourneyVoucher({ apiBase = "/admin", technical = false, onBack, onError, error }) {
   const [billing, setBilling] = useState({ name: "", visitingCardNo: "" });
   const [journey, setJourney] = useState({ from: "", fromAddress: "" });
@@ -37,6 +49,14 @@ export default function JourneyVoucher({ apiBase = "/admin", technical = false, 
   function updateStop(index, key, value) {
     changed();
     setStops((current) => current.map((stop, position) => position === index ? { ...stop, [key]: value } : stop));
+  }
+  function updateDatePlan(index, date, key, value) {
+    changed();
+    setStops((current) => current.map((stop, position) => position === index ? { ...stop, datePlans: { ...stop.datePlans, [date]: { ...(stop.datePlans?.[date] || {}), [key]: value } } } : stop));
+  }
+  function toggleMeal(index, meal) {
+    const stop = stops[index];
+    updateStop(index, "meals", stop.meals.includes(meal) ? stop.meals.filter((item) => item !== meal) : [...stop.meals, meal]);
   }
   async function save(event) {
     event.preventDefault();
@@ -84,6 +104,19 @@ export default function JourneyVoucher({ apiBase = "/admin", technical = false, 
               <Field label="Stay / saved hotel *"><select name={`stop-${index}-hotel`} required value={stop.hotelId} onChange={(event) => updateStop(index, "hotelId", event.target.value)}><option value="">Select hotel</option>{hotels.map((hotel) => <option key={hotel._id} value={hotel._id}>{hotel.name} · {hotel.starRating}</option>)}</select></Field>
             </div>
             {stop.hotelId && (() => { const hotel = hotels.find((item) => item._id === stop.hotelId); return hotel ? <div className="admin-stop-hotel-details"><strong>{hotel.name}</strong><span>{hotel.starRating}</span><span>GST {hotel.gst}% · ₹{Number(hotel.amount).toLocaleString("en-IN")}</span></div> : null; })()}
+            <div className="voucher-optional-heading"><strong>Optional travel details</strong><span>Leave blank when not applicable.</span></div>
+            <div className="admin-tool-grid">
+              <Field label="Flight number (optional)"><input name={`stop-${index}-flight`} maxLength={30} placeholder="e.g. AI 101" value={stop.flightNumber} onChange={(event) => updateStop(index, "flightNumber", event.target.value)} /></Field>
+              <Field label="Airport receive time (optional)"><input name={`stop-${index}-receive-time`} type="time" value={stop.airportReceiveTime} onChange={(event) => updateStop(index, "airportReceiveTime", event.target.value)} /></Field>
+              <Field label="Airport exit time (optional)"><input name={`stop-${index}-exit-time`} type="time" value={stop.airportExitTime} onChange={(event) => updateStop(index, "airportExitTime", event.target.value)} /></Field>
+              <Field label="Day / night (optional)"><select value={stop.dayNight} onChange={(event) => updateStop(index, "dayNight", event.target.value)}><option value="">Select</option><option value="day">Day</option><option value="night">Night</option></select></Field>
+              <Field label="Checkpoint (optional)"><input maxLength={120} placeholder="e.g. Hotel check-in" value={stop.checkpoint} onChange={(event) => updateStop(index, "checkpoint", event.target.value)} /></Field>
+              <Field label="Checkpoint time (optional)"><select value={stop.checkpointTime} onChange={(event) => updateStop(index, "checkpointTime", event.target.value)}><option value="">Select time slot</option><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="evening">Evening</option></select></Field>
+              <Field label="Date & stopover details" wide><textarea maxLength={500} placeholder="Airport, transfer or stopover instructions" value={stop.stopoverDetails} onChange={(event) => updateStop(index, "stopoverDetails", event.target.value)} /></Field>
+            </div>
+            <div className="voucher-meal-options"><span>Optional hotel meal checkpoints</span>{["breakfast", "lunch", "eveningSnacks", "dinner"].map((meal) => <label key={meal}><input type="checkbox" checked={stop.meals.includes(meal)} onChange={() => toggleMeal(index, meal)} />{meal === "eveningSnacks" ? "Evening Snacks" : meal[0].toUpperCase() + meal.slice(1)}</label>)}</div>
+            <Field label="Food notes / special requirements"><textarea maxLength={500} placeholder="Optional food details" value={stop.foodNotes} onChange={(event) => updateStop(index, "foodNotes", event.target.value)} /></Field>
+            {dateRange(stop.arrivalDate, stop.departureDate).length > 0 && <div className="voucher-date-plans"><div className="voucher-optional-heading"><strong>Date-wise activities & food</strong><span>All time slots are optional.</span></div>{dateRange(stop.arrivalDate, stop.departureDate).map((date) => { const plan = stop.datePlans?.[date] || {}; return <section className="voucher-date-plan" key={date}><h3>{dateLabel(date)}</h3><div className="admin-tool-grid"><Field label="Morning activity"><input value={plan.morningActivity || ""} onChange={(event) => updateDatePlan(index, date, "morningActivity", event.target.value)} placeholder="Activity / checkpoint" /></Field><Field label="Morning food"><input value={plan.morningFood || ""} onChange={(event) => updateDatePlan(index, date, "morningFood", event.target.value)} placeholder="Breakfast" /></Field><Field label="Afternoon activity"><input value={plan.afternoonActivity || ""} onChange={(event) => updateDatePlan(index, date, "afternoonActivity", event.target.value)} placeholder="Activity / checkpoint" /></Field><Field label="Afternoon food"><input value={plan.afternoonFood || ""} onChange={(event) => updateDatePlan(index, date, "afternoonFood", event.target.value)} placeholder="Lunch" /></Field><Field label="Evening activity"><input value={plan.eveningActivity || ""} onChange={(event) => updateDatePlan(index, date, "eveningActivity", event.target.value)} placeholder="Activity / checkpoint" /></Field><Field label="Evening food"><input value={plan.eveningFood || ""} onChange={(event) => updateDatePlan(index, date, "eveningFood", event.target.value)} placeholder="Snacks" /></Field><Field label="Night food"><input value={plan.nightFood || ""} onChange={(event) => updateDatePlan(index, date, "nightFood", event.target.value)} placeholder="Dinner" /></Field></div></section>; })}</div>}
           </section>)}</div>
           <div className="voucher-add-stop"><button type="button" className="dashboard-button" disabled={stops.length >= 20} onClick={() => { changed(); const key = nextKey.current++; setStops((current) => [...current, { ...blankStop, key }]); }}>+ Add another stop</button><span>{stops.length} / 20 stops</span></div>
           <p className="voucher-distance-note">Distances are entered by you. Reordering or removing a stop clears leg distances so you can update the route.</p>
@@ -113,6 +146,7 @@ export function VoucherPreview({ voucher, saved = true }) {
       <div className="voucher-route-layout"><div className="voucher-map-column"><div className="voucher-map"><img src={mapAsset} alt="Winding road illustration with numbered journey stops" width="1151" height="1370" /><div className={`voucher-route${route.points.length > 5 ? " voucher-route-dense" : ""}`}>{route.points.map((point, index) => <button key={index} type="button" className={`voucher-map-pin${index === activePin ? " is-active" : ""}`} style={{ left: `${point.x}%`, top: `${point.y}%` }} aria-label={`${index === 0 ? "Start" : `Stop ${index}`}: ${point.name}${point.address ? `, ${point.address}` : ""}${point.cumulative != null ? `, ${formatKm(point.cumulative)} from start` : ""}`} aria-pressed={index === activePin} title={`${point.name}${point.address ? ` · ${point.address}` : ""}`} onClick={() => setActivePin(index)}><b>{index === 0 ? "S" : index}</b><span>{point.name.length > 18 ? `${point.name.slice(0, 17)}…` : point.name}</span></button>)}</div></div><div className="voucher-pin-detail" aria-live="polite"><small>{activePin ? `STOP ${activePin}` : "DEPARTURE"}{pin.cumulative != null && ` · ${formatKm(pin.cumulative)}`}</small><strong>{pin.name}</strong>{pin.address && <span>{pin.address}</span>}</div></div>
       <ol className="voucher-stops">{route.points.map((stop, index) => <li key={index}><span className="voucher-stop-number">{index === 0 ? "S" : String(index).padStart(2, "0")}</span><div><div className="voucher-stop-title"><button type="button" className="voucher-stop-select" aria-pressed={index === activePin} onClick={() => setActivePin(index)}>{stop.name}</button>{index > 0 && <span>{stop.distanceKm !== "" && stop.distanceKm != null ? `+${formatKm(Number(stop.distanceKm))}` : "km pending"}</span>}</div>{stop.address && <p className="voucher-stop-address">{stop.address}</p>}{index === 0 ? <small>Starting point · 0 km</small> : <><p className="voucher-stop-hotel">{stop.hotel?.name || "Stay to be selected"}</p>{stop.hotel?.starRating && <small>{stop.hotel.starRating}</small>}<small>{dateLabel(stop.arrivalDate)}{stop.departureDate && ` – ${dateLabel(stop.departureDate)}`}</small><span className="voucher-stop-duration">{stop.duration || "Duration to be confirmed"}{stop.cumulative != null && ` · ${formatKm(stop.cumulative)} from start`}</span></>}</div></li>)}</ol></div>
     </section>
+    {voucher.stops.some(hasJourneySchedule) && <section className="voucher-schedule" aria-label="Journey details and schedule"><span className="voucher-eyebrow">JOURNEY DETAILS & SCHEDULE</span><h3>Everything arranged for the road ahead.</h3>{voucher.stops.map((stop, index) => <section className="voucher-schedule-stop" key={index}><header><strong>{stop.name || `Stop ${index + 1}`}</strong>{stop.dayNight && <span>{stop.dayNight === "day" ? "Day" : "Night"}</span>}</header><div className="voucher-schedule-facts">{stop.flightNumber && <span><b>Flight</b>{stop.flightNumber}</span>}{stop.airportReceiveTime && <span><b>Receive</b>{stop.airportReceiveTime}</span>}{stop.airportExitTime && <span><b>Exit</b>{stop.airportExitTime}</span>}{stop.checkpoint && <span><b>Checkpoint</b>{stop.checkpoint}{stop.checkpointTime && ` · ${stop.checkpointTime}`}</span>}{stop.stopoverDetails && <span><b>Stopover</b>{stop.stopoverDetails}</span>}{stop.meals?.length > 0 && <span><b>Hotel meals</b>{stop.meals.map((meal) => meal === "eveningSnacks" ? "Evening Snacks" : meal[0].toUpperCase() + meal.slice(1)).join(" · ")}</span>}{stop.foodNotes && <span><b>Food notes</b>{stop.foodNotes}</span>}</div>{hasDatePlan(stop) && <div className="voucher-day-plans">{Object.entries(stop.datePlans).map(([date, plan]) => <div className="voucher-day-plan" key={date}><strong>{dateLabel(date)}</strong><div>{[["Morning", plan.morningActivity, plan.morningFood], ["Afternoon", plan.afternoonActivity, plan.afternoonFood], ["Evening", plan.eveningActivity, plan.eveningFood], ["Night", "", plan.nightFood]].filter(([, activity, food]) => activity || food).map(([slot, activity, food]) => <span key={slot}><b>{slot}</b>{[activity, food].filter(Boolean).join(" · ")}</span>)}</div></div>)}</div>}</section>)}</section>}
     <div className="voucher-message"><span>WITH OUR WARMEST WISHES</span><p>{voucher.message || "May every mile bring you closer to a beautiful memory."}</p></div>
     <footer><strong>Travel well. Return with stories worth telling.</strong><span>eternal-india.com · +91 93191 40846 · info@eternal-india.com</span></footer>
   </article>;

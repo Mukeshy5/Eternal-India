@@ -40,6 +40,15 @@
 .admin-stop-heading > div { display: flex; align-items: center; gap: 4px; }
 .admin-stop .admin-tool-field { margin: 0; }
 .admin-stop-hotel-details { display: flex; flex-wrap: wrap; gap: 6px 15px; margin-top: 14px; padding: 12px; border-left: 3px solid #d3ba81; border-radius: 3px; background: #fffdf8; color: #667468; font-size: 11px; }
+.voucher-optional-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 14px; border-top: 1px solid #e0e6d8; color: #405641; font-size: 12px; }
+.voucher-optional-heading span { color: #7d8a72; font-size: 10px; }
+.voucher-meal-options { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 14px; color: #667468; font-size: 11px; }
+.voucher-meal-options > span { flex-basis: 100%; color: #405641; font-weight: 700; }
+.voucher-meal-options label { display: inline-flex; align-items: center; gap: 6px; }
+.voucher-meal-options input { accent-color: #9a2c59; }
+.voucher-date-plans { margin-top: 16px; padding: 14px; border: 1px solid #dce4d6; border-radius: 7px; background: #fffdf8; }
+.voucher-date-plan { margin-top: 13px; padding-top: 13px; border-top: 1px solid #e9eedf; }
+.voucher-date-plan h3 { margin: 0 0 10px; color: #9a2c59; font-size: 12px; }
 .admin-stop-hotel-details strong { color: #405641; }
 .admin-stop-remove, .admin-stop-move { min-height: 36px; padding: 6px 9px; border: 0; border-radius: 5px; background: transparent; color: #9a2c59; cursor: pointer; font-size: 11px; }
 .admin-stop-remove:hover, .admin-stop-move:hover { background: #f7e9ee; }
@@ -102,6 +111,21 @@
 .voucher-stop-hotel { margin-bottom: 4px; color: #405641; font-size: 10px; font-weight: 600; line-height: 1.6; }
 .voucher-stops small { display: block; margin-top: 3px; color: #667468; font-size: 9px; line-height: 1.6; }
 .voucher-stop-duration { display: inline-block; margin-top: 6px; padding: 4px 6px; border-radius: 3px; background: #f1f3e9; color: #536456; font-size: 9px; line-height: 1.5; }
+.voucher-schedule { margin-top: 26px; padding-top: 18px; border-top: 1px solid #dce3d3; }
+.voucher-schedule > h3 { margin: 6px 0 14px; color: #273b32; font-family: Georgia, serif; font-size: 21px; font-weight: 400; letter-spacing: -.03em; }
+.voucher-schedule-stop { margin-top: 12px; padding: 14px; border: 1px solid #dfe5d9; border-radius: 7px; background: #f7f9f2; }
+.voucher-schedule-stop header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.voucher-schedule-stop header strong { color: #405641; font-size: 12px; }
+.voucher-schedule-stop header span { color: #9a2c59; font-size: 9px; text-transform: uppercase; }
+.voucher-schedule-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; margin-top: 10px; }
+.voucher-schedule-facts > span { color: #536456; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.voucher-schedule-facts b { display: block; margin-bottom: 2px; color: #667468; font-size: 8px; letter-spacing: .06em; text-transform: uppercase; }
+.voucher-day-plans { margin-top: 12px; }
+.voucher-day-plan { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 10px; padding-top: 9px; border-top: 1px solid #e4e9df; }
+.voucher-day-plan > strong { color: #9a2c59; font-size: 9px; }
+.voucher-day-plan > div { display: grid; gap: 4px; }
+.voucher-day-plan span { color: #536456; font-size: 9px; line-height: 1.5; }
+.voucher-day-plan b { display: inline-block; min-width: 62px; color: #667468; font-size: 8px; letter-spacing: .04em; text-transform: uppercase; }
 .voucher-message { margin-top: 24px; padding: 18px; border-left: 3px solid #bda468; border-radius: 0 8px 8px 0; background: #f6f0e2; }
 .voucher-message > span { font-size: 8px; color: #837044; letter-spacing: .12em; }
 .voucher-message p { margin-top: 9px; font-family: Georgia, serif; color: #5b5140; font-size: 15px; line-height: 1.7; white-space: pre-wrap; }
@@ -114,3 +138,4 @@
 .voucher-stop-select:hover, .voucher-stop-select[aria-pressed="true"] { color: #9a2c59; }
 .voucher-route-dense .voucher-map-pin:not(:first-child):not(:last-child):not(.is-active):not(:hover):not(:focus-visible) > span { display: none; }
 @media (max-width: 650px) { .voucher-stop-select { font-size: 14px; min-height: 30px; } }
+@media (max-width: 650px) { .voucher-schedule-facts { grid-template-columns: 1fr; } .voucher-day-plan { grid-template-columns: 1fr; gap: 4px; } }

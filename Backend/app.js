@@ -190,6 +190,16 @@ export function createApp({ client, db, config, schedulerOptions }) {
       departureDate: typeof stop?.departureDate === "string" ? stop.departureDate.slice(0, 10) : "",
       arrivalDate: typeof stop?.arrivalDate === "string" ? stop.arrivalDate.slice(0, 10) : "",
       hotelId: typeof stop?.hotelId === "string" ? stop.hotelId : "",
+      flightNumber: typeof stop?.flightNumber === "string" ? stop.flightNumber.trim().slice(0, 30) : "",
+      airportReceiveTime: typeof stop?.airportReceiveTime === "string" ? stop.airportReceiveTime.slice(0, 5) : "",
+      airportExitTime: typeof stop?.airportExitTime === "string" ? stop.airportExitTime.slice(0, 5) : "",
+      stopoverDetails: typeof stop?.stopoverDetails === "string" ? stop.stopoverDetails.trim().slice(0, 500) : "",
+      dayNight: ["day", "night"].includes(stop?.dayNight) ? stop.dayNight : "",
+      checkpoint: typeof stop?.checkpoint === "string" ? stop.checkpoint.trim().slice(0, 120) : "",
+      checkpointTime: ["morning", "afternoon", "evening"].includes(stop?.checkpointTime) ? stop.checkpointTime : "",
+      meals: Array.isArray(stop?.meals) ? stop.meals.filter((meal) => ["breakfast", "lunch", "eveningSnacks", "dinner"].includes(meal)).slice(0, 4) : [],
+      foodNotes: typeof stop?.foodNotes === "string" ? stop.foodNotes.trim().slice(0, 500) : "",
+      datePlans: stop?.datePlans && typeof stop.datePlans === "object" && !Array.isArray(stop.datePlans) ? Object.fromEntries(Object.entries(stop.datePlans).slice(0, 31).map(([date, plan]) => [date.slice(0, 10), Object.fromEntries(["morningActivity", "morningFood", "afternoonActivity", "afternoonFood", "eveningActivity", "eveningFood", "nightFood"].map((key) => [key, typeof plan?.[key] === "string" ? plan[key].trim().slice(0, 200) : ""]))])) : {},
     })).filter((stop) => stop.name);
     if (stops.length > 20 || cleanStops.some((stop) => stop.distanceKm !== null && (!Number.isFinite(stop.distanceKm) || stop.distanceKm < 0 || stop.distanceKm > 100000))) return res.status(400).json({ message: "Use up to 20 stops and a distance between 0 and 100,000 km for each leg." });
     const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
