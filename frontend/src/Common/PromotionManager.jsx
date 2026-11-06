@@ -10,10 +10,10 @@ import "./PromotionManager.css";
 
 const images = Object.fromEntries([...destinations, ...regions, ...tourPackages, ...indiaJourneys].map((item) => [item.promotionId, item.image]));
 for (const journey of journeyContent) images[`journey:${journey.slug}`] = journey.image;
-const blank = { amount: "", offerAmount: "", offerTitle: "", offerImage: "", offerEnabled: false };
+const blank = { amount: "", offerAmount: "", offerTitle: "", offerImage: "", offerType: "image", offerText: "", offerEnabled: false };
 const categories = [...new Set(promotionTargets.map((item) => item.category))];
 const editable = (saved) => ({ ...blank, ...saved, amount: saved?.amount ?? "", offerAmount: saved?.offerAmount ?? "" });
-const payload = (form) => ({ amount: form.amount === "" ? null : Number(form.amount), offerAmount: form.offerAmount === "" ? null : Number(form.offerAmount), offerEnabled: form.offerEnabled, offerTitle: form.offerTitle.trim(), offerImage: form.offerImage });
+const payload = (form) => ({ amount: form.amount === "" ? null : Number(form.amount), offerAmount: form.offerAmount === "" ? null : Number(form.offerAmount), offerEnabled: form.offerEnabled, offerTitle: form.offerTitle.trim(), offerImage: form.offerImage, offerType: form.offerType, offerText: form.offerText.trim() });
 
 export default function PromotionManager({ apiBase = "/technical", onBack, onUnauthorized }) {
   const [promotions, setPromotions] = useState({});
@@ -122,7 +122,7 @@ export default function PromotionManager({ apiBase = "/technical", onBack, onUna
       </section>
       <section className="admin-tool-card promotion-editor" aria-labelledby="promotion-editor-heading">
         <div className="promotion-editor-heading"><div><span className="dashboard-section-label">{target.category}</span><h2 id="promotion-editor-heading">{target.title}</h2></div><Link to={target.path} target="_blank" rel="noopener noreferrer">View on website ↗</Link></div>
-        <div className="promotion-preview" aria-label="Card preview"><img className="promotion-preview-photo" src={images[selectedId]} alt={target.title} /><PromotionDisplay promotion={payload(form)} overlay /><span className="promotion-preview-caption">{target.title} · Preview</span></div>
+        <div className="promotion-preview" aria-label="Card preview"><img className="promotion-preview-photo" src={images[selectedId]} alt={target.title} /><PromotionDisplay promotion={payload(form)} overlay placement="bottom" /><span className="promotion-preview-caption">{target.title} · Preview</span></div>
         <form className="promotion-form" onSubmit={save}>
           <fieldset disabled={locked}>
             <label className="admin-tool-field"><span>Package amount (INR)</span><input name="amount" type="number" min="0" max="100000000" step="0.01" inputMode="decimal" placeholder="e.g. 25000" value={form.amount} onChange={(event) => change("amount", event.target.value)} /><small>Leave blank to hide the amount.</small></label>
@@ -131,8 +131,8 @@ export default function PromotionManager({ apiBase = "/technical", onBack, onUna
               <label className="admin-tool-field"><span>Offer title</span><input name="offerTitle" maxLength={80} required={form.offerEnabled} value={form.offerTitle} onChange={(event) => change("offerTitle", event.target.value)} placeholder="e.g. Winter special — save 20%" /></label>
               <label className="admin-tool-field"><span>Offer amount (INR, optional)</span><input name="offerAmount" type="number" min="0" max={form.amount === "" ? "100000000" : Math.max(0, Number(form.amount) - 0.01)} step="0.01" inputMode="decimal" value={form.offerAmount} onChange={(event) => change("offerAmount", event.target.value)} placeholder="e.g. 20000" /></label>
             </div>
-            <label className="admin-tool-field"><span>Offer mini image</span><input ref={uploadInput} name="offerImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={upload} /><small>JPG, PNG, WebP or GIF · up to 2 MB. Save after uploading.</small></label>
-            {form.offerImage && <div className="promotion-image-selection"><img src={form.offerImage} alt="Selected offer mini image" width="58" height="58" /><button type="button" className="dashboard-button" onClick={() => change("offerImage", "")}>Remove mini image</button></div>}
+            <label className="admin-tool-field"><span>Offer mini format</span><select value={form.offerType} onChange={(event) => change("offerType", event.target.value)}><option value="image">Mini image</option><option value="text">Text badge</option></select></label>
+            {form.offerType === "text" ? <label className="admin-tool-field"><span>Offer mini text</span><input name="offerText" maxLength={120} required={form.offerEnabled} value={form.offerText} onChange={(event) => change("offerText", event.target.value)} placeholder="e.g. SAVE 20%" /><small>This text appears in the small offer badge.</small></label> : <><label className="admin-tool-field"><span>Offer mini image</span><input ref={uploadInput} name="offerImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={upload} /><small>JPG, PNG, WebP or GIF · up to 2 MB. Save after uploading.</small></label>{form.offerImage && <div className="promotion-image-selection"><img src={form.offerImage} alt="Selected offer mini image" width="58" height="58" /><button type="button" className="dashboard-button" onClick={() => change("offerImage", "")}>Remove mini image</button></div>}</>}
             <div className="admin-tool-actions"><button type="submit" className="dashboard-button dashboard-button-primary" disabled={locked}>{busy ? "Saving…" : uploading ? "Uploading image…" : "Save changes"}</button><button type="button" className="dashboard-button" disabled={locked || !promotions[selectedId]} onClick={reset}>Remove amount & offer</button></div>
           </fieldset>
           <p className="promotion-save-hint">{dirty ? "Unsaved changes" : "All changes saved"} · Public pages refresh offers within 30 seconds or when reopened.</p>

@@ -1,15 +1,19 @@
 .promotion-display { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; max-width: 100%; margin-block: 15px; color: #273b32; font-family: Arial, Helvetica, sans-serif; text-align: left; }
+.promotion-card-footer { display: flex; align-items: flex-end; width: 100%; min-height: 112px; margin-top: auto; padding-top: 24px; }
+.promotion-card-footer .promotion-display { width: 100%; margin: 0; }
 .promotion-offer { display: flex; align-items: center; gap: 9px; max-width: 100%; padding: 7px 11px; border: 1px solid #ead4a3; border-radius: 6px; background: #fff5d9; color: #704819; font-size: 12px; line-height: 1.5; }
 .promotion-offer strong { overflow-wrap: anywhere; }
 .promotion-display img.promotion-mini-image { flex-shrink: 0; width: 42px; height: 42px; object-fit: contain; border-radius: 4px; background: #fff; transform: none; }
+.promotion-mini-text { display: grid; place-items: center; flex-shrink: 0; width: 42px; min-height: 42px; padding: 3px; border-radius: 4px; background: #f0d98f; color: #704819; font-size: 10px; font-weight: 700; line-height: 1.1; text-align: center; overflow-wrap: anywhere; }
 .promotion-price { display: flex; flex-direction: column; gap: 3px; padding: 9px 12px; border: 1px solid #dce4d6; border-radius: 6px; background: #fffdf8f5; line-height: 1.4; }
 .promotion-price-label { font-size: 10px; color: #536456; }
 .promotion-price > span:last-child { display: flex; align-items: baseline; flex-wrap: wrap; gap: 9px; }
 .promotion-price strong { color: #273b32; font-size: 19px; }
 .promotion-price del { color: #72786d; font-size: 12px; }
-.promotion-overlay { position: absolute; inset: 12px 12px auto; z-index: 2; margin: 0; pointer-events: none; }
+.promotion-overlay { position: absolute; inset: auto 12px 12px; z-index: 2; margin: 0; pointer-events: none; }
 .promotion-overlay.promotion-bottom { inset: auto 12px 12px; }
 .journey-image, .region-image, .editorial-photo, .travel-gallery figure { position: relative; }
 .travel-card:hover .promotion-display img.promotion-mini-image { transform: none; }
-.travel-gallery .promotion-overlay { inset: 12px 12px auto; }
-@media (max-width: 550px) { .promotion-overlay { inset: 10px 10px auto; } .promotion-offer { font-size: 11px; } .promotion-price strong { font-size: 17px; } }
+.travel-hero-art .promotion-overlay { bottom: 72px; }
+.travel-gallery .promotion-overlay { inset: auto 12px 48px; }
+@media (max-width: 550px) { .promotion-overlay { inset: auto 10px 10px; } .promotion-offer { font-size: 11px; } .promotion-price strong { font-size: 17px; } }

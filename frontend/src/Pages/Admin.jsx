@@ -106,8 +106,10 @@ export default function Admin({ technical = false }) {
 
   useEffect(() => {
     if (!admin || !loaded) return undefined;
-    const timer = window.setInterval(() => setRefresh((value) => value + 1), 5000);
-    return () => window.clearInterval(timer);
+    const timer = window.setInterval(() => { if (!document.hidden) setRefresh((value) => value + 1); }, 30000);
+    const refreshOnFocus = () => setRefresh((value) => value + 1);
+    window.addEventListener("focus", refreshOnFocus);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", refreshOnFocus); };
   }, [admin, loaded]);
 
   useEffect(() => {

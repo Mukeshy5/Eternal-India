@@ -25,7 +25,7 @@ export default function Journeys() {
           <article key={journey.title}>
             <div className="editorial-photo">
               <img src={journey.image} alt={journey.alt} loading="lazy" />
-              <PromotionDisplay targetId={`journey:${journey.slug}`} overlay />
+              <PromotionDisplay targetId={`journey:${journey.slug}`} overlay placement="bottom" />
             </div>
             <div className="editorial-copy">
               <span className="small-label">

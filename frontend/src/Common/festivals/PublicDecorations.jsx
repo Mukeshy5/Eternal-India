@@ -14,6 +14,7 @@ export default function PublicDecorations({ enabled = true }) {
   const [playingFor, setPlayingFor] = useState("");
   const [musicError, setMusicError] = useState("");
   const audio = useRef(null);
+  const lastRefresh = useRef(0);
   const decoration = state.enabled ? state.decorations[0] : null;
   const eligible = enabled && decoration && (decoration.displayPosition !== "homepage" || pathname === "/");
   const hidden = eligible && hiddenFor === decoration.id;
@@ -24,6 +25,8 @@ export default function PublicDecorations({ enabled = true }) {
     const controller = new AbortController();
     const receive = (result) => { if (!controller.signal.aborted) setState(result); };
     const refresh = async () => {
+      if (Date.now() - lastRefresh.current < 10000) return;
+      lastRefresh.current = Date.now();
       try { receive(await api("/public/festival-decorations/active", { signal: controller.signal })); }
       catch { if (!controller.signal.aborted) setState(empty); }
     };
@@ -34,7 +37,7 @@ export default function PublicDecorations({ enabled = true }) {
       source.onmessage = (event) => { try { receive(JSON.parse(event.data)); } catch { /* Ignore incomplete stream packets; the next refresh reconciles state. */ } };
       source.onerror = () => { void refresh(); };
     }
-    const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 15000);
+    const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 60000);
     window.addEventListener("focus", refresh);
     return () => { controller.abort(); source?.close(); window.clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, [enabled]);

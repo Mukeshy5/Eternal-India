@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import session from "express-session";
 import MongoStore from "connect-mongo";
 import helmet from "helmet";
@@ -16,6 +17,7 @@ import { technicalAccess } from "./festivals/permissions.js";
 export function createApp({ client, db, config, schedulerOptions }) {
   const app = express();
   app.disable("x-powered-by");
+  app.use(compression());
   app.use(helmet({ strictTransportSecurity: config.production ? undefined : false, contentSecurityPolicy: { directives: { mediaSrc: ["'self'", "https:"] } } }));
   app.use("/api", (req, res, next) => {
     res.set("Cache-Control", "no-store");
@@ -234,7 +236,13 @@ export function createApp({ client, db, config, schedulerOptions }) {
 
   const frontend = fileURLToPath(new URL("../frontend/dist/", import.meta.url));
   if (existsSync(`${frontend}/index.html`)) {
-    app.use(express.static(frontend));
+    app.use(express.static(frontend, {
+      setHeaders: (res, filePath) => {
+        if (/[\\/]assets[\\/]/i.test(filePath)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      },
+    }));
     app.get("/{*path}", (_req, res) => res.sendFile(`${frontend}/index.html`));
   }
   app.use((error, _req, res, _next) => {

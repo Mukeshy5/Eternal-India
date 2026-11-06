@@ -14,7 +14,7 @@
 .promotion-editor-heading > a { color: #9a2c59; font-size: 12px; }
 .promotion-preview { position: relative; overflow: hidden; height: 290px; border-radius: 9px; background: #edf2e6; }
 .promotion-preview-photo { display: block; width: 100%; height: 100%; object-fit: cover; }
-.promotion-preview-caption { position: absolute; bottom: 12px; left: 12px; right: 12px; width: fit-content; max-width: calc(100% - 24px); padding: 9px 12px; border-radius: 4px; background: #fffdf8f2; color: #273b32; font-size: 12px; overflow-wrap: anywhere; }
+.promotion-preview-caption { position: absolute; top: 12px; left: 12px; right: 12px; width: fit-content; max-width: calc(100% - 24px); padding: 9px 12px; border-radius: 4px; background: #fffdf8f2; color: #273b32; font-size: 12px; overflow-wrap: anywhere; }
 .promotion-form { margin-top: 25px; }
 .promotion-form fieldset { min-width: 0; padding: 0; border: 0; }
 .promotion-form .admin-tool-field small { color: #667468; font-size: 11px; }

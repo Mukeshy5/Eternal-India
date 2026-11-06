@@ -41,7 +41,7 @@ Recordings are in `frontend/src/assets/Plan your trip page Voice/`. Only the lan
 
 Open `/technical/login` with the existing administrator account. This panel includes all admin features: enquiry search, filters, pagination, details, status changes, deletion, activity history, hotel inventory, and journey vouchers with print/PDF. The admin workspace links to the technical panel.
 
-Choose **Tour amounts & offers** under Tools. All 35 entries are available: 4 tour packages, 17 places, 6 India/beyond journeys, 5 regions and 3 featured journeys. Select an entry, enter its INR package amount, optionally enable an offer, add its title and discounted amount, and upload a mini image. JPG, PNG, WebP and GIF files up to 2 MB are supported. Click **Save changes** to show the saved details on the website. Uploading an image alone does not publish it. A card preview shows the draft before saving.
+Choose **Tour amounts & offers** under Tools. All 35 entries are available: 4 tour packages, 17 places, 6 India/beyond journeys, 5 regions and 3 featured journeys. Select an entry, enter its INR package amount, optionally enable an offer, add its title and discounted amount, then choose either a mini image upload or a text badge. JPG, PNG, WebP and GIF files up to 2 MB are supported. Click **Save changes** to show the saved details on the website. Uploading an image alone does not publish it. A card preview shows the draft before saving, and public cards reserve space at the bottom for the amount and offer.
 
 Saved details appear on matching cards and detail-page hero/gallery images. Public pages fetch updated offers on navigation, focus and every 30 seconds. Leave the amount blank to hide it, disable an offer to keep it for later, remove its mini image separately, or use **Remove amount & offer** to clear both. Discounted amounts must be lower than the original price, which is shown crossed out.
 
@@ -60,3 +60,9 @@ npm run build
 ```
 
 Backend integration tests create a unique `eternal_india_test_*` database on the configured MongoDB server, test actual API/authentication/enquiry behaviour and remove only that test database afterwards.
+
+
+
+
+
+#  

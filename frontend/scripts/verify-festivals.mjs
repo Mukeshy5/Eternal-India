@@ -86,7 +86,7 @@ export async function verifyFestivals(vite) {
     await waitFor(() => container.querySelector(".dashboard-table"), "real authenticated inbox");
     await click("Special Days & Festival Management");
     await waitFor(() => container.querySelector(".festival-stat-grid"), "festival dashboard from real APIs");
-    assert.equal(container.querySelectorAll(".festival-navigation button").length, 8);
+    assert.equal(container.querySelectorAll(".festival-navigation button").length, 7);
     assert.equal(container.querySelector(".festival-stat-totalEffects strong").textContent, "36");
     assert.equal(container.querySelector(".festival-stat-totalFestivals strong").textContent, "0");
     await section("Effects Library"); assert.equal(container.querySelectorAll(".festival-effect-card").length, 36);
@@ -116,8 +116,7 @@ export async function verifyFestivals(vite) {
     await click("Save schedule");
     await waitFor(async () => await db.collection("festival_schedules").countDocuments() === 1, "schedule saved through UI");
     publicResult = await publicState(); assert.equal(publicResult.decorations[0].source, "schedule");
-    await section("Decoration History"); await waitFor(() => container.querySelector(".festival-history-list article"), "audit history");
-    assert.ok(container.querySelector(".festival-history-list").textContent.includes(config.adminEmail));
+    assert.equal([...container.querySelectorAll(".festival-navigation button")].some((button) => button.textContent.includes("Decoration History")), false);
     await section("Global Settings"); assert.ok(container.querySelector('[name="masterEnabled"]').checked);
     await click("Master OFF");
     await waitFor(async () => (await db.collection("decoration_settings").findOne({ _id: "global" }))?.enabled === false, "master OFF stored in MongoDB");
@@ -163,7 +162,7 @@ export async function verifyFestivals(vite) {
     await act(async () => testWindow.document.dispatchEvent(new testWindow.Event("visibilitychange")));
     assert.ok(container.querySelector(".decoration-motion-paused"));
     const persisted = await db.collection("decoration_settings").findOne({ _id: "global" }); assert.equal(persisted.timezone, globalDecorationDefaults.timezone);
-    console.log("PASS all 36 reusable effects, eight technical sections, real MongoDB/API login/create/publish/activate/schedule/history/settings, isolated device preview, public visitor hide, and hidden-tab pause");
+    console.log("PASS all 36 reusable effects, seven technical sections, real MongoDB/API login/create/publish/activate/schedule/settings, isolated device preview, public visitor hide, and hidden-tab pause");
   } finally {
     await act(async () => { root.unmount(); await delay(40); }); globalThis.fetch = originalFetch; testWindow.close();
     for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }

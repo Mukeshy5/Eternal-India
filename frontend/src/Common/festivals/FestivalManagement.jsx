@@ -10,7 +10,7 @@ const sections = [
   ["dashboard", "Decoration Dashboard", "dashboard", "01"], ["effects", "Effects Library", "effects", "02"],
   ["festivals", "Festival Management", "dashboard", "03"], ["schedules", "Schedule Management", "dashboard", "04"],
   ["preview", "Live Preview", "effects", "05"], ["active", "Active Decorations", "dashboard", "06"],
-  ["history", "Decoration History", "history", "07"], ["settings", "Global Settings", "settings", "08"],
+  ["settings", "Global Settings", "settings", "07"],
 ];
 const time = (value, zone = "Asia/Kolkata") => value ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: zone }).format(new Date(value)) : "—";
 const counterLabels = { totalEffects: "Available effects", scheduledFestivals: "Scheduled festivals", activeDecorations: "Active decorations", upcomingFestivals: "Upcoming festivals", expiredDecorations: "Expired decorations", enabledEffects: "Enabled effects", disabledEffects: "Disabled effects", totalFestivals: "Saved festivals" };
@@ -27,11 +27,9 @@ export default function FestivalManagement({ admin, onBack, onUnauthorized, onLo
   const [refresh, setRefresh] = useState(0);
   const [previewDraft, setPreviewDraft] = useState(null);
   const [scheduleFestival, setScheduleFestival] = useState("");
-  const [historyQuery, setHistoryQuery] = useState({ search: "", action: "", from: "", to: "", page: 1 });
   const actionLock = useRef(false);
   const mounted = useRef(false);
   const actionController = useRef(null);
-  const historyKey = JSON.stringify(historyQuery);
   const reload = useCallback(() => setRefresh((value) => value + 1), []);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; actionController.current?.abort(); }; }, []);
   useEffect(() => {
@@ -46,7 +44,7 @@ export default function FestivalManagement({ admin, onBack, onUnauthorized, onLo
           has("dashboard") ? api("/technical/festival-schedules", { signal: controller.signal }) : { schedules: [] },
           has("dashboard") || has("settings") ? api("/technical/decoration-settings", { signal: controller.signal }) : { settings: {} },
           has("dashboard") ? api("/technical/festival-decorations/active", { signal: controller.signal }) : { decorations: [], settings: {} },
-          has("history") && section === "history" ? api(`/technical/decoration-history?${new URLSearchParams(JSON.parse(historyKey))}`, { signal: controller.signal }) : { history: [], pages: 1, total: 0 },
+          { history: [], pages: 1, total: 0 },
         ]);
         if (!controller.signal.aborted) setData({ dashboard: results[0], effects: results[1].effects, festivals: results[2].festivals, schedules: results[3].schedules, settings: results[4].settings, active: results[5], history: results[6] });
       } catch (failure) {
@@ -54,9 +52,11 @@ export default function FestivalManagement({ admin, onBack, onUnauthorized, onLo
       } finally { if (!controller.signal.aborted) setLoading(false); }
     };
     void load();
-    const timer = ["dashboard", "active", "history"].includes(section) ? window.setInterval(load, 5000) : null;
-    return () => { controller.abort(); if (timer) window.clearInterval(timer); };
-  }, [refresh, section, permissionKey, historyKey, onUnauthorized]);
+    const timer = ["dashboard", "active"].includes(section) ? window.setInterval(() => { if (!document.hidden) void load(); }, 15000) : null;
+    const refreshOnFocus = ["dashboard", "active"].includes(section) ? () => void load() : null;
+    if (refreshOnFocus) window.addEventListener("focus", refreshOnFocus);
+    return () => { controller.abort(); if (timer) window.clearInterval(timer); if (refreshOnFocus) window.removeEventListener("focus", refreshOnFocus); };
+  }, [refresh, section, permissionKey, onUnauthorized]);
 
   async function perform(path, options, message) {
     if (actionLock.current) return false;
@@ -85,7 +85,6 @@ export default function FestivalManagement({ admin, onBack, onUnauthorized, onLo
         {section === "schedules" && <ScheduleEditor key={scheduleFestival} data={data} can={can} busy={busy} perform={perform} festivalId={scheduleFestival} />}
         {section === "preview" && <FestivalPreview key={previewDraft?._id || previewDraft?.selectedEffects?.join(",") || "new"} data={data} initial={previewDraft || { ...animationDefaults, intensity: data.settings.defaultIntensity || "medium" }} can={can} busy={busy} perform={perform} onCancel={() => choose("effects")} />}
         {section === "active" && <ActiveDecorations data={data} can={can} busy={busy} perform={perform} onPreview={preview} />}
-        {section === "history" && <DecorationHistory result={data.history} query={historyQuery} onQuery={setHistoryQuery} timezone={data.history.timezone || data.settings.timezone} />}
         {section === "settings" && can("settings") && <DecorationSettings key={`${data.settings.updatedAt}:${data.settings.enabled}`} settings={data.settings} busy={busy} perform={perform} />}
       </>}
       </section>
@@ -95,7 +94,43 @@ export default function FestivalManagement({ admin, onBack, onUnauthorized, onLo
 
 function DecorationDashboard({ data, onChoose }) {
   const dashboard = data.dashboard;
-  return <><div className="festival-stat-grid">{Object.entries(counterLabels).map(([key, label]) => <div className={`festival-stat festival-stat-${key}`} key={key}><span>{label}</span><strong>{dashboard.stats[key]}</strong><small>From saved MongoDB records</small></div>)}</div><div className="festival-dashboard-grid"><section className="admin-tool-card festival-status-card"><span className="festival-kicker">RIGHT NOW</span><h3>{dashboard.activeFestival || "A little room for celebration"}</h3><span className="festival-status-pill">{dashboard.status}</span><dl><div><dt>Next upcoming festival</dt><dd>{dashboard.nextFestival?.name || "None scheduled"}</dd></div><div><dt>Next start</dt><dd>{time(dashboard.nextFestival?.start, data.settings.timezone)}</dd></div><div><dt>Last activation</dt><dd>{time(dashboard.lastActivationDate, data.settings.timezone)}</dd></div><div><dt>Last modified by</dt><dd>{dashboard.lastModifiedBy?.email || "No technical changes yet"}</dd></div></dl><button type="button" className="dashboard-button" onClick={() => onChoose("active")}>View active decorations →</button></section><section className="admin-tool-card"><h3>Recently updated decorations</h3><div className="festival-compact-list">{dashboard.recentlyUpdated.map((festival) => <article key={festival._id}><strong>{festival.name}</strong><span>{festival.published ? "Published" : "Draft"} · {time(festival.updatedAt, data.settings.timezone)}</span><small>{festival.updatedBy?.email}</small></article>)}</div>{!dashboard.recentlyUpdated.length && <p className="admin-tool-empty">Create your first festival to start building the collection.</p>}</section><section className="admin-tool-card"><h3>Upcoming festival windows</h3><div className="festival-compact-list">{dashboard.upcoming.map((item) => <article key={item.scheduleId}><strong>{item.name}</strong><span>{time(item.start, data.settings.timezone)}</span></article>)}</div>{!dashboard.upcoming.length && <p className="admin-tool-empty">No upcoming enabled schedules.</p>}</section><section className="admin-tool-card"><h3>Recent technical activity</h3><div className="festival-compact-list">{dashboard.recentActivity.map((item) => <article key={item._id}><strong>{item.action.replaceAll("_", " ")}</strong><span>{item.festivalName || "Global configuration"} · {item.performedBy.email}</span><small>{time(item.timestamp, data.settings.timezone)}</small></article>)}</div>{!dashboard.recentActivity.length && <p className="admin-tool-empty">Changes and activations will be recorded here.</p>}</section></div></>;
+  return (
+    <>
+      <div className="festival-stat-grid">
+        {Object.entries(counterLabels).map(([key, label]) => (
+          <div className={`festival-stat festival-stat-${key}`} key={key}>
+            <span>{label}</span>
+            <strong>{dashboard.stats[key]}</strong>
+            <small>From saved MongoDB records</small>
+          </div>
+        ))}
+      </div>
+      <div className="festival-dashboard-grid">
+        <section className="admin-tool-card festival-status-card">
+          <span className="festival-kicker">RIGHT NOW</span>
+          <h3>{dashboard.activeFestival || "A little room for celebration"}</h3>
+          <span className="festival-status-pill">{dashboard.status}</span>
+          <dl>
+            <div><dt>Next upcoming festival</dt><dd>{dashboard.nextFestival?.name || "None scheduled"}</dd></div>
+            <div><dt>Next start</dt><dd>{time(dashboard.nextFestival?.start, data.settings.timezone)}</dd></div>
+            <div><dt>Last activation</dt><dd>{time(dashboard.lastActivationDate, data.settings.timezone)}</dd></div>
+            <div><dt>Last modified by</dt><dd>{dashboard.lastModifiedBy?.email || "No technical changes yet"}</dd></div>
+          </dl>
+          <button type="button" className="dashboard-button" onClick={() => onChoose("active")}>View active decorations →</button>
+        </section>
+        <section className="admin-tool-card">
+          <h3>Recently updated decorations</h3>
+          <div className="festival-compact-list">{dashboard.recentlyUpdated.map((festival) => <article key={festival._id}><strong>{festival.name}</strong><span>{festival.published ? "Published" : "Draft"} · {time(festival.updatedAt, data.settings.timezone)}</span><small>{festival.updatedBy?.email}</small></article>)}</div>
+          {!dashboard.recentlyUpdated.length && <p className="admin-tool-empty">Create your first festival to start building the collection.</p>}
+        </section>
+        <section className="admin-tool-card">
+          <h3>Upcoming festival windows</h3>
+          <div className="festival-compact-list">{dashboard.upcoming.map((item) => <article key={item.scheduleId}><strong>{item.name}</strong><span>{time(item.start, data.settings.timezone)}</span></article>)}</div>
+          {!dashboard.upcoming.length && <p className="admin-tool-empty">No upcoming enabled schedules.</p>}
+        </section>
+      </div>
+    </>
+  );
 }
 function EffectsLibrary({ effects, can, busy, perform, onPreview }) {
   const [search, setSearch] = useState(""); const [group, setGroup] = useState("");
@@ -104,8 +139,4 @@ function EffectsLibrary({ effects, can, busy, perform, onPreview }) {
 }
 function ActiveDecorations({ data, can, busy, perform, onPreview }) {
   return <><p className="festival-help">The backend selects one highest-priority eligible festival. Manual activation overrides schedules. Turning an active scheduled festival OFF suppresses its current occurrence until expiry.</p>{data.active.decorations.map((decoration) => <article key={decoration.id} className="admin-tool-card festival-active-card"><span className="festival-status-pill">ACTIVE · {decoration.source.toUpperCase()}</span><h3>{decoration.name}</h3><p>{decoration.selectedEffects.join(" · ")}</p><p>{decoration.greetingMessage}</p><dl><div><dt>Started</dt><dd>{time(decoration.startsAt, data.settings.timezone)}</dd></div><div><dt>Ends</dt><dd>{decoration.endsAt ? time(decoration.endsAt, data.settings.timezone) : "Manual control — no expiry"}</dd></div></dl><div className="admin-tool-actions">{can("activate") && <button type="button" className="dashboard-button dashboard-button-danger" disabled={busy} onClick={() => perform(`/festival-decorations/${decoration.id}/deactivate`, { method: "POST", body: "{}" }, "Decoration stopped. Current scheduled occurrence remains OFF until expiry.")}>Deactivate immediately</button>}{can("effects") && <button type="button" className="dashboard-button" onClick={() => onPreview(data.festivals.find((festival) => festival._id === decoration.id))}>Preview</button>}</div></article>)}{!data.active.decorations.length && <div className="admin-tool-card"><h3>No active public decorations</h3><p className="festival-help">{data.settings.enabled ? "Publish a festival and activate it, or create a schedule." : "The master switch is OFF."}</p></div>}<section className="admin-tool-card"><h3>Published festivals ready for manual control</h3><div className="festival-record-list">{data.festivals.filter((festival) => festival.published && festival.enabled).map((festival) => <div className="festival-manual-row" key={festival._id}><strong>{festival.name}</strong>{can("activate") && <button type="button" className="dashboard-button" disabled={busy || !data.settings.enabled} onClick={() => perform(`/festival-decorations/${festival._id}/activate`, { method: "POST", body: "{}" }, "Festival activated manually.")}>Activate now</button>}</div>)}</div></section></>;
-}
-function DecorationHistory({ result, query, onQuery, timezone }) {
-  const [form, setForm] = useState(query);
-  return <><form className="admin-tool-card festival-history-filters" onSubmit={(event) => { event.preventDefault(); onQuery({ ...form, page: 1 }); }}><label className="admin-tool-field"><span>Search festival, member or remarks</span><input name="historySearch" type="search" maxLength={100} value={form.search} onChange={(event) => setForm({ ...form, search: event.target.value })} /></label><label className="admin-tool-field"><span>Action</span><input name="historyAction" maxLength={80} value={form.action} placeholder="e.g. decoration_published" onChange={(event) => setForm({ ...form, action: event.target.value })} /></label><label className="admin-tool-field"><span>From date</span><input name="historyFrom" type="date" value={form.from} onChange={(event) => setForm({ ...form, from: event.target.value })} /></label><label className="admin-tool-field"><span>To date</span><input name="historyTo" type="date" min={form.from || undefined} value={form.to} onChange={(event) => setForm({ ...form, to: event.target.value })} /></label><button className="dashboard-button">Apply filters</button></form><section className="admin-tool-card"><h3>Decoration activity history <span className="festival-help">{result.total} records · {timezone}</span></h3><p className="festival-help">History is append-only. Ordinary Technical Panel controls cannot edit or delete records.</p><div className="festival-history-list">{result.history.map((entry) => <article key={entry._id}><div><strong>{entry.action.replaceAll("_", " ")}</strong><time dateTime={entry.timestamp}>{time(entry.timestamp, timezone)}</time></div><p>{entry.festivalName || "Global configuration"} · {entry.performedBy.email} ({entry.performedByRole})</p><p>{entry.remarks}</p><details><summary>Previous and updated values</summary><div className="festival-history-diff"><div><span>Previous</span><pre>{JSON.stringify(entry.previousValues, null, 2)}</pre></div><div><span>Updated</span><pre>{JSON.stringify(entry.newValues, null, 2)}</pre></div></div></details></article>)}</div>{!result.history.length && <p className="admin-tool-empty">No activity matches these filters.</p>}<div className="festival-pagination"><button type="button" className="dashboard-button" disabled={query.page <= 1} onClick={() => onQuery({ ...query, page: query.page - 1 })}>Previous</button><span>Page {query.page} of {result.pages}</span><button type="button" className="dashboard-button" disabled={query.page >= result.pages} onClick={() => onQuery({ ...query, page: query.page + 1 })}>Next</button></div></section></>;
 }

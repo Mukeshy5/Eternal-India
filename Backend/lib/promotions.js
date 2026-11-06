@@ -5,6 +5,7 @@ import { promotionTargets } from "../../shared/travelCatalog.js";
 const targetIds = new Set(promotionTargets.map((target) => target.id));
 const imagePath = /^\/api\/offer-images\/([a-f\d]{24})$/i;
 const maxImageBytes = 2 * 1024 * 1024;
+const publicCacheTtl = 30000;
 
 function money(value) {
   if (value === null || value === "" || value === undefined) return null;
@@ -22,8 +23,11 @@ export function validatePromotion(body) {
   if (typeof body?.offerEnabled !== "boolean") errors.offerEnabled = "Choose whether the offer is enabled.";
   const offerTitle = typeof body?.offerTitle === "string" ? body.offerTitle.trim() : "";
   if (body?.offerEnabled && !offerTitle) errors.offerTitle = "Add a title before enabling the offer.";
+  const offerType = body?.offerType === "text" ? "text" : "image";
+  const offerText = typeof body?.offerText === "string" ? body.offerText.trim() : "";
   if (typeof body?.offerImage !== "string" || (body.offerImage !== "" && !imagePath.test(body.offerImage))) errors.offerImage = "Upload a valid offer image.";
-  return { errors, promotion: { amount, offerAmount, offerTitle, offerEnabled: body?.offerEnabled, offerImage: body?.offerImage } };
+  if (offerType === "text" && (!offerText || offerText.length > 120)) errors.offerText = "Enter offer text up to 120 characters.";
+  return { errors, promotion: { amount, offerAmount, offerEnabled: body?.offerEnabled, offerTitle, offerImage: body?.offerImage, offerType, offerText } };
 }
 
 function imageType(buffer) {
@@ -35,10 +39,18 @@ function imageType(buffer) {
 }
 
 export function registerPromotions({ app, management, db, requireAdmin }) {
-  const projection = { amount: 1, offerAmount: 1, offerEnabled: 1, offerTitle: 1, offerImage: 1, updatedAt: 1 };
+  const projection = { amount: 1, offerAmount: 1, offerEnabled: 1, offerTitle: 1, offerImage: 1, offerType: 1, offerText: 1, updatedAt: 1 };
+  let publicCache = null;
+  let publicCacheExpires = 0;
   const list = async () => (await db.collection("tour_promotions").find({}, { projection }).toArray()).map(({ _id, ...promotion }) => ({ targetId: _id, ...promotion }));
   app.get("/api/promotions", async (_req, res) => {
-    const promotions = (await list()).map((promotion) => promotion.offerEnabled ? promotion : { ...promotion, offerTitle: "", offerImage: "", offerAmount: null });
+    const now = Date.now();
+    if (!publicCache || now >= publicCacheExpires) {
+      const promotions = (await list()).map((promotion) => promotion.offerEnabled ? promotion : { ...promotion, offerTitle: "", offerImage: "", offerAmount: null });
+      publicCache = promotions;
+      publicCacheExpires = now + publicCacheTtl;
+    }
+    const promotions = publicCache;
     res.json({ promotions });
   });
   app.get("/api/offer-images/:id", async (req, res) => {
@@ -55,11 +67,13 @@ export function registerPromotions({ app, management, db, requireAdmin }) {
     if (promotion.offerImage && !await db.collection("offer_images").findOne({ _id: new ObjectId(promotion.offerImage.match(imagePath)[1]) }, { projection: { _id: 1 } })) return res.status(400).json({ message: "This offer image is unavailable. Upload it again." });
     const saved = { ...promotion, updatedAt: new Date() };
     await db.collection("tour_promotions").updateOne({ _id: req.params.targetId }, { $set: { ...saved, updatedBy: req.admin._id } }, { upsert: true });
+    publicCache = null;
     res.json({ promotion: { targetId: req.params.targetId, ...saved } });
   });
   management.delete("/promotions/:targetId", requireAdmin, async (req, res) => {
     if (!targetIds.has(req.params.targetId)) return res.status(404).json({ message: "Choose an existing tour or place." });
     await db.collection("tour_promotions").deleteOne({ _id: req.params.targetId });
+    publicCache = null;
     res.sendStatus(204);
   });
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: maxImageBytes, files: 1, fields: 0, parts: 1 } }).single("image");

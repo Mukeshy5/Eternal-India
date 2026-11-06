@@ -58,12 +58,19 @@ export default function Home() {
       <section className="home-hero">
         <div className="container home-hero-inner">
           <div className="home-hero-photo" aria-live="polite">
-            <img
-              key={slide.image}
-              src={slide.image}
-              alt={`${slide.location} travel view`}
-              fetchPriority="high"
-            />
+            <div className="hero-slide-track" style={{ transform: `translateX(-${activeSlide * 25}%)` }}>
+              {heroSlides.map((heroSlide, index) => (
+                <img
+                  key={heroSlide.image}
+                  src={heroSlide.image}
+                  alt={`${heroSlide.location} travel view`}
+                  width="1280"
+                  height="900"
+                  decoding="async"
+                  fetchPriority={index === 0 ? "high" : undefined}
+                />
+              ))}
+            </div>
             <span className="photo-caption">
               <Icon name="pin" size={16} /> {slide.location}
             </span>
@@ -154,7 +161,6 @@ export default function Home() {
             >
               <div className="journey-image">
                 <img src={destination.image} alt={destination.alt} loading="lazy" />
-                <PromotionDisplay targetId={destination.promotionId} overlay placement="bottom" />
                 <span className="round-arrow">
                   <Icon name="diagonal" />
                 </span>
@@ -162,6 +168,7 @@ export default function Home() {
               <span className="small-label">{destination.tagline}</span>
               <h3>{destination.title}</h3>
               <p>{destination.places.join(" · ")}</p>
+              <div className="promotion-card-footer"><PromotionDisplay targetId={destination.promotionId} /></div>
             </Link>
           ))}
         </div>
@@ -212,13 +219,13 @@ export default function Home() {
               <Link className="region-card" to={region.path} key={region.title}>
                 <div className="region-image">
                   <img src={region.image} alt={region.title} loading="lazy" />
-                  <PromotionDisplay targetId={region.promotionId} overlay />
                   <span className="round-arrow">
                     <Icon name="diagonal" />
                   </span>
                 </div>
                 <Eyebrow>{region.title}</Eyebrow>
                 <p>{region.description}</p>
+                <div className="promotion-card-footer"><PromotionDisplay targetId={region.promotionId} /></div>
               </Link>
             ))}
           </div>
