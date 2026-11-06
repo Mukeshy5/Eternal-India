@@ -108,6 +108,7 @@ export default function AdminDashboard({ technical = false, admin, data, loaded,
         <button type="button" aria-current={showHistory ? "true" : undefined} onClick={() => { if (!showHistory) onToggleHistory(); }}><DashboardIcon name="clock" size={18} /><span>History</span></button>
         <span className="dashboard-nav-heading dashboard-tools-heading">TOOLS</span>
         {technical && <button type="button" onClick={() => onTool("promotions")}><DashboardIcon name="spark" size={18} /><span>Tour amounts & offers</span></button>}
+        {technical && <button type="button" onClick={() => onTool("festivals")}><DashboardIcon name="spark" size={18} /><span>Special Days & Festival Management</span></button>}
         <button type="button" onClick={() => onTool("hotels")}><DashboardIcon name="pin" size={18} /><span>Add hotel</span></button>
         <button type="button" onClick={() => onTool("vouchers")}><DashboardIcon name="calendar" size={18} /><span>Journey Voucher</span></button>
       </nav>

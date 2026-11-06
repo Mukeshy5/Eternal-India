@@ -15,7 +15,7 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
   const configuredAdmin = await ensureAdmin(db, { ...config, adminEmail: "configured-admin@example.com", adminPassword: "LocalPass9" });
   assert.ok(await verifyPassword("LocalPass9", configuredAdmin.passwordHash), "a configured nine-character password can create the local admin account");
   await assert.rejects(ensureAdmin(db, { ...config, adminEmail: "invalid-admin@example.com", adminPassword: "short" }), /at least 8 characters/);
-  const { app } = createApp({ client, db, config });
+  const { app, decorationScheduler } = createApp({ client, db, config });
   const server = app.listen(0, "127.0.0.1");
   await once(server, "listening");
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -184,6 +184,7 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       assert.equal(last.status, 429);
     });
   } finally {
+    await decorationScheduler.stop();
     await new Promise((resolve) => server.close(resolve));
     if (!db.databaseName.startsWith("eternal_india_test_")) throw new Error("Refusing to remove a non-test database.");
     await db.dropDatabase();

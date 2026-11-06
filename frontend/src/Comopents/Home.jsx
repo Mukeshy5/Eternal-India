@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Eyebrow, Icon, JourneyCTA, journeys } from "../Common/SiteUI";
+import { destinationPath, destinations } from "../Common/travelCatalog";
 import { PromotionDisplay } from "../Common/Promotions";
 import sliderImageOne from "../assets/SliderImg/slider.jpg";
 import sliderImageTwo from "../assets/SliderImg/slider (2).jpg";
@@ -50,6 +51,7 @@ export default function Home() {
   }, []);
 
   const slide = heroSlides[activeSlide];
+  const availablePlaces = destinations.filter((destination) => destination.image).slice(0, 4);
 
   return (
     <>
@@ -133,33 +135,33 @@ export default function Home() {
       <section className="section container">
         <div className="section-heading">
           <div>
-            <Eyebrow>Follow your curiosity</Eyebrow>
+            <Eyebrow>Available places</Eyebrow>
             <h2>
-              A country of possibilities.
-              <br />A journey that's yours.
+              Follow your curiosity.
+              <br />Find your next journey.
             </h2>
           </div>
-          <Link className="text-link" to="/tours">
-            Discover our journeys <Icon />
+          <Link className="text-link" to="/destinations-in-india">
+            Explore all destinations <Icon />
           </Link>
         </div>
         <div className="journey-grid">
-          {journeys.map((journey) => (
+          {availablePlaces.map((destination) => (
             <Link
               className="journey-card"
-              key={journey.title}
-              to={`/request-quote?destination=${encodeURIComponent(journey.title)}`}
+              key={destination.slug}
+              to={destinationPath(destination)}
             >
               <div className="journey-image">
-                <img src={journey.image} alt={journey.alt} loading="lazy" />
-                <PromotionDisplay targetId={`journey:${journey.slug}`} overlay />
+                <img src={destination.image} alt={destination.alt} loading="lazy" />
+                <PromotionDisplay targetId={destination.promotionId} overlay placement="bottom" />
                 <span className="round-arrow">
                   <Icon name="diagonal" />
                 </span>
               </div>
-              <span className="small-label">{journey.subtitle}</span>
-              <h3>{journey.title}</h3>
-              <p>{journey.places}</p>
+              <span className="small-label">{destination.tagline}</span>
+              <h3>{destination.title}</h3>
+              <p>{destination.places.join(" · ")}</p>
             </Link>
           ))}
         </div>

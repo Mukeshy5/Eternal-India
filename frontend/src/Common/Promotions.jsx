@@ -30,7 +30,7 @@ function usePromotion(targetId) {
   return useContext(PromotionsContext)[targetId];
 }
 
-export function PromotionDisplay({ targetId, promotion: supplied, overlay = false }) {
+export function PromotionDisplay({ targetId, promotion: supplied, overlay = false, placement = "top" }) {
   const saved = usePromotion(targetId);
   const promotion = supplied === undefined ? saved : supplied;
   if (!promotion) return null;
@@ -38,7 +38,7 @@ export function PromotionDisplay({ targetId, promotion: supplied, overlay = fals
   const hasAmount = typeof promotion.amount === "number" && Number.isFinite(promotion.amount);
   const discounted = offer && hasAmount && typeof promotion.offerAmount === "number" && promotion.offerAmount < promotion.amount;
   if (!hasAmount && !offer) return null;
-  return <span className={`promotion-display${overlay ? " promotion-overlay" : ""}`}>
+  return <span className={`promotion-display${overlay ? " promotion-overlay" : ""}${placement === "bottom" ? " promotion-bottom" : ""}`}>
     {offer && <span className="promotion-offer">{promotion.offerImage && <img className="promotion-mini-image" src={promotion.offerImage} alt={`${promotion.offerTitle} offer`} width="48" height="48" loading="lazy" />}<strong>{promotion.offerTitle}</strong></span>}
     {hasAmount && <span className="promotion-price"><span className="promotion-price-label">Package from</span><span>{discounted && <del>{formatAmount(promotion.amount)}</del>}<strong>{formatAmount(discounted ? promotion.offerAmount : promotion.amount)}</strong></span></span>}
   </span>;

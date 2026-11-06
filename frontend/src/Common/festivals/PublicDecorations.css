@@ -1,0 +1,10 @@
+.public-decoration-host { position: fixed; inset: 0; z-index: 65; overflow: hidden; pointer-events: none; }
+.public-decoration-host.decoration-placement-header, .public-decoration-host.decoration-placement-footer { position: absolute; z-index: 4; }
+.site-footer { position: relative; }
+.decoration-placement-header .decoration-greeting { top: 5px; padding: 4px 15px; }
+.decoration-placement-footer .decoration-greeting { top: 12px; }
+.decoration-visitor-controls { position: fixed; left: 14px; bottom: 14px; display: flex; flex-wrap: wrap; gap: 7px; max-width: min(370px, calc(100vw - 90px)); pointer-events: none; }
+.decoration-visitor-controls button { pointer-events: auto; min-height: 36px; padding: 8px 12px; border: 1px solid #cbd4c7; border-radius: 20px; background: #fffdf5ee; color: #304b3e; box-shadow: 0 2px 9px #0001; font: 11px/1.4 Arial, sans-serif; cursor: pointer; }
+.decoration-visitor-controls button:focus-visible { outline: 2px solid #9a2c59; outline-offset: 3px; }
+.decoration-visitor-controls > span { background: #fffdf5; padding: 6px; font-size: 11px; }
+@media print { .public-decoration-host { display: none; } }

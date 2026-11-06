@@ -8,6 +8,7 @@
 .promotion-price strong { color: #273b32; font-size: 19px; }
 .promotion-price del { color: #72786d; font-size: 12px; }
 .promotion-overlay { position: absolute; inset: 12px 12px auto; z-index: 2; margin: 0; pointer-events: none; }
+.promotion-overlay.promotion-bottom { inset: auto 12px 12px; }
 .journey-image, .region-image, .editorial-photo, .travel-gallery figure { position: relative; }
 .travel-card:hover .promotion-display img.promotion-mini-image { transform: none; }
 .travel-gallery .promotion-overlay { inset: 12px 12px auto; }

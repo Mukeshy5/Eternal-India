@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../Common/api";
 import { Icon } from "../Common/SiteUI";
@@ -8,6 +8,7 @@ import PromotionManager from "../Common/PromotionManager";
 import "./Admin.css";
 
 const emptyData = { enquiries: [], total: 0, pages: 1, stats: { total: 0, new: 0, pending: 0, confirmed: 0, cancelled: 0, contacted: 0, closed: 0 } };
+const FestivalManagement = lazy(() => import("../Common/festivals/FestivalManagement"));
 
 export default function Admin({ technical = false }) {
   const basePath = technical ? "/technical" : "/admin";
@@ -186,7 +187,7 @@ export default function Admin({ technical = false }) {
         <button className="button" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}<Icon size={18} /></button>
         <span className="admin-login-note">For Eternal India administrators.</span>{!technical && <Link to="/technical/login">Open technical panel →</Link>}
       </form>
-    </div> : activeTool === "promotions" ? <PromotionManager apiBase={basePath} onBack={() => { setActiveTool(""); setError(""); }} onUnauthorized={handleUnauthorized} /> : activeTool ? <AdminTools apiBase={basePath} technical={technical} tool={activeTool} onBack={() => { setActiveTool(""); setError(""); }} onError={setError} error={error} /> : <AdminDashboard
+    </div> : technical && activeTool === "festivals" ? <Suspense fallback={<p className="admin-tools" role="status">Loading festival workspace…</p>}><FestivalManagement admin={admin} onBack={() => { setActiveTool(""); setError(""); }} onUnauthorized={handleUnauthorized} onLogout={logout} /></Suspense> : activeTool === "promotions" ? <PromotionManager apiBase={basePath} onBack={() => { setActiveTool(""); setError(""); }} onUnauthorized={handleUnauthorized} /> : activeTool ? <AdminTools apiBase={basePath} technical={technical} tool={activeTool} onBack={() => { setActiveTool(""); setError(""); }} onError={setError} error={error} /> : <AdminDashboard
       technical={technical} admin={admin} data={data} loaded={loaded} loading={loading} busy={busy}
       updating={updating} error={error} searchInput={searchInput} search={search}
       status={status} page={page} lastUpdated={lastUpdated} selected={selected}

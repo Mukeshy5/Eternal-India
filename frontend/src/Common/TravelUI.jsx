@@ -30,7 +30,7 @@ export function TravelHero({ label, title, description, theme = "north", image, 
 export function TravelCard({ item, to, label, theme = "north" }) {
   return (
     <Link className="travel-card" to={to} data-theme={theme}>
-      {item.image && <div className="travel-card-photo"><TravelPhoto image={item.image} srcSet={item.srcSet} alt={item.alt} sizes="(max-width: 550px) calc(100vw - 40px), (max-width: 800px) 45vw, 400px" /><PromotionDisplay targetId={item.promotionId} overlay />{item.duration && <span className="travel-duration">{item.duration}</span>}</div>}
+      {item.image && <div className="travel-card-photo"><TravelPhoto image={item.image} srcSet={item.srcSet} alt={item.alt} sizes="(max-width: 550px) calc(100vw - 40px), (max-width: 800px) 45vw, 400px" /><PromotionDisplay targetId={item.promotionId} overlay placement="bottom" />{item.duration && <span className="travel-duration">{item.duration}</span>}</div>}
       <div className="travel-card-body">
         <div className="travel-card-heading"><span className="small-label">{label}</span><Icon name="diagonal" size={20} /></div>
         <h3>{item.title}</h3>

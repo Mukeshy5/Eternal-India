@@ -7,7 +7,8 @@
     "test": "node --test --test-concurrency=1",
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "admin:password": "node scripts/reset-admin-password.js"
+    "admin:password": "node scripts/reset-admin-password.js",
+    "technical:access": "node scripts/technical-access.js"
   },
   "keywords": [],
   "author": "",

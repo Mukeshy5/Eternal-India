@@ -10,11 +10,13 @@ import { fileURLToPath } from "node:url";
 import { verifyPassword } from "./lib/passwords.js";
 import { enquiryStatuses, validateEnquiry } from "./lib/validation.js";
 import { registerPromotions } from "./lib/promotions.js";
+import { registerFestivalRoutes } from "./festivals/routes.js";
+import { technicalAccess } from "./festivals/permissions.js";
 
-export function createApp({ client, db, config }) {
+export function createApp({ client, db, config, schedulerOptions }) {
   const app = express();
   app.disable("x-powered-by");
-  app.use(helmet({ strictTransportSecurity: config.production ? undefined : false }));
+  app.use(helmet({ strictTransportSecurity: config.production ? undefined : false, contentSecurityPolicy: { directives: { mediaSrc: ["'self'", "https:"] } } }));
   app.use("/api", (req, res, next) => {
     res.set("Cache-Control", "no-store");
     const origin = req.get("Origin");
@@ -34,9 +36,9 @@ export function createApp({ client, db, config }) {
       res.set("Access-Control-Allow-Credentials", "true");
       res.vary("Origin");
     }
-    if (req.method === "OPTIONS") return res.set({ "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" }).sendStatus(204);
-    const imageUpload = req.method === "POST" && /^\/(admin|technical)\/offer-images$/.test(req.path) && req.is("multipart/form-data");
-    if (["POST", "PATCH"].includes(req.method) && !imageUpload && !req.is("application/json")) return res.status(415).json({ message: "Use JSON to submit this request." });
+    if (req.method === "OPTIONS") return res.set({ "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" }).sendStatus(204);
+    const imageUpload = req.method === "POST" && (/^\/(admin|technical)\/offer-images$/.test(req.path) || req.path === "/technical/festival-assets") && req.is("multipart/form-data");
+    if (["POST", "PUT", "PATCH"].includes(req.method) && !imageUpload && !req.is("application/json")) return res.status(415).json({ message: "Use JSON to submit this request." });
     next();
   });
   app.use(express.json({ limit: "16kb" }));
@@ -49,11 +51,12 @@ export function createApp({ client, db, config }) {
 
   const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
   const enquiryLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many enquiries. Please try again shortly." } });
-  const publicAdmin = (admin) => ({ id: admin._id.toString(), email: admin.email });
+  const publicAdmin = (admin) => { const access = technicalAccess(admin, config); return { id: admin._id.toString(), email: admin.email, roles: access.roles, technicalPermissions: access.permissions }; };
   async function requireAdmin(req, res, next) {
     if (!ObjectId.isValid(req.session?.adminId || "")) return res.status(401).json({ message: "Please sign in to continue." });
     const admin = await db.collection("admins").findOne({ _id: new ObjectId(req.session.adminId) });
     if (!admin || (admin.passwordChangedAt && new Date(req.session.signedInAt) <= admin.passwordChangedAt)) return res.status(401).json({ message: "Please sign in again." });
+    if (req.originalUrl.startsWith("/api/technical/") && !technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
     req.admin = admin;
     next();
   }
@@ -88,6 +91,7 @@ export function createApp({ client, db, config }) {
     if (!email || !password || password.length > 256) return res.status(401).json({ message: "Email or password is incorrect." });
     const admin = await db.collection("admins").findOne({ email });
     if (!admin || !await verifyPassword(password, admin.passwordHash)) return res.status(401).json({ message: "Email or password is incorrect." });
+    if (req.originalUrl.startsWith("/api/technical/") && !technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
     req.session.regenerate((error) => {
       if (error) return next(error);
       req.session.adminId = admin._id.toString();
@@ -223,6 +227,7 @@ export function createApp({ client, db, config }) {
     await db.collection("enquiry_history").insertOne({ enquiryId, reference: current.reference, action: "deleted", from: current.status, changedAt: deletedAt });
     res.status(204).send();
   });
+  const festivals = registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions });
   registerPromotions({ app, management, db, requireAdmin });
   app.use(["/api/admin", "/api/technical"], management);
   app.use("/api", (_req, res) => res.status(404).json({ message: "API endpoint not found." }));
@@ -238,5 +243,5 @@ export function createApp({ client, db, config }) {
     console.error("Request failed:", error.name);
     res.status(503).json({ message: "We couldn't save your request. Please try again shortly." });
   });
-  return { app, store };
+  return { app, store, decorationScheduler: festivals.scheduler, decorationsReady: festivals.ready };
 }

@@ -113,7 +113,7 @@ export default function PromotionManager({ apiBase = "/technical", onBack, onUna
         <h2>All tours & places <span>{promotionTargets.length}</span></h2>
         <label className="admin-tool-field"><span>Search tours and places</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search a tour or place…" /></label>
         <label className="admin-tool-field"><span>Collection</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option value="">All collections</option>{categories.map((value) => <option key={value}>{value}</option>)}</select></label>
-        <p className="promotion-result-count">{visible.length} entries · {Object.keys(promotions).length} configured</p>
+        <p className="promotion-result-count">{visible.length} entries · {Object.keys(promotions).length} configured · Manage amounts and offers for every tour, place and homepage card</p>
         <div className="promotion-targets">{visible.map((item) => <button key={item.id} type="button" className="promotion-target" aria-pressed={selectedId === item.id} disabled={locked} onClick={() => leave(() => { setSelectedId(item.id); setForm(editable(promotions[item.id])); setError(""); setNotice(""); })}>
           <img src={images[item.id]} alt="" width="62" height="54" loading="lazy" /><span><small>{item.category}</small><strong>{item.title}</strong><small>{promotions[item.id]?.amount != null ? formatAmount(promotions[item.id].amount) : "No amount set"}{promotions[item.id]?.offerEnabled ? " · Offer active" : ""}</small></span>
         </button>)}</div>

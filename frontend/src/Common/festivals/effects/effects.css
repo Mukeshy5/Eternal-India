@@ -1,0 +1,111 @@
+.decoration-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; isolation: isolate; border-radius: inherit; }
+.decoration-layer *, .fx-field { pointer-events: none; }
+.fx-field { position: absolute; inset: 0; overflow: hidden; }
+.fx-particle { position: absolute; left: var(--x); top: -15%; display: block; width: var(--size); height: var(--size); font-size: var(--size); color: var(--color); will-change: transform, opacity; animation: fx-fall var(--duration) var(--delay) linear infinite; }
+.fx-particle i { display: block; font-style: normal; line-height: 1; text-align: center; text-shadow: 0 0 9px currentColor; }
+.fx-field[data-motion=bubble] .fx-particle { top: auto; bottom: -15%; border: 1px solid currentColor; border-radius: 50%; background: radial-gradient(circle at 30% 25%, #ffffffa6, transparent 55%); animation-name: fx-rise; }
+.fx-field[data-motion=bubble] i { visibility: hidden; }
+.fx-field[data-motion=firework] .fx-particle { top: var(--y); animation: fx-firework calc(var(--duration) * .4) var(--delay) ease-out infinite; }
+.fx-field[data-motion=firework] i { box-shadow: 25px 0 var(--color), -25px 0 var(--color), 0 25px var(--color), 0 -25px var(--color), 18px 18px var(--color), -18px -18px var(--color); border-radius: 50%; width: 3px; height: 3px; font-size: 0; }
+.fx-field[data-motion=balloon] .fx-particle { top: auto; bottom: -20%; width: calc(var(--size) * 1.2); height: calc(var(--size) * 1.5); border-radius: 52% 48% 48% 48%; background: radial-gradient(circle at 30% 25%, #fff8, transparent 45%), var(--color); animation-name: fx-balloon; }
+.fx-field[data-motion=balloon] i { font-size: 0; }
+.fx-field[data-motion=balloon] .fx-particle::after { content: ""; position: absolute; top: 100%; left: 50%; height: 40px; border-left: 1px solid #eee9; transform: rotate(7deg); }
+.fx-field[data-motion=snow] .fx-particle { animation-name: fx-snow; }
+.fx-field[data-motion=flower] .fx-particle { animation-name: fx-flower; }
+.fx-field[data-motion=petal] .fx-particle { width: calc(var(--size) * .5); height: calc(var(--size) * .7); border-radius: 90% 10% 80% 20%; background: var(--color); animation-name: fx-petal; }
+.fx-field[data-motion=petal] i { visibility: hidden; }
+.fx-field[data-motion=heart] .fx-particle { top: auto; bottom: -15%; animation-name: fx-heart; }
+.fx-field[data-motion=star] .fx-particle { animation-name: fx-star; }
+.fx-field[data-motion=sparkle] .fx-particle { top: var(--y); animation-name: fx-sparkle; }
+.fx-field[data-motion=confetti] .fx-particle { width: calc(var(--size) * .3); height: calc(var(--size) * .5); background: var(--color); animation-name: fx-confetti; }
+.fx-field[data-motion=confetti] i { visibility: hidden; }
+.fx-field[data-motion=gold] .fx-particle { top: auto; bottom: -15%; border-radius: 50%; background: var(--color); width: 4px; height: 4px; box-shadow: 0 0 10px var(--color); animation-name: fx-gold; }
+.fx-field[data-motion=gold] i { visibility: hidden; }
+.fx-field[data-motion=beam] .fx-particle { top: -30%; width: 8%; height: 160%; background: linear-gradient(90deg, transparent, var(--color), transparent); transform: rotate(-24deg); opacity: .15; animation-name: fx-beam; }
+.fx-field[data-motion=beam] i { visibility: hidden; }
+.fx-field[data-motion=lantern] .fx-particle { top: auto; bottom: -20%; width: var(--size); height: calc(var(--size) * 1.4); border-radius: 35% 35% 20% 20%; background: radial-gradient(ellipse, #fff4c8, var(--color)); box-shadow: 0 0 15px var(--color); animation-name: fx-lantern; }
+.fx-field[data-motion=lantern] i { visibility: hidden; }
+.fx-field[data-motion=candle] .fx-particle { top: auto; bottom: 2%; animation-name: fx-candle; }
+.fx-field[data-motion=bell] .fx-particle { top: 1%; transform-origin: top center; animation-name: fx-bell; }
+.fx-field[data-motion=gift] .fx-particle { top: auto; bottom: -15%; animation-name: fx-gift; }
+.fx-field[data-motion=diya] .fx-particle { top: auto; bottom: -15%; animation-name: fx-diya; }
+.fx-field[data-motion=coin] .fx-particle { display: grid; place-items: center; border: 2px solid #fff1aa; border-radius: 50%; background: var(--color); color: #96621b; font-size: calc(var(--size) * .6); animation-name: fx-coin; }
+.fx-field[data-motion=gulal] .fx-particle { top: var(--y); width: calc(var(--size) * 4); height: calc(var(--size) * 4); border-radius: 50%; background: radial-gradient(circle, var(--color), transparent 70%); animation-name: fx-gulal; }
+.fx-field[data-motion=gulal] i { visibility: hidden; }
+.fx-field[data-motion=garland] .fx-particle { top: -5%; animation-name: fx-garland; }
+.fx-field[data-motion=dandiya] .fx-particle { animation-name: fx-dandiya; font-size: calc(var(--size) * 1.5); }
+.fx-field[data-motion=puja] .fx-particle { animation-name: fx-puja; }
+.fx-field[data-motion=feather] .fx-particle { top: auto; bottom: -15%; animation-name: fx-feather; }
+.fx-field[data-motion=trishul] .fx-particle { top: var(--y); animation-name: fx-trishul; }
+.fx-field[data-motion=rakhi] .fx-particle { animation-name: fx-rakhi; }
+.fx-field[data-motion=kite] .fx-particle { top: auto; bottom: -15%; animation-name: fx-kite; }
+.fx-field[data-motion=kite] .fx-particle::after { content: ""; position: absolute; left: 50%; top: 80%; height: 55px; width: 15px; border-left: 1px solid currentColor; border-radius: 50%; }
+.fx-field[data-motion=crescent] .fx-particle { top: auto; bottom: -15%; animation-name: fx-crescent; }
+.fx-field[data-motion=pookalam] .fx-particle { animation-name: fx-pookalam; }
+.fx-field[data-motion=flag] .fx-particle { animation-name: fx-flag; }
+.fx-field[data-motion=chakra] .fx-particle { top: var(--y); animation-name: fx-chakra; }
+.fx-field[data-motion=peace] .fx-particle { top: var(--y); animation-name: fx-peace; opacity: .35; }
+.fx-field[data-motion=christmas] .fx-particle { animation-name: fx-christmas; }
+.fx-field[data-motion=newyear] .fx-particle { top: var(--y); animation-name: fx-newyear; }
+.fx-field[data-motion=valentine] .fx-particle { top: auto; bottom: -15%; animation-name: fx-valentine; }
+.fx-field[data-motion=birthday] .fx-particle { top: auto; bottom: -15%; animation-name: fx-birthday; }
+.fx-field[data-motion=meteor] .fx-particle { top: -10%; animation-name: fx-meteor; }
+.fx-field[data-motion=meteor] .fx-particle::after { content: ""; position: absolute; right: 70%; top: 50%; width: 75px; height: 2px; background: linear-gradient(90deg, transparent, var(--color)); transform: rotate(-35deg); transform-origin: right center; }
+.fx-rangoli { position: absolute; width: 160px; height: 160px; left: -35px; bottom: -35px; border: 12px dotted #ffd47e; border-radius: 50%; background: repeating-conic-gradient(#f49b57 0deg 15deg, #d55386 15deg 30deg, #ffd884 30deg 45deg); box-shadow: 0 0 0 10px #e4a84588, 0 0 28px #ffb85e66; animation: fx-ornament 45s linear infinite; opacity: .6; }
+.fx-rangoli-onam { background: repeating-conic-gradient(#fff5ac 0deg 15deg, #ffaf40 15deg 30deg, #e06e42 30deg 45deg); border-color: #ffce5f; }
+.fx-chakra { position: absolute; bottom: 25px; right: 25px; width: 100px; height: 100px; border: 4px solid #365b9a; border-radius: 50%; background: repeating-conic-gradient(transparent 0deg 13deg, #365b9a 13deg 15deg); animation: fx-ornament 35s linear infinite; opacity: .45; }
+.fx-tricolor-ribbon { position: absolute; inset: 0 0 auto; height: 8px; background: linear-gradient(90deg, #ff9933, #ffffff 50%, #138808); opacity: .75; }
+.fx-eid-moon { position: absolute; right: 5%; top: 8%; color: #f8dd91; font-size: 100px; text-shadow: 0 0 40px #dfbf5b88; animation: fx-candle 4s ease-in-out infinite alternate; }
+.fx-floral-garland { position: absolute; top: -4px; left: 0; right: 0; padding: 4px; text-align: center; color: #ffb85b; font-size: clamp(20px, 4vw, 38px); letter-spacing: .8em; opacity: .6; }
+.fx-peace { position: absolute; bottom: 20px; right: 20px; display: flex; align-items: center; gap: 10px; color: #adc49d; font-size: 45px; opacity: .7; }
+.fx-peace small { max-width: 110px; font: 12px/1.7 Arial, sans-serif; }
+.fx-flute { position: absolute; bottom: 35px; left: 8%; color: #f4d58a; letter-spacing: 3px; font-size: 18px; transform: rotate(-10deg); opacity: .7; }
+.fx-scene-glow { position: absolute; width: 35%; height: 25%; right: -10%; bottom: -10%; border-radius: 50%; background: radial-gradient(ellipse, #efc87735, transparent 70%); animation: fx-candle 6s ease-in-out infinite alternate; }
+.fx-countdown { position: absolute; bottom: 35px; left: 50%; transform: translateX(-50%); display: grid; gap: 7px; width: max-content; max-width: 90%; padding: 14px 20px; border: 1px solid #ffeab555; border-radius: 12px; background: #19362fe6; color: #ffeab5; text-align: center; font-family: Arial, sans-serif; }
+.fx-countdown small { font-size: 11px; letter-spacing: .1em; }
+.fx-countdown strong { font-size: clamp(14px, 2vw, 21px); font-variant-numeric: tabular-nums; }
+.decoration-greeting { position: absolute; top: 112px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; max-width: min(90%, 650px); width: max-content; padding: 12px 22px; border: 1px solid #f7db9c66; border-radius: 30px; background: #203b33e8; box-shadow: 0 6px 24px #0002; text-align: center; }
+.decoration-greeting p { margin: 0; font: 500 14px/1.6 Arial, sans-serif; color: inherit; overflow-wrap: anywhere; }
+.decoration-banner-image { position: absolute; bottom: 12px; left: 15px; width: min(200px, 28%); height: 95px; object-fit: contain; opacity: .9; }
+.decoration-motion-paused *, .fx-paused * { animation-play-state: paused !important; }
+.decoration-reduced-motion .fx-field { display: none; }
+.decoration-preview-layer .decoration-greeting { top: 80px; }
+@keyframes fx-fall { to { transform: translate(var(--sway), 125vh) rotate(var(--rotation)); } }
+@keyframes fx-rise { to { transform: translate(var(--sway), -125vh); opacity: 0; } }
+@keyframes fx-firework { 0%, 75% { transform: scale(0); opacity: 0; } 80% { opacity: 1; } 100% { transform: scale(2.5) rotate(var(--rotation)); opacity: 0; } }
+@keyframes fx-balloon { 0% { transform: rotate(-8deg); } 50% { transform: translate(calc(var(--sway) * .5), -60vh) rotate(9deg); } 100% { transform: translate(var(--sway), -125vh) rotate(-5deg); } }
+@keyframes fx-snow { 50% { transform: translate(35px, 60vh) rotate(90deg); } to { transform: translate(var(--sway), 125vh) rotate(180deg); } }
+@keyframes fx-flower { to { transform: translate(var(--sway), 125vh) rotate(540deg); } }
+@keyframes fx-petal { 50% { transform: translate(-25px, 60vh) rotateX(180deg) rotateZ(105deg); } to { transform: translate(var(--sway), 125vh) rotateX(360deg) rotateZ(210deg); } }
+@keyframes fx-heart { 50% { opacity: .8; } to { transform: translate(var(--sway), -120vh) scale(1.3); opacity: 0; } }
+@keyframes fx-star { to { transform: translate(calc(var(--sway) + 150px), 125vh) rotate(360deg); opacity: 0; } }
+@keyframes fx-sparkle { 0%, 100% { transform: scale(.1); opacity: 0; } 50% { transform: scale(1.4) rotate(90deg); opacity: 1; } }
+@keyframes fx-confetti { to { transform: translate(var(--sway), 125vh) rotateX(1080deg) rotateZ(480deg); } }
+@keyframes fx-gold { 50% { opacity: 1; } to { transform: translate(var(--sway), -115vh) scale(.3); opacity: 0; } }
+@keyframes fx-beam { 0%, 100% { opacity: 0; } 50% { transform: rotate(-12deg) translateX(var(--sway)); opacity: .12; } }
+@keyframes fx-lantern { to { transform: translate(var(--sway), -125vh) rotate(9deg) scale(.5); opacity: 0; } }
+@keyframes fx-candle { from { opacity: .3; filter: brightness(.8); } to { opacity: .85; filter: brightness(1.4) drop-shadow(0 0 9px #ffc45f); } }
+@keyframes fx-bell { 0%, 100% { transform: rotate(-18deg); } 50% { transform: rotate(18deg); } }
+@keyframes fx-gift { 50% { transform: translate(calc(var(--sway) * .5), -55vh) rotate(20deg); } to { transform: translate(var(--sway), -120vh) rotate(-15deg); opacity: 0; } }
+@keyframes fx-diya { to { transform: translate(var(--sway), -115vh); filter: drop-shadow(0 0 12px #ffbd55); opacity: 0; } }
+@keyframes fx-coin { to { transform: translate(var(--sway), 125vh) rotateY(1080deg); } }
+@keyframes fx-gulal { 0%, 100% { transform: scale(0); opacity: 0; } 40% { opacity: .65; } 80% { transform: scale(3) translateX(var(--sway)); opacity: 0; } }
+@keyframes fx-garland { 40% { transform: translate(25px, 45vh) rotate(90deg); } to { transform: translate(var(--sway), 120vh) rotate(270deg); } }
+@keyframes fx-dandiya { to { transform: translate(var(--sway), 125vh) rotate(720deg); } }
+@keyframes fx-puja { to { transform: translate(var(--sway), 125vh) rotate(-300deg); opacity: .1; } }
+@keyframes fx-feather { 50% { transform: translate(35px, -55vh) rotate(-22deg); } to { transform: translate(var(--sway), -120vh) rotate(25deg); opacity: 0; } }
+@keyframes fx-trishul { 0%, 100% { opacity: 0; transform: scale(.7); } 50% { opacity: .8; transform: translateY(-20px) scale(1); } }
+@keyframes fx-rakhi { to { transform: translate(var(--sway), 125vh) rotate(-720deg); } }
+@keyframes fx-kite { 50% { transform: translate(-40px, -60vh) rotate(-10deg); } to { transform: translate(var(--sway), -125vh) rotate(15deg); } }
+@keyframes fx-crescent { to { transform: translate(var(--sway), -115vh) rotate(30deg); opacity: 0; } }
+@keyframes fx-pookalam { to { transform: translate(var(--sway), 125vh) rotate(600deg); } }
+@keyframes fx-flag { 50% { transform: translate(20px, 60vh) rotate(10deg); } to { transform: translate(var(--sway), 125vh) rotate(-12deg); } }
+@keyframes fx-chakra { 0%, 100% { opacity: 0; } 50% { opacity: .65; transform: rotate(180deg) scale(1.3); } }
+@keyframes fx-peace { 0%, 100% { opacity: 0; } 50% { opacity: .3; transform: translateY(-25px) rotate(25deg); } }
+@keyframes fx-christmas { to { transform: translate(var(--sway), 125vh) rotate(45deg); } }
+@keyframes fx-newyear { 0%, 65% { transform: scale(0); opacity: 0; } 75% { opacity: 1; } to { transform: translate(var(--sway), 100px) scale(2) rotate(180deg); opacity: 0; } }
+@keyframes fx-valentine { to { transform: translate(var(--sway), -125vh) rotate(-20deg) scale(1.2); opacity: 0; } }
+@keyframes fx-birthday { to { transform: translate(var(--sway), -125vh) rotate(15deg); opacity: 0; } }
+@keyframes fx-meteor { 0%, 65% { opacity: 0; transform: translate(0); } 70% { opacity: 1; } to { transform: translate(300px, 120vh); opacity: 0; } }
+@keyframes fx-ornament { to { transform: rotate(360deg); } }
+@media (max-width: 650px) { .decoration-greeting { top: 100px; padding: 10px 15px; gap: 7px; } .decoration-greeting p { font-size: 12px; } .fx-rangoli { width: 100px; height: 100px; } .fx-eid-moon { font-size: 65px; } }

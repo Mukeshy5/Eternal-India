@@ -15,6 +15,7 @@ import India from "./Comopents/India";
 import Admin from "./Pages/Admin";
 import TravelDetail from "./Pages/TravelDetail";
 import { PromotionsProvider } from "./Common/Promotions";
+import PublicDecorations from "./Common/festivals/PublicDecorations";
 import { destinations, regions, tourPackages, indiaJourneys, destinationPath, regionPath, packagePath, indiaPath, travelPageTitles } from "./Common/travelCatalog";
 
 const titles = {
@@ -104,6 +105,7 @@ export default function App() {
         </Routes></PromotionsProvider>
       </main>
       {!isAdmin && <><Footer /><FloatingWhatsApp /></>}
+      <PublicDecorations enabled={!isAdmin} />
     </>
   );
 }

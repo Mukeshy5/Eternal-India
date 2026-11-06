@@ -18,5 +18,6 @@ export function readConfig(env = process.env) {
     origins,
     adminEmail: (env.ADMIN_EMAIL || "").trim().toLowerCase(),
     adminPassword: env.ADMIN_PASSWORD || "",
+    technicalEmail: (env.TECHNICAL_EMAIL || "").trim().toLowerCase(),
   };
 }

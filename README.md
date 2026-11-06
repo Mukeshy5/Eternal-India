@@ -49,6 +49,8 @@ The `/api/technical` API shares authenticated admin handlers and MongoDB session
 
 ## Verification
 
+The Technical Panel also includes **Special Days & Festival Management** with 36 reusable effects, festival drafts/publication, backend scheduling, isolated preview, master ON/OFF and append-only history. Access uses existing accounts with technical permissions. See [the implementation and operations guide](docs/FESTIVAL_MANAGEMENT.md) for models, API endpoints, permissions, file inventory and verification details.
+
 ```powershell
 cd Backend
 npm test
