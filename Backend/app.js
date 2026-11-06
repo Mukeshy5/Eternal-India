@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { verifyPassword } from "./lib/passwords.js";
 import { enquiryStatuses, validateEnquiry } from "./lib/validation.js";
+import { registerPromotions } from "./lib/promotions.js";
 
 export function createApp({ client, db, config }) {
   const app = express();
@@ -33,8 +34,9 @@ export function createApp({ client, db, config }) {
       res.set("Access-Control-Allow-Credentials", "true");
       res.vary("Origin");
     }
-    if (req.method === "OPTIONS") return res.set({ "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" }).sendStatus(204);
-    if (["POST", "PATCH"].includes(req.method) && !req.is("application/json")) return res.status(415).json({ message: "Use JSON to submit this request." });
+    if (req.method === "OPTIONS") return res.set({ "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" }).sendStatus(204);
+    const imageUpload = req.method === "POST" && /^\/(admin|technical)\/offer-images$/.test(req.path) && req.is("multipart/form-data");
+    if (["POST", "PATCH"].includes(req.method) && !imageUpload && !req.is("application/json")) return res.status(415).json({ message: "Use JSON to submit this request." });
     next();
   });
   app.use(express.json({ limit: "16kb" }));
@@ -42,7 +44,8 @@ export function createApp({ client, db, config }) {
   const store = MongoStore.create({ client, dbName: config.databaseName, collectionName: "admin_sessions", ttl: 8 * 60 * 60 });
   store.on("error", () => console.error("Admin session storage is unavailable."));
   const cookie = { httpOnly: true, secure: config.production, sameSite: "strict", path: "/api", maxAge: 8 * 60 * 60 * 1000 };
-  app.use("/api/admin", session({ name: "eternal_india.sid", secret: config.sessionSecret, store, resave: false, saveUninitialized: false, rolling: true, cookie }));
+  const management = express.Router();
+  app.use(["/api/admin", "/api/technical"], session({ name: "eternal_india.sid", secret: config.sessionSecret, store, resave: false, saveUninitialized: false, rolling: true, cookie }));
 
   const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
   const enquiryLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many enquiries. Please try again shortly." } });
@@ -79,7 +82,7 @@ export function createApp({ client, db, config }) {
     }
     res.status(created ? 201 : 200).json({ message: "Your enquiry has been submitted successfully.", reference: entry.reference });
   });
-  app.post("/api/admin/login", loginLimit, async (req, res, next) => {
+  management.post("/login", loginLimit, async (req, res, next) => {
     const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase().slice(0, 200) : "";
     const password = typeof req.body?.password === "string" ? req.body.password : "";
     if (!email || !password || password.length > 256) return res.status(401).json({ message: "Email or password is incorrect." });
@@ -92,15 +95,15 @@ export function createApp({ client, db, config }) {
       req.session.save((saveError) => saveError ? next(saveError) : res.json({ admin: publicAdmin(admin) }));
     });
   });
-  app.get("/api/admin/me", requireAdmin, (req, res) => res.json({ admin: publicAdmin(req.admin) }));
-  app.post("/api/admin/logout", (req, res, next) => {
+  management.get("/me", requireAdmin, (req, res) => res.json({ admin: publicAdmin(req.admin) }));
+  management.post("/logout", (req, res, next) => {
     req.session.destroy((error) => {
       if (error) return next(error);
       res.clearCookie("eternal_india.sid", { path: "/api", httpOnly: true, sameSite: "strict", secure: config.production });
       res.sendStatus(204);
     });
   });
-  app.get("/api/admin/enquiries", requireAdmin, async (req, res) => {
+  management.get("/enquiries", requireAdmin, async (req, res) => {
     const page = Math.max(1, Math.min(100000, Number.parseInt(req.query.page, 10) || 1));
     const limit = 20;
     const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 120) : "";
@@ -120,7 +123,7 @@ export function createApp({ client, db, config }) {
     for (const group of counts) { stats[group._id] = group.count; stats.total += group.count; }
     res.json({ enquiries: entries, total, page, pages: Math.max(1, Math.ceil(total / limit)), stats });
   });
-  app.get("/api/admin/history", requireAdmin, async (req, res) => {
+  management.get("/history", requireAdmin, async (req, res) => {
     const history = await db.collection("enquiry_history").find({}, { projection: { _id: 0 } }).sort({ changedAt: -1 }).limit(200).toArray();
     res.json({ history });
   });
@@ -134,18 +137,18 @@ export function createApp({ client, db, config }) {
     if (!name || !hotelStars.includes(starRating) || gst === null || gst > 100 || amount === null) return null;
     return { name, starRating, gst, amount };
   };
-  app.get("/api/admin/hotels", requireAdmin, async (_req, res) => {
+  management.get("/hotels", requireAdmin, async (_req, res) => {
     const hotels = await db.collection("hotels").find({}, { projection: { name: 1, starRating: 1, gst: 1, amount: 1, createdAt: 1, updatedAt: 1 } }).sort({ updatedAt: -1 }).limit(500).toArray();
     res.json({ hotels });
   });
-  app.post("/api/admin/hotels", requireAdmin, async (req, res) => {
+  management.post("/hotels", requireAdmin, async (req, res) => {
     const hotel = parseHotel(req.body);
     if (!hotel) return res.status(400).json({ message: "Enter a valid hotel name, category, GST and amount." });
     const now = new Date();
     const result = await db.collection("hotels").insertOne({ ...hotel, createdAt: now, updatedAt: now });
     res.status(201).json({ hotel: { _id: result.insertedId, ...hotel, createdAt: now, updatedAt: now } });
   });
-  app.patch("/api/admin/hotels/:id", requireAdmin, async (req, res) => {
+  management.patch("/hotels/:id", requireAdmin, async (req, res) => {
     if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid hotel." });
     const hotel = parseHotel(req.body);
     if (!hotel) return res.status(400).json({ message: "Enter a valid hotel name, category, GST and amount." });
@@ -154,17 +157,17 @@ export function createApp({ client, db, config }) {
     if (!result.matchedCount) return res.status(404).json({ message: "Hotel not found." });
     res.json({ message: "Hotel updated." });
   });
-  app.delete("/api/admin/hotels/:id", requireAdmin, async (req, res) => {
+  management.delete("/hotels/:id", requireAdmin, async (req, res) => {
     if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid hotel." });
     const result = await db.collection("hotels").deleteOne({ _id: new ObjectId(req.params.id) });
     if (!result.deletedCount) return res.status(404).json({ message: "Hotel not found." });
     res.status(204).send();
   });
-  app.get("/api/admin/vouchers", requireAdmin, async (_req, res) => {
+  management.get("/vouchers", requireAdmin, async (_req, res) => {
     const vouchers = await db.collection("journey_vouchers").find({}, { projection: { billing: 1, journey: 1, stops: 1, message: 1, voucherNumber: 1, createdAt: 1 } }).sort({ createdAt: -1 }).limit(200).toArray();
     res.json({ vouchers });
   });
-  app.post("/api/admin/vouchers", requireAdmin, async (req, res) => {
+  management.post("/vouchers", requireAdmin, async (req, res) => {
     const billing = req.body?.billing;
     const journey = req.body?.journey;
     const stops = Array.isArray(req.body?.stops) ? req.body.stops : [];
@@ -199,7 +202,7 @@ export function createApp({ client, db, config }) {
     const result = await db.collection("journey_vouchers").insertOne(voucher);
     res.status(201).json({ voucher: { _id: result.insertedId, ...voucher } });
   });
-  app.patch("/api/admin/enquiries/:id", requireAdmin, async (req, res) => {
+  management.patch("/enquiries/:id", requireAdmin, async (req, res) => {
     if (!/^[a-f\d]{24}$/i.test(req.params.id) || !enquiryStatuses.includes(req.body?.status)) return res.status(400).json({ message: "Choose a valid enquiry and status." });
     const enquiryId = new ObjectId(req.params.id);
     const changedAt = new Date();
@@ -210,7 +213,7 @@ export function createApp({ client, db, config }) {
     if (current.status !== req.body.status) await db.collection("enquiry_history").insertOne({ enquiryId, reference: current.reference, action: "status_changed", from: current.status, status: req.body.status, changedAt });
     res.json({ message: "Enquiry status updated." });
   });
-  app.delete("/api/admin/enquiries/:id", requireAdmin, async (req, res) => {
+  management.delete("/enquiries/:id", requireAdmin, async (req, res) => {
     if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid enquiry." });
     const enquiryId = new ObjectId(req.params.id);
     const current = await db.collection("enquiries").findOne({ _id: enquiryId }, { projection: { reference: 1, status: 1 } });
@@ -220,6 +223,8 @@ export function createApp({ client, db, config }) {
     await db.collection("enquiry_history").insertOne({ enquiryId, reference: current.reference, action: "deleted", from: current.status, changedAt: deletedAt });
     res.status(204).send();
   });
+  registerPromotions({ app, management, db, requireAdmin });
+  app.use(["/api/admin", "/api/technical"], management);
   app.use("/api", (_req, res) => res.status(404).json({ message: "API endpoint not found." }));
 
   const frontend = fileURLToPath(new URL("../frontend/dist/", import.meta.url));

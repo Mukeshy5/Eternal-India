@@ -13,7 +13,7 @@ export async function api(path, options = {}) {
     response = await fetch(`/api${path}`, {
       ...options,
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json", ...options.headers },
+      headers: { ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...options.headers },
       signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
     });
   } catch (error) {

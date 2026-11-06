@@ -14,6 +14,7 @@ import DestinationsInIndia from "./Comopents/DestinationsInIndia";
 import India from "./Comopents/India";
 import Admin from "./Pages/Admin";
 import TravelDetail from "./Pages/TravelDetail";
+import { PromotionsProvider } from "./Common/Promotions";
 import { destinations, regions, tourPackages, indiaJourneys, destinationPath, regionPath, packagePath, indiaPath, travelPageTitles } from "./Common/travelCatalog";
 
 const titles = {
@@ -26,10 +27,12 @@ const titles = {
   "/online-payment": "Online payment",
   "/admin": "Admin enquiries",
   "/admin/login": "Admin login",
+  "/technical": "Technical panel",
+  "/technical/login": "Technical login",
 };
 export default function App() {
   const { pathname, hash, search, key } = useLocation();
-  const isAdmin = /^\/admin(?:\/|$)/.test(pathname);
+  const isAdmin = /^\/(admin|technical)(?:\/|$)/.test(pathname);
   useEffect(() => {
     document.title = `${titles[pathname] || "Page not found"} | Eternal India`;
   }, [pathname]);
@@ -64,14 +67,15 @@ export default function App() {
       </a>
       {!isAdmin && <Navbar />}
       <main id="main-content" tabIndex={-1}>
-        <Routes>
+        <PromotionsProvider enabled={!isAdmin}><Routes>
           <Route path="/" element={<Home />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/tours" element={<Journeys />} />
           <Route path="/products" element={<Navigate to="/tours" replace />} />
           <Route path="/request-quote" element={<RequestQuote />} />
-          <Route path="/admin/*" element={<Admin />} />
+          <Route path="/admin/*" element={<Admin key="admin" />} />
+          <Route path="/technical/*" element={<Admin key="technical" technical />} />
           <Route path="/online-payment" element={<OnlinePayment />} />
           <Route path="/tour-packages" element={<TourPackage />} />
           <Route path="/tour-package" element={<Navigate to="/tour-packages" replace />} />
@@ -97,7 +101,7 @@ export default function App() {
               </section>
             }
           />
-        </Routes>
+        </Routes></PromotionsProvider>
       </main>
       {!isAdmin && <><Footer /><FloatingWhatsApp /></>}
     </>

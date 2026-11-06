@@ -12,7 +12,7 @@ function Field({ label, children, wide = false }) {
   return <label className={`admin-tool-field${wide ? " admin-tool-field-wide" : ""}`}><span>{label}</span>{children}</label>;
 }
 
-export default function JourneyVoucher({ onBack, onError, error }) {
+export default function JourneyVoucher({ apiBase = "/admin", technical = false, onBack, onError, error }) {
   const [billing, setBilling] = useState({ name: "", visitingCardNo: "" });
   const [journey, setJourney] = useState({ from: "", fromAddress: "" });
   const [stops, setStops] = useState([{ ...blankStop, key: 0 }]);
@@ -26,11 +26,11 @@ export default function JourneyVoucher({ onBack, onError, error }) {
   const printDocument = useRef(null);
   useEffect(() => {
     const controller = new AbortController();
-    const loadHotels = () => api("/admin/hotels", { signal: controller.signal }).then(({ hotels: result }) => setHotels(result)).catch((failure) => { if (!controller.signal.aborted) onError(failure.message); }).finally(() => { if (!controller.signal.aborted) setLoadingHotels(false); });
+    const loadHotels = () => api(`${apiBase}/hotels`, { signal: controller.signal }).then(({ hotels: result }) => setHotels(result)).catch((failure) => { if (!controller.signal.aborted) onError(failure.message); }).finally(() => { if (!controller.signal.aborted) setLoadingHotels(false); });
     loadHotels();
     window.addEventListener("focus", loadHotels);
     return () => { controller.abort(); window.removeEventListener("focus", loadHotels); };
-  }, [onError]);
+  }, [onError, apiBase]);
   const draft = useMemo(() => ({ billing, journey, stops: stops.map((stop) => ({ ...stop, hotel: hotels.find((hotel) => hotel._id === stop.hotelId) })), message }), [billing, journey, stops, hotels, message]);
   const route = useMemo(() => journeyRoute(journey.from, journey.fromAddress, stops), [journey, stops]);
   const changed = () => { setVoucher(null); onError(""); };
@@ -43,7 +43,7 @@ export default function JourneyVoucher({ onBack, onError, error }) {
     if (busy || !event.currentTarget.reportValidity()) return;
     setBusy(true); onError("");
     try {
-      const result = await api("/admin/vouchers", { method: "POST", body: JSON.stringify({ billing, journey, stops: stops.map(({ key: _key, ...stop }) => stop), message }) });
+      const result = await api(`${apiBase}/vouchers`, { method: "POST", body: JSON.stringify({ billing, journey, stops: stops.map(({ key: _key, ...stop }) => stop), message }) });
       setVoucher(result.voucher);
     } catch (failure) { onError(failure.message); }
     finally { setBusy(false); }
@@ -59,7 +59,7 @@ export default function JourneyVoucher({ onBack, onError, error }) {
     finally { setPrinting(false); }
   }
   return <div className="admin-tools admin-voucher-workspace">
-    <header className="admin-tools-heading"><div><span className="dashboard-section-label">ADMIN WORKSPACE / JOURNEYS</span><h1>Journey Voucher<span>.</span></h1><p>A personal itinerary. Every stop, beautifully mapped.</p></div><button className="dashboard-button" type="button" onClick={onBack}>← Back to enquiries</button></header>
+    <header className="admin-tools-heading"><div><span className="dashboard-section-label">{technical ? "TECHNICAL WORKSPACE" : "ADMIN WORKSPACE"} / JOURNEYS</span><h1>Journey Voucher<span>.</span></h1><p>A personal itinerary. Every stop, beautifully mapped.</p></div><button className="dashboard-button" type="button" onClick={onBack}>← Back to enquiries</button></header>
     {error && <p className="admin-error admin-tool-error" role="alert">{error}</p>}
     <div className="voucher-workspace-grid">
       <form className="admin-tool-card admin-tool-form voucher-editor" onSubmit={save}>

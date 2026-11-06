@@ -6,6 +6,7 @@ import { readConfig } from "../config/env.js";
 import { connectDatabase } from "../config/database.js";
 import { ensureAdmin, verifyPassword } from "../lib/passwords.js";
 import { createApp } from "../app.js";
+import { promotionTargets } from "../../shared/travelCatalog.js";
 
 test("MongoDB enquiry and administrator workflow", async (t) => {
   const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "test-admin@example.com", adminPassword: randomBytes(24).toString("hex") };
@@ -107,6 +108,66 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       for (const distanceKm of [-1, "bad", 100001, true]) assert.equal((await request("/admin/vouchers", { method: "POST", body: { ...body, stops: [{ ...body.stops[0], distanceKm }] } })).status, 400);
       assert.equal((await request("/admin/vouchers", { method: "POST", body: { ...body, stops: Array(21).fill(body.stops[0]) } })).status, 400);
       assert.equal((await request("/admin/vouchers", { method: "POST", body: { ...body, stops: [{ ...body.stops[0], departureDate: "2026-11-30" }] } })).status, 400);
+    });
+    await t.test("technical panel shares all authenticated administrator tools", async () => {
+      assert.equal((await request("/technical/enquiries", { sessionCookie: "" })).status, 401);
+      const login = await request("/technical/login", { method: "POST", body: { email: config.adminEmail, password: config.adminPassword } });
+      assert.equal(login.status, 200);
+      cookie = login.headers.get("set-cookie").split(";")[0];
+      for (const path of ["me", "enquiries", "history", "hotels", "vouchers"]) assert.equal((await request(`/technical/${path}`)).status, 200, `technical ${path} is available`);
+      const hotelData = { name: "Technical Stay", starRating: "3-Star (Mid-Scale / First Class)", gst: 12, amount: 3000 };
+      const hotelReply = await request("/technical/hotels", { method: "POST", body: hotelData });
+      assert.equal(hotelReply.status, 201);
+      const { hotel } = await hotelReply.json();
+      assert.equal((await request(`/technical/hotels/${hotel._id}`, { method: "PATCH", body: { ...hotelData, amount: 3500 } })).status, 200);
+      assert.equal((await request(`/technical/hotels/${hotel._id}`, { method: "DELETE" })).status, 204);
+    });
+    await t.test("persists tour prices and offers, validates uploads, and exposes public card data", async () => {
+      const path = "/technical/promotions/package:golden-triangle";
+      const promotion = { amount: 25000.50, offerAmount: 20000, offerTitle: "Winter special", offerEnabled: true, offerImage: "" };
+      assert.equal((await request("/technical/promotions", { sessionCookie: "" })).status, 401);
+      assert.equal((await request(path, { method: "PATCH", body: promotion, sessionCookie: "" })).status, 401);
+      const catalog = await (await request("/technical/promotions")).json();
+      assert.equal(catalog.targets.length, 35);
+      assert.deepEqual(catalog.targets, promotionTargets);
+      assert.equal((await request("/technical/promotions/package:missing", { method: "PATCH", body: promotion })).status, 404);
+      for (const patch of [{ amount: -1 }, { amount: true }, { amount: "25000" }, { amount: 0.001 }, { amount: 100000001 }, { offerAmount: 26000 }, { amount: null }, { offerEnabled: "true" }, { offerTitle: " " }, { offerImage: "javascript:alert(1)" }, { offerImage: "/api/offer-images/000000000000000000000001" }]) {
+        assert.equal((await request(path, { method: "PATCH", body: { ...promotion, ...patch } })).status, 400, JSON.stringify(patch));
+      }
+      const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j4l8AAAAASUVORK5CYII=", "base64");
+      const upload = (bytes, type = "image/png", sessionCookie = cookie) => {
+        const body = new FormData(); body.append("image", new Blob([bytes], { type }), "offer.png");
+        return fetch(`${base}/api/technical/offer-images`, { method: "POST", headers: { Origin: "http://localhost:5173", ...(sessionCookie ? { Cookie: sessionCookie } : {}) }, body });
+      };
+      assert.equal((await upload(png, "image/png", "")).status, 401);
+      assert.equal((await upload(Buffer.from("<svg onload='alert(1)'/>"))).status, 400);
+      assert.equal((await upload(Buffer.alloc(2 * 1024 * 1024 + 1))).status, 400);
+      const imageReply = await upload(png);
+      assert.equal(imageReply.status, 201);
+      const { image } = await imageReply.json();
+      promotion.offerImage = image;
+      const publicImage = await request(image.replace("/api", ""), { sessionCookie: "" });
+      assert.equal(publicImage.headers.get("content-type"), "image/png");
+      assert.deepEqual(Buffer.from(await publicImage.arrayBuffer()), png);
+      assert.equal((await request(path, { method: "PATCH", body: promotion })).status, 200);
+      assert.equal((await db.collection("tour_promotions").findOne({ _id: "package:golden-triangle" })).amount, 25000.50);
+      let publicData = (await (await request("/promotions", { sessionCookie: "" })).json()).promotions[0];
+      assert.equal(publicData.offerImage, image);
+      assert.equal(publicData.offerTitle, "Winter special");
+      assert.equal(publicData.offerAmount, 20000);
+      assert.equal(publicData.updatedBy, undefined);
+      assert.equal((await request(path, { method: "PATCH", body: { ...promotion, offerEnabled: false } })).status, 200);
+      publicData = (await (await request("/promotions", { sessionCookie: "" })).json()).promotions[0];
+      assert.equal(publicData.amount, 25000.50);
+      assert.equal(publicData.offerImage, "");
+      assert.equal(publicData.offerTitle, "");
+      assert.equal(publicData.offerAmount, null);
+      assert.equal((await (await request("/technical/promotions")).json()).promotions[0].offerImage, image, "disabled offer is retained for editing");
+      assert.equal((await request(path, { method: "DELETE", sessionCookie: "" })).status, 401);
+      assert.equal((await request(path, { method: "DELETE" })).status, 204);
+      assert.equal((await (await request("/promotions")).json()).promotions.length, 0);
+      assert.equal((await request(path, { method: "PATCH", body: { amount: 0, offerAmount: null, offerEnabled: false, offerTitle: "", offerImage: "" } })).status, 200);
+      assert.equal((await request(path, { method: "DELETE" })).status, 204);
     });
     await t.test("rotates login sessions and invalidates them on logout", async () => {
       const oldCookie = cookie;

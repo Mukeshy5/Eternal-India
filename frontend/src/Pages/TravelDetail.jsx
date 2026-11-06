@@ -14,7 +14,7 @@ export default function TravelDetail({ item, type = "destination" }) {
   const enquiryPath = `/request-quote?destination=${encodeURIComponent(item.title)}`;
   return <>
     <nav className="container travel-breadcrumbs" aria-label="Breadcrumb"><Link to="/">Home</Link><span aria-hidden="true">/</span><Link to={collectionPath}>{collectionName}</Link><span aria-hidden="true">/</span><span aria-current="page">{item.title}</span></nav>
-    <TravelHero label={item.country || collectionName} title={item.title} description={item.description} theme={region.theme} image={item.image} srcSet={item.srcSet} alt={item.alt} caption={item.imageCaption}>
+    <TravelHero label={item.country || collectionName} title={item.title} description={item.description} theme={region.theme} image={item.image} srcSet={item.srcSet} alt={item.alt} caption={item.imageCaption} promotionId={item.promotionId}>
       {item.duration && <span className="travel-trip-duration"><Icon name="sun" size={17} />{item.duration}</span>}
       <div className="travel-detail-actions"><Link className="button" to={enquiryPath}>Plan this journey<Icon size={18} /></Link><Link className="text-link" to={collectionPath}>Back to {collectionName}<Icon size={16} /></Link></div>
     </TravelHero>

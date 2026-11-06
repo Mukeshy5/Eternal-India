@@ -11,6 +11,7 @@ import { verifyPaymentInteractions } from "./verify-payment.mjs";
 import { verifyNavigation } from "./verify-navigation.mjs";
 import { verifyEnquiryInteractions } from "./verify-enquiry.mjs";
 import { verifyAdminInteractions } from "./verify-admin.mjs";
+import { verifyPromotions } from "./verify-promotions.mjs";
 import { verifyVoucher } from "./verify-voucher.mjs";
 import { destinations, regions, tourPackages, indiaJourneys, destinationPath, regionPath, packagePath, indiaPath, travelPageTitles } from "../src/Common/travelCatalog.js";
 
@@ -27,6 +28,8 @@ const knownRoutes = new Set([
   "/online-payment",
   "/admin",
   "/admin/login",
+  "/technical",
+  "/technical/login",
   ...Object.keys(travelPageTitles),
 ]);
 try {
@@ -109,7 +112,7 @@ try {
   assert.ok(!pages.get("/").includes("Ready for your next chapter?") && !pages.get("/").includes("payment-banner"), "removed payment promotion is absent from home");
   for (const [route, html] of pages) {
     const floatingChat = html.match(/<a\b[^>]*class="whatsapp-float"[^>]*>/)?.[0];
-    if (!route.startsWith("/admin")) assert.ok(floatingChat?.includes('href="https://wa.me/919319140846"') && floatingChat.includes('target="_blank"'), `${route}: direct WhatsApp shortcut`);
+    if (!/^\/(admin|technical)(?:\/|$)/.test(route)) assert.ok(floatingChat?.includes('href="https://wa.me/919319140846"') && floatingChat.includes('target="_blank"'), `${route}: direct WhatsApp shortcut`);
   }
   assert.ok(existsSync(resolve("src/assets/paymentpng/payment-QR.png")), "requested QR image exists");
   const start = 1_000_000;
@@ -195,6 +198,8 @@ try {
   await verifyNavigation(server);
   await verifyEnquiryInteractions(server);
   await verifyAdminInteractions(server);
+  await verifyAdminInteractions(server, true);
+  await verifyPromotions(server);
   await verifyVoucher(server);
 } finally {
   await server.close();

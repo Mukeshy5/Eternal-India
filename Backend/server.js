@@ -9,7 +9,7 @@ try {
   connection = await connectDatabase(config);
   await ensureAdmin(connection.db, config);
   const { app } = createApp({ ...connection, config });
-  const server = app.listen(config.port, config.host, () => console.log(`Eternal India API: http://localhost:${config.port}\nAdmin panel: http://localhost:5173/admin/login`));
+  const server = app.listen(config.port, config.host, () => console.log(`Eternal India API: http://localhost:${config.port}\nAdmin panel: http://localhost:5173/admin/login\nTechnical panel: http://localhost:5173/technical/login`));
   let closing = false;
   const closeDatabase = async () => {
     if (closing) return;

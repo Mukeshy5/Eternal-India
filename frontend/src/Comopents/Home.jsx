@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Eyebrow, Icon, JourneyCTA, journeys } from "../Common/SiteUI";
+import { PromotionDisplay } from "../Common/Promotions";
 import sliderImageOne from "../assets/SliderImg/slider.jpg";
 import sliderImageTwo from "../assets/SliderImg/slider (2).jpg";
 import sliderImageThree from "../assets/SliderImg/slider (3).jpg";
@@ -16,18 +17,21 @@ const heroSlides = [
 const homeRegions = [
   {
     title: "North India",
+    promotionId: "region:north-india",
     description: "Palaces, sacred rivers and mountain horizons.",
     image: sliderImageOne,
     path: "/destinations-in-india/regions/north-india",
   },
   {
     title: "South India",
+    promotionId: "region:south-india",
     description: "Backwaters, temples and a slower coastal rhythm.",
     image: journeys[2].image,
     path: "/destinations-in-india/regions/south-india",
   },
   {
     title: "East India",
+    promotionId: "region:east-india",
     description: "Living traditions, highland scenery and new perspectives.",
     image: sliderImageThree,
     path: "/destinations-in-india/regions/east-india",
@@ -148,6 +152,7 @@ export default function Home() {
             >
               <div className="journey-image">
                 <img src={journey.image} alt={journey.alt} loading="lazy" />
+                <PromotionDisplay targetId={`journey:${journey.slug}`} overlay />
                 <span className="round-arrow">
                   <Icon name="diagonal" />
                 </span>
@@ -205,6 +210,7 @@ export default function Home() {
               <Link className="region-card" to={region.path} key={region.title}>
                 <div className="region-image">
                   <img src={region.image} alt={region.title} loading="lazy" />
+                  <PromotionDisplay targetId={region.promotionId} overlay />
                   <span className="round-arrow">
                     <Icon name="diagonal" />
                   </span>

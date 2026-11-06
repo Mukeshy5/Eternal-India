@@ -1,3 +1,4 @@
+import { journeyContent } from "../../../shared/travelCatalog.js";
 import { Link } from "react-router-dom";
 
 export { whatsappUrl } from "./enquiries";
@@ -166,32 +167,4 @@ export const offices = [
     email: "operations@eternal-india.com",
   },
 ];
-export const journeys = [
-  {
-    title: "Sacred India",
-    subtitle: "Faith, reflection & timeless traditions",
-    image: "/images/varanasi.jpg",
-    alt: "The historic riverfront of Varanasi",
-    places: "Varanasi · Bodhgaya · Ayodhya",
-    description:
-      "Explore grand temples, sacred riverbanks, and Buddhist pilgrimage destinations with local knowledge to guide your journey.",
-  },
-  {
-    title: "Culture & heritage",
-    subtitle: "Stories written in stone",
-    image: "/images/jaipur.jpg",
-    alt: "The sandstone walls of Amber Fort beside the lake in Jaipur",
-    places: "Delhi · Agra · Jaipur · Rajasthan",
-    description:
-      "Discover remarkable monuments, vibrant cities, and the living traditions of India through a journey shaped around your interests.",
-  },
-  {
-    title: "Nature & beyond",
-    subtitle: "Take the slower, scenic route",
-    image: "/images/kerala.jpg",
-    alt: "Green palms beside the Kerala backwaters",
-    places: "Kerala · Goa · Ladakh · Uttarakhand",
-    description:
-      "From Kerala’s backwaters and South India to the forests of Eastern India and Himalayan hill journeys, find your own pace.",
-  },
-];
+export const journeys = journeyContent;

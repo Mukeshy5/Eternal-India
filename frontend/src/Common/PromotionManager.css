@@ -1,0 +1,29 @@
+.promotion-workspace { display: grid; grid-template-columns: minmax(260px, .7fr) minmax(0, 1.3fr); align-items: start; gap: 24px; max-width: 1260px; margin: auto; }
+.promotion-workspace > .admin-tool-card { width: 100%; margin: 0; }
+.promotion-notice { max-width: 1260px; margin: 0 auto 20px; }
+.promotion-result-count, .promotion-save-hint { margin-block: 14px; color: #667468; font-size: 12px; line-height: 1.7; }
+.promotion-targets { display: grid; gap: 8px; max-height: 660px; overflow-y: auto; padding: 3px; }
+.promotion-target { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 11px; border: 1px solid #e0e6d8; border-radius: 8px; background: #fffefa; color: #273b32; text-align: left; font: inherit; cursor: pointer; }
+.promotion-target:hover, .promotion-target[aria-pressed=true] { border-color: #718365; background: #edf2e6; }
+.promotion-target > img { flex-shrink: 0; width: 62px; height: 54px; object-fit: cover; border-radius: 5px; }
+.promotion-target > span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.promotion-target strong { font-size: 13px; overflow-wrap: anywhere; line-height: 1.5; }
+.promotion-target small { font-size: 10px; color: #667468; line-height: 1.5; }
+.promotion-editor-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; }
+.promotion-editor-heading h2 { margin: 8px 0 0; font-size: 24px; }
+.promotion-editor-heading > a { color: #9a2c59; font-size: 12px; }
+.promotion-preview { position: relative; overflow: hidden; height: 290px; border-radius: 9px; background: #edf2e6; }
+.promotion-preview-photo { display: block; width: 100%; height: 100%; object-fit: cover; }
+.promotion-preview-caption { position: absolute; bottom: 12px; left: 12px; right: 12px; width: fit-content; max-width: calc(100% - 24px); padding: 9px 12px; border-radius: 4px; background: #fffdf8f2; color: #273b32; font-size: 12px; overflow-wrap: anywhere; }
+.promotion-form { margin-top: 25px; }
+.promotion-form fieldset { min-width: 0; padding: 0; border: 0; }
+.promotion-form .admin-tool-field small { color: #667468; font-size: 11px; }
+.promotion-toggle { display: flex; align-items: flex-start; gap: 12px; margin: 22px 0 10px; padding: 16px; border: 1px solid #dce4d6; border-radius: 7px; background: #f3f6ed; cursor: pointer; }
+.promotion-toggle input { width: 18px; height: 18px; margin-top: 2px; accent-color: #294c3b; }
+.promotion-toggle span { display: grid; gap: 6px; }
+.promotion-toggle strong { font-size: 13px; }
+.promotion-toggle small { color: #667468; font-size: 11px; line-height: 1.6; }
+.promotion-image-selection { display: flex; align-items: center; gap: 15px; margin-top: 14px; }
+.promotion-image-selection img { width: 58px; height: 58px; object-fit: contain; border: 1px solid #dce4d6; border-radius: 6px; }
+@media (max-width: 900px) { .promotion-workspace { grid-template-columns: 1fr; max-width: 680px; } .promotion-targets { grid-template-columns: 1fr 1fr; max-height: 300px; } }
+@media (max-width: 550px) { .promotion-targets { grid-template-columns: 1fr; max-height: 270px; } .promotion-preview { height: 250px; } }

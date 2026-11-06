@@ -1,14 +1,16 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../Common/api";
 import { Icon } from "../Common/SiteUI";
 import AdminDashboard from "../Common/AdminDashboard";
 import AdminTools from "../Common/AdminTools";
+import PromotionManager from "../Common/PromotionManager";
 import "./Admin.css";
 
 const emptyData = { enquiries: [], total: 0, pages: 1, stats: { total: 0, new: 0, pending: 0, confirmed: 0, cancelled: 0, contacted: 0, closed: 0 } };
 
-export default function Admin() {
+export default function Admin({ technical = false }) {
+  const basePath = technical ? "/technical" : "/admin";
   const navigate = useNavigate();
   const [checking, setChecking] = useState(true);
   const [admin, setAdmin] = useState(null);
@@ -37,15 +39,18 @@ export default function Admin() {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [activeTool, page, showHistory, status]);
 
-  function clearAdminState() {
+  const clearAdminState = useCallback(() => {
     setAdmin(null); setData(emptyData); setSelectedId(""); setPage(1); setSearch(""); setSearchInput(""); setStatus(""); setHistory([]); setShowHistory(false); setActiveTool("");
     setLoaded(false); setLastUpdated(null);
-  }
+  }, []);
+  const handleUnauthorized = useCallback(() => {
+    clearAdminState(); navigate(`${basePath}/login`, { replace: true });
+  }, [clearAdminState, navigate, basePath]);
 
   useEffect(() => {
     const signOutOnPageExit = () => {
       if (intentionalLogout.current) return;
-      void fetch("/api/admin/logout", {
+      void fetch(`/api${basePath}/logout`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -56,7 +61,7 @@ export default function Admin() {
     const handlePageShow = (event) => {
       if (!event.persisted) return;
       clearAdminState();
-      navigate("/admin/login", { replace: true });
+      navigate(`${basePath}/login`, { replace: true });
     };
     window.addEventListener("pagehide", signOutOnPageExit);
     window.addEventListener("pageshow", handlePageShow);
@@ -64,20 +69,20 @@ export default function Admin() {
       window.removeEventListener("pagehide", signOutOnPageExit);
       window.removeEventListener("pageshow", handlePageShow);
     };
-  }, [navigate]);
+  }, [navigate, basePath, clearAdminState]);
 
   useEffect(() => {
     const controller = new AbortController();
-    api("/admin/me", { signal: controller.signal }).then(({ admin: account }) => {
+    api(`${basePath}/me`, { signal: controller.signal }).then(({ admin: account }) => {
       setAdmin(account);
-      navigate("/admin", { replace: true });
+      navigate(basePath, { replace: true });
     }).catch((failure) => {
       if (controller.signal.aborted) return;
       if (failure.status !== 401) setError(failure.message);
-      navigate("/admin/login", { replace: true });
+      navigate(`${basePath}/login`, { replace: true });
     }).finally(() => { if (!controller.signal.aborted) setChecking(false); });
     return () => controller.abort();
-  }, [navigate]);
+  }, [navigate, basePath]);
 
   useEffect(() => {
     if (!admin) return;
@@ -85,7 +90,7 @@ export default function Admin() {
     setLoading(true);
     setError("");
     const query = new URLSearchParams({ page: String(page), search, status });
-    api(`/admin/enquiries?${query}`, { signal: controller.signal }).then((result) => {
+    api(`${basePath}/enquiries?${query}`, { signal: controller.signal }).then((result) => {
       setData({ ...result, stats: { ...emptyData.stats, ...result.stats } });
       setLoaded(true);
       setLastUpdated(new Date());
@@ -93,10 +98,10 @@ export default function Admin() {
     }).catch((failure) => {
       if (controller.signal.aborted) return;
       setError(failure.message);
-      if (failure.status === 401) { setAdmin(null); setData(emptyData); setLoaded(false); setLastUpdated(null); navigate("/admin/login", { replace: true }); }
+      if (failure.status === 401) { setAdmin(null); setData(emptyData); setLoaded(false); setLastUpdated(null); navigate(`${basePath}/login`, { replace: true }); }
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [admin, page, search, status, refresh, navigate]);
+  }, [admin, page, search, status, refresh, navigate, basePath]);
 
   useEffect(() => {
     if (!admin || !loaded) return undefined;
@@ -107,11 +112,11 @@ export default function Admin() {
   useEffect(() => {
     if (!admin || !showHistory) return undefined;
     const controller = new AbortController();
-    api("/admin/history", { signal: controller.signal }).then((result) => setHistory(result.history || [])).catch((failure) => {
+    api(`${basePath}/history`, { signal: controller.signal }).then((result) => setHistory(result.history || [])).catch((failure) => {
       if (!controller.signal.aborted) setError(failure.message);
     });
     return () => controller.abort();
-  }, [admin, showHistory, refresh]);
+  }, [admin, showHistory, refresh, basePath]);
 
   async function login(event) {
     event.preventDefault();
@@ -119,10 +124,10 @@ export default function Admin() {
     setBusy(true);
     setError("");
     try {
-      const result = await api("/admin/login", { method: "POST", body: JSON.stringify({ email, password }) });
+      const result = await api(`${basePath}/login`, { method: "POST", body: JSON.stringify({ email, password }) });
       setPassword("");
       setAdmin(result.admin);
-      navigate("/admin", { replace: true });
+      navigate(basePath, { replace: true });
     } catch (failure) { setError(failure.message); }
     finally { setBusy(false); }
   }
@@ -131,10 +136,10 @@ export default function Admin() {
     setBusy(true);
     setError("");
     try {
-      await api("/admin/logout", { method: "POST", body: "{}" });
+      await api(`${basePath}/logout`, { method: "POST", body: "{}" });
       clearAdminState();
       intentionalLogout.current = false;
-      navigate("/admin/login", { replace: true });
+      navigate(`${basePath}/login`, { replace: true });
     } catch (failure) { intentionalLogout.current = false; setError(failure.message); }
     finally { setBusy(false); }
   }
@@ -142,11 +147,11 @@ export default function Admin() {
     setUpdating(id);
     setError("");
     try {
-      await api(`/admin/enquiries/${id}`, { method: "PATCH", body: JSON.stringify({ status: nextStatus }) });
+      await api(`${basePath}/enquiries/${id}`, { method: "PATCH", body: JSON.stringify({ status: nextStatus }) });
       setRefresh((value) => value + 1);
     } catch (failure) {
       setError(failure.message);
-      if (failure.status === 401) { setAdmin(null); setData(emptyData); setLoaded(false); setLastUpdated(null); navigate("/admin/login", { replace: true }); }
+      if (failure.status === 401) { setAdmin(null); setData(emptyData); setLoaded(false); setLastUpdated(null); navigate(`${basePath}/login`, { replace: true }); }
     } finally { setUpdating(""); }
   }
   async function deleteEnquiry(id) {
@@ -154,7 +159,7 @@ export default function Admin() {
     setUpdating(id);
     setError("");
     try {
-      await api(`/admin/enquiries/${id}`, { method: "DELETE" });
+      await api(`${basePath}/enquiries/${id}`, { method: "DELETE" });
       setSelectedId("");
       setRefresh((value) => value + 1);
     } catch (failure) { setError(failure.message); }
@@ -168,21 +173,21 @@ export default function Admin() {
     if (clearSearch) { setSearch(""); setSearchInput(""); }
   }
 
-  if (checking) return <section className="admin-checking"><h1>Admin workspace</h1><p role="status">Checking your session…</p></section>;
+  if (checking) return <section className="admin-checking"><h1>{technical ? "Technical workspace" : "Admin workspace"}</h1><p role="status">Checking your session…</p></section>;
   return <div className="admin-shell">
-    {!admin && <header className="admin-header"><Link to="/" aria-label="Eternal India home"><img src="/logo.webp" alt="Eternal India" width="183" height="58" /></Link><span className="admin-header-label">Administration</span><div className="admin-header-actions"><Link to="/request-quote">View enquiry form<Icon name="diagonal" size={15} /></Link>{admin && <button type="button" onClick={logout} disabled={busy}>{busy ? "Signing out…" : "Sign out"}</button>}</div></header>}
+    {!admin && <header className="admin-header"><Link to="/" aria-label="Eternal India home"><img src="/logo.webp" alt="Eternal India" width="183" height="58" /></Link><span className="admin-header-label">{technical ? "Technical panel" : "Administration"}</span><div className="admin-header-actions"><Link to="/request-quote">View enquiry form<Icon name="diagonal" size={15} /></Link>{admin && <button type="button" onClick={logout} disabled={busy}>{busy ? "Signing out…" : "Sign out"}</button>}</div></header>}
     {!admin ? <div className="admin-login-layout">
-      <div className="admin-login-story"><span className="admin-eyebrow">ETERNAL INDIA · ADMIN</span><Icon name="compass" size={52} /><h1>Every enquiry.<br /><em>A new journey.</em></h1><p>A dedicated space to follow up on travel plans, connect with guests and take care of the next step.</p><div className="admin-story-foot"><span className="availability-dot" />Your travel enquiries, in one place.</div></div>
+      <div className="admin-login-story"><span className="admin-eyebrow">ETERNAL INDIA · {technical ? "TECHNICAL" : "ADMIN"}</span><Icon name="compass" size={52} /><h1>{technical ? "Every detail." : "Every enquiry."}<br /><em>{technical ? "One workspace." : "A new journey."}</em></h1><p>{technical ? "Manage tour prices, offers, guest enquiries, hotels and journey vouchers from one workspace." : "A dedicated space to follow up on travel plans, connect with guests and take care of the next step."}</p><div className="admin-story-foot"><span className="availability-dot" />Your travel enquiries, in one place.</div></div>
       <form className="admin-login-form" onSubmit={login}>
-        <span className="admin-eyebrow">WELCOME BACK</span><h2>Sign in to your workspace.</h2><p>Use your administrator account to view travel enquiries.</p>
+        <span className="admin-eyebrow">WELCOME BACK</span><h2>Sign in to your workspace.</h2><p>{technical ? "Use your administrator account to access all technical panel tools." : "Use your administrator account to view travel enquiries."}</p>
         <label htmlFor="admin-email">Email address</label><input id="admin-email" type="email" autoComplete="username" required maxLength={200} value={email} onChange={(event) => setEmail(event.target.value)} />
         <label htmlFor="admin-password">Password</label><input id="admin-password" type="password" autoComplete="current-password" required maxLength={256} value={password} onChange={(event) => setPassword(event.target.value)} />
         {error && <p className="admin-error" role="alert">{error}</p>}
         <button className="button" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}<Icon size={18} /></button>
-        <span className="admin-login-note">For Eternal India administrators.</span>
+        <span className="admin-login-note">For Eternal India administrators.</span>{!technical && <Link to="/technical/login">Open technical panel →</Link>}
       </form>
-    </div> : activeTool ? <AdminTools tool={activeTool} onBack={() => { setActiveTool(""); setError(""); }} onError={setError} error={error} /> : <AdminDashboard
-      admin={admin} data={data} loaded={loaded} loading={loading} busy={busy}
+    </div> : activeTool === "promotions" ? <PromotionManager apiBase={basePath} onBack={() => { setActiveTool(""); setError(""); }} onUnauthorized={handleUnauthorized} /> : activeTool ? <AdminTools apiBase={basePath} technical={technical} tool={activeTool} onBack={() => { setActiveTool(""); setError(""); }} onError={setError} error={error} /> : <AdminDashboard
+      technical={technical} admin={admin} data={data} loaded={loaded} loading={loading} busy={busy}
       updating={updating} error={error} searchInput={searchInput} search={search}
       status={status} page={page} lastUpdated={lastUpdated} selected={selected}
       onSearchInput={(value) => { setSearchInput(value); if (!value) { setSearch(""); setPage(1); } }}

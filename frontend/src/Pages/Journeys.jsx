@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Eyebrow, Icon, JourneyCTA, journeys } from "../Common/SiteUI";
+import { PromotionDisplay } from "../Common/Promotions";
 export default function Journeys() {
   return (
     <>
@@ -24,6 +25,7 @@ export default function Journeys() {
           <article key={journey.title}>
             <div className="editorial-photo">
               <img src={journey.image} alt={journey.alt} loading="lazy" />
+              <PromotionDisplay targetId={`journey:${journey.slug}`} overlay />
             </div>
             <div className="editorial-copy">
               <span className="small-label">
