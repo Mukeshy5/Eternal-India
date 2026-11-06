@@ -1920,7 +1920,7 @@ main:focus {
   }
   .home-hero-copy {
     width: 100%;
-    padding: 390px 30px 42px;
+    padding: 38px 30px 42px;
     background: #243f35;
     padding-inline: 30px;
   }
@@ -1948,9 +1948,10 @@ main:focus {
     font-size: 0.6875rem;
   }
   .home-hero-photo {
+    position: relative;
     height: 360px;
     margin-inline: 0;
-    inset: 0;
+    inset: auto;
   }
   .hero-photo-label {
     right: 23px;
@@ -1973,6 +1974,13 @@ main:focus {
   .journey-grid {
     grid-template-columns: 1fr;
     gap: 24px;
+  }
+  .region-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .region-image {
+    height: 220px;
   }
   .journey-image {
     height: 230px;
@@ -2006,7 +2014,7 @@ main:focus {
       min-height: 0;
     }
     .home-hero-copy {
-      padding: 350px 20px 36px;
+      padding: 32px 20px 36px;
     }
     .hero-actions {
       align-items: flex-start;
@@ -2024,6 +2032,10 @@ main:focus {
     .journey-image,
     .region-image {
       height: 205px;
+    }
+    .region-grid {
+      grid-template-columns: 1fr;
+      gap: 20px;
     }
     .journey-card > .small-label,
     .journey-card > h3,
@@ -2185,5 +2197,28 @@ main:focus {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
+  }
+}
+@media (max-width: 550px) {
+  .home-regions .section-heading {
+    margin-bottom: 25px;
+  }
+  .home-regions .section-heading h2 {
+    font-size: clamp(1.75rem, 8vw, 2.25rem);
+    line-height: 1.15;
+  }
+  .region-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .region-card {
+    min-height: 0;
+  }
+  .region-image {
+    height: 210px;
+  }
+  .region-card p {
+    max-width: none;
+    font-size: 0.8125rem;
   }
 }
