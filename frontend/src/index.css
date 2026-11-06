@@ -521,6 +521,23 @@ main:focus {
 }
 .contact-callout h2 {
   font-size: 30px;
+  }
+  .region-grid,
+  .home-process {
+  grid-template-columns: 1fr;
+  }
+  .home-regions .section-heading {
+  margin-bottom: 28px;
+  }
+  .region-image {
+  height: 245px;
+  }
+  .home-process {
+  gap: 42px;
+  padding-block: 60px;
+  }
+  .process-step h3 {
+  font-size: 22px;
   margin-bottom: 6px;
 }
 .contact-callout p {
@@ -615,6 +632,7 @@ main:focus {
   width: min(560px, 100%);
   padding: 48px;
   color: white;
+  text-shadow: 0 2px 8px #14291f99;
 }
 .home-hero-copy .eyebrow,
 .home-hero-copy > p:not(.eyebrow),
@@ -627,6 +645,10 @@ main:focus {
 }
 .home-hero-copy h1 em {
   color: #f4d7b1;
+}
+.home-hero-copy .button,
+.home-hero-copy .text-link {
+  text-shadow: none;
 }
 .home-hero-copy h1 {
   font-size: clamp(2.125rem, 1.45rem + 3.4vw, 4.4375rem);
@@ -652,7 +674,6 @@ main:focus {
   margin-top: 37px;
 }
 .home-hero-photo {
-  position: relative;
   position: absolute;
   inset: 0 calc((min(1200px, 100vw - 96px) - 100vw) / 2);
   z-index: 0;
@@ -670,16 +691,18 @@ main:focus {
   object-fit: cover;
   position: absolute;
   inset: 0;
+  animation: hero-image-in 0.9s ease both;
 }
 .hero-photo-label {
   position: absolute;
-  left: 30px;
+  right: 30px;
   bottom: 65px;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 32px;
   line-height: 1.3;
   color: white;
   z-index: 1;
+  text-align: right;
 }
 .hero-photo-label em {
   color: #f4d7b1;
@@ -706,6 +729,100 @@ main:focus {
 }
 .hero-slide-dots button.active {
   background: white;
+}
+.home-hero-copy {
+  animation: hero-copy-in 0.8s 0.15s ease both;
+}
+.trust-strip {
+  animation: section-in 0.8s 0.25s ease both;
+}
+.section,
+.page-intro,
+.home-about,
+.cta-section {
+  animation: section-in 0.8s ease both;
+}
+.journey-card,
+.office-card,
+.support-option,
+.destination-card,
+.tour-card,
+.contact-callout {
+  animation: card-in 0.7s ease both;
+}
+.journey-card:nth-child(2),
+.office-card:nth-child(2),
+.support-option:nth-child(2),
+.destination-card:nth-child(2),
+.tour-card:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.journey-card:nth-child(3),
+.office-card:nth-child(3),
+.support-option:nth-child(3),
+.destination-card:nth-child(3),
+.tour-card:nth-child(3) {
+  animation-delay: 0.2s;
+}
+.journey-card:hover,
+.office-card:hover,
+.destination-card:hover,
+.tour-card:hover {
+  transform: translateY(-6px);
+}
+.round-arrow {
+  transition: transform 0.3s ease, background 0.3s ease;
+}
+.journey-card:hover .round-arrow,
+.destination-card:hover .round-arrow,
+.tour-card:hover .round-arrow {
+  transform: rotate(45deg);
+  background: #f4d7b1;
+}
+.site-header,
+.site-footer {
+  animation: section-in 0.7s ease both;
+}
+
+@keyframes hero-image-in {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes hero-copy-in {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes section-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .trust-strip {
   border-bottom: 1px solid var(--line);
@@ -780,6 +897,80 @@ main:focus {
 }
 .home-about .text-link {
   margin-top: 20px;
+}
+.home-regions {
+  background: #efeee5;
+}
+.home-regions .section-heading {
+  margin-bottom: 38px;
+}
+.region-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+}
+.region-card {
+  display: block;
+}
+.region-image {
+  height: 280px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 3px;
+  margin-bottom: 22px;
+}
+.region-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s ease;
+}
+.region-card:hover .region-image img {
+  transform: scale(1.06);
+}
+.region-card .round-arrow {
+  bottom: 17px;
+  right: 17px;
+}
+.region-card .eyebrow {
+  margin-bottom: 8px;
+}
+.region-card p {
+  max-width: 260px;
+  font-size: 13px;
+}
+.home-process {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 90px;
+  padding-block: 100px;
+}
+.home-process > div:first-child > p {
+  max-width: 390px;
+  margin-top: 24px;
+}
+.process-list {
+  border-top: 1px solid var(--line);
+}
+.process-step {
+  display: grid;
+  grid-template-columns: 50px 1fr;
+  gap: 18px;
+  padding-block: 25px;
+  border-bottom: 1px solid var(--line);
+}
+.process-step > span {
+  color: var(--pink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.process-step h3 {
+  font-size: 25px;
+  margin-bottom: 7px;
+}
+.process-step p {
+  font-size: 12px;
 }
 .cta-section {
   background: #e9e8dc;
@@ -1465,6 +1656,16 @@ main:focus {
   .home-about {
     padding-block: 40px 55px;
   }
+  .region-grid {
+    gap: 18px;
+  }
+  .region-image {
+    height: 220px;
+  }
+  .home-process {
+    gap: 45px;
+    padding-block: 70px;
+  }
   .home-about p,
   .vision-inner p,
   .reach-section p {
@@ -1724,8 +1925,8 @@ main:focus {
     margin-inline: 0;
   }
   .hero-photo-label {
-    left: 23px;
-    font-size: 29px;
+    right: 23px;
+    left: auto;
   }
   .home-hero-photo .photo-caption {
     left: 23px;
@@ -1902,6 +2103,7 @@ main:focus {
   *,
   *:before,
   *:after {
+    animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
   }

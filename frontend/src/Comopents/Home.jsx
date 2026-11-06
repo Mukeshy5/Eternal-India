@@ -13,6 +13,27 @@ const heroSlides = [
   { image: sliderImageFour, location: "India · Your journey starts here" },
 ];
 
+const homeRegions = [
+  {
+    title: "North India",
+    description: "Palaces, sacred rivers and mountain horizons.",
+    image: sliderImageOne,
+    path: "/destinations-in-india/regions/north-india",
+  },
+  {
+    title: "South India",
+    description: "Backwaters, temples and a slower coastal rhythm.",
+    image: journeys[2].image,
+    path: "/destinations-in-india/regions/south-india",
+  },
+  {
+    title: "East India",
+    description: "Living traditions, highland scenery and new perspectives.",
+    image: sliderImageThree,
+    path: "/destinations-in-india/regions/east-india",
+  },
+];
+
 export default function Home() {
   const [activeSlide, setActiveSlide] = useState(0);
 
@@ -162,6 +183,74 @@ export default function Home() {
           <Link to="/about" className="text-link">
             Get to know us <Icon />
           </Link>
+        </div>
+      </section>
+      <section className="home-regions section">
+        <div className="container">
+          <div className="section-heading">
+            <div>
+              <Eyebrow>Choose your direction</Eyebrow>
+              <h2>
+                Start anywhere.
+                <br />
+                Go deeper.
+              </h2>
+            </div>
+            <Link className="text-link" to="/destinations-in-india">
+              View all destinations <Icon />
+            </Link>
+          </div>
+          <div className="region-grid">
+            {homeRegions.map((region) => (
+              <Link className="region-card" to={region.path} key={region.title}>
+                <div className="region-image">
+                  <img src={region.image} alt={region.title} loading="lazy" />
+                  <span className="round-arrow">
+                    <Icon name="diagonal" />
+                  </span>
+                </div>
+                <Eyebrow>{region.title}</Eyebrow>
+                <p>{region.description}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+      <section className="home-process container">
+        <div>
+          <Eyebrow>How we make it personal</Eyebrow>
+          <h2>
+            The details matter.
+            <br />
+            <em>So do the moments.</em>
+          </h2>
+          <p>
+            Tell us what you are curious about, and we will help turn the idea
+            into a journey that feels effortless from the first conversation.
+          </p>
+        </div>
+        <div className="process-list">
+          <div className="process-step">
+            <span>01</span>
+            <div>
+              <h3>Share your ideas</h3>
+              <p>Tell us where you want to go, how you like to travel and what you want to feel.</p>
+            </div>
+          </div>
+          <div className="process-step">
+            <span>02</span>
+            <div>
+              <h3>Shape the route</h3>
+              <p>Our local team brings together the right places, people and pace for you.</p>
+            </div>
+          </div>
+          <div className="process-step">
+            <span>03</span>
+            <div>
+              <h3>Travel with confidence</h3>
+              <p>Enjoy thoughtful details and reliable support, before and throughout your journey.</p>
+            </div>
+          </div>
         </div>
       </section>
       <JourneyCTA />
