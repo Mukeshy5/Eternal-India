@@ -685,18 +685,17 @@ main:focus {
   background: linear-gradient(90deg, #14291f66 0%, transparent 65%),
     linear-gradient(0deg, #14291f99, transparent 45%);
 }
-.hero-slide-track img {
-  width: 25%;
+.home-hero-photo > picture,
+.home-hero-photo > picture img {
+  width: 100%;
   height: 100%;
-  flex: 0 0 25%;
-  object-fit: cover;
+  display: block;
 }
-.hero-slide-track {
-  display: flex;
-  width: 400%;
-  height: 100%;
-  transition: transform 0.85s cubic-bezier(0.65, 0, 0.35, 1);
-  will-change: transform;
+.home-hero-photo > picture img {
+  object-fit: cover;
+  position: absolute;
+  inset: 0;
+  animation: hero-image-in 0.9s ease both;
 }
 .hero-photo-label {
   position: absolute;
@@ -715,25 +714,6 @@ main:focus {
 .home-hero-photo .photo-caption {
   left: 30px;
   bottom: 28px;
-}
-.hero-slide-dots {
-  position: absolute;
-  right: 30px;
-  bottom: 28px;
-  z-index: 1;
-  display: flex;
-  gap: 8px;
-}
-.hero-slide-dots button {
-  width: 8px;
-  height: 8px;
-  padding: 0;
-  border: 1px solid white;
-  border-radius: 50%;
-  background: transparent;
-}
-.hero-slide-dots button.active {
-  background: white;
 }
 .home-hero-copy {
   animation: hero-copy-in 0.8s 0.15s ease both;
@@ -1977,9 +1957,6 @@ main:focus {
   .home-hero-photo .photo-caption {
     left: 23px;
   }
-  .hero-slide-dots {
-    right: 23px;
-  }
   .trust-strip > .container {
     gap: 18px 14px;
     padding-block: 22px;
@@ -2041,10 +2018,6 @@ main:focus {
       right: 18px;
       bottom: 58px;
       font-size: 24px;
-    }
-    .hero-slide-dots {
-      right: 18px;
-      bottom: 20px;
     }
     .journey-image,
     .region-image {

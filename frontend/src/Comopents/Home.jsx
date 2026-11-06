@@ -1,26 +1,16 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Eyebrow, Icon, JourneyCTA, journeys } from "../Common/SiteUI";
 import { destinationPath, destinations } from "../Common/travelCatalog";
 import { PromotionDisplay } from "../Common/Promotions";
-import sliderImageOne from "../assets/SliderImg/slider.jpg";
-import sliderImageTwo from "../assets/SliderImg/slider (2).jpg";
-import sliderImageThree from "../assets/SliderImg/slider (3).jpg";
-import sliderImageFour from "../assets/SliderImg/slider (4).jpg";
-
-const heroSlides = [
-  { image: sliderImageOne, location: "India · Where stories begin" },
-  { image: sliderImageTwo, location: "India · Beyond the familiar" },
-  { image: sliderImageThree, location: "India · Moments to remember" },
-  { image: sliderImageFour, location: "India · Your journey starts here" },
-];
+import heroImage from "../assets/SliderImg/slider (2).jpg";
+import mobileHeroImage from "../assets/SliderImg/Phone view.jpg";
 
 const homeRegions = [
   {
     title: "North India",
     promotionId: "region:north-india",
     description: "Palaces, sacred rivers and mountain horizons.",
-    image: sliderImageOne,
+    image: heroImage,
     path: "/destinations-in-india/regions/north-india",
   },
   {
@@ -34,23 +24,12 @@ const homeRegions = [
     title: "East India",
     promotionId: "region:east-india",
     description: "Living traditions, highland scenery and new perspectives.",
-    image: sliderImageThree,
+    image: journeys[1].image,
     path: "/destinations-in-india/regions/east-india",
   },
 ];
 
 export default function Home() {
-  const [activeSlide, setActiveSlide] = useState(0);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setActiveSlide((currentSlide) => (currentSlide + 1) % heroSlides.length);
-    }, 5000);
-
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const slide = heroSlides[activeSlide];
   const availablePlaces = destinations.filter((destination) => destination.image).slice(0, 4);
 
   return (
@@ -58,38 +37,17 @@ export default function Home() {
       <section className="home-hero">
         <div className="container home-hero-inner">
           <div className="home-hero-photo" aria-live="polite">
-            <div className="hero-slide-track" style={{ transform: `translateX(-${activeSlide * 25}%)` }}>
-              {heroSlides.map((heroSlide, index) => (
-                <img
-                  key={heroSlide.image}
-                  src={heroSlide.image}
-                  alt={`${heroSlide.location} travel view`}
-                  width="1280"
-                  height="900"
-                  decoding="async"
-                  fetchPriority={index === 0 ? "high" : undefined}
-                />
-              ))}
-            </div>
+            <picture>
+              <source media="(max-width: 550px)" srcSet={mobileHeroImage} />
+              <img src={heroImage} alt="India travel view" width="1280" height="900" decoding="async" fetchPriority="high" />
+            </picture>
             <span className="photo-caption">
-              <Icon name="pin" size={16} /> {slide.location}
+              <Icon name="pin" size={16} /> India · Where stories begin
             </span>
             <div className="hero-photo-label">
               More than a place.
               <br />
               <em>A feeling.</em>
-            </div>
-            <div className="hero-slide-dots" aria-label="Hero image slides">
-              {heroSlides.map((heroSlide, index) => (
-                <button
-                  type="button"
-                  key={heroSlide.image}
-                  className={index === activeSlide ? "active" : ""}
-                  aria-label={`Show hero image ${index + 1}`}
-                  aria-current={index === activeSlide ? "true" : undefined}
-                  onClick={() => setActiveSlide(index)}
-                />
-              ))}
             </div>
           </div>
           <div className="home-hero-copy">
