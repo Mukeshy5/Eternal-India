@@ -59,11 +59,17 @@ export function StaffEditor({ staff, busy, errors, onSave, onCancel, apiBase }) 
 }
 
 export function AttendanceEditor({ staff, record, date, busy, errors, onSave, onCancel }) {
-  const [status, setStatus] = useState(["present", "absent", "leave"].includes(record?.status) ? record.status : "present");
-  return <form className="admin-tool-card staff-attendance-editor" aria-label="Mark attendance" onSubmit={(event) => { event.preventDefault(); onSave({ status, staffId: staff._id, date, ...(record ? { version: record.version } : {}) }); }}>
+  const [status, setStatus] = useState(record?.status || "present");
+  const [checkIn, setCheckIn] = useState(record?.checkIn || ""), [checkOut, setCheckOut] = useState(record?.checkOut || "");
+  const [leaveType, setLeaveType] = useState(record?.leaveType || ""), [remarks, setRemarks] = useState(record?.remarks || "");
+  return <form className="admin-tool-card staff-attendance-editor" aria-label="Mark attendance" onSubmit={(event) => { event.preventDefault(); onSave({ status, staffId: staff._id, date, checkIn, checkOut, leaveType, remarks, ...(record ? { version: record.version } : {}) }); }}>
     <h2>{record ? "Update attendance" : "Mark attendance"}</h2><p>{staff.name} · {staff.employeeId} · {date}</p><fieldset disabled={busy}><div className="admin-tool-grid">
       <Field label="Attendance" error={errors.status}><select name="attendanceStatus" value={status} onChange={(event) => setStatus(event.target.value)}>{Object.entries(attendanceStatuses).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field>
       <Field label="Date (Asia/Kolkata)" error={errors.date}><input type="date" value={date} max={indiaDate()} readOnly /></Field>
+      <Field label="Check-in" error={errors.checkIn}><input type="time" value={checkIn} disabled={["absent", "leave"].includes(status)} onChange={(event) => setCheckIn(event.target.value)} /></Field>
+      <Field label="Check-out" error={errors.checkOut}><input type="time" value={checkOut} disabled={["absent", "leave"].includes(status)} onChange={(event) => setCheckOut(event.target.value)} /></Field>
+      {status === "leave" && <Field label="Leave type" error={errors.leaveType}><input maxLength={80} value={leaveType} onChange={(event) => setLeaveType(event.target.value)} placeholder="Casual, Sick…" /></Field>}
+      <Field label="Remarks" error={errors.remarks}><input maxLength={300} value={remarks} onChange={(event) => setRemarks(event.target.value)} placeholder="Optional note" /></Field>
     </div><div className="admin-tool-actions"><button type="submit" className="dashboard-button dashboard-button-primary">{busy ? "Saving…" : "Save attendance"}</button><button type="button" className="dashboard-button" onClick={onCancel}>Cancel</button></div></fieldset>
   </form>;
 }

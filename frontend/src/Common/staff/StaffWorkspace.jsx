@@ -3,6 +3,7 @@ import { api, apiUrl } from "../api";
 import { indiaDate } from "../../../../shared/staff.js";
 import { AttendanceEditor, Field, StaffEditor, StaffPhoto } from "./StaffForms";
 import { AttendanceReport, Pager, ReportFilters, StaffStats } from "./StaffReports";
+import StaffAttendanceCalendar from "./StaffAttendanceCalendar";
 import StaffAttendanceRow from "./StaffAttendanceRow";
 import EmployeeIdCard, { printIdCard } from "./EmployeeIdCard";
 import "../AdminTools.css";
@@ -15,6 +16,9 @@ export default function StaffWorkspace({ apiBase, technical, admin, section, onS
   const [date, setDate] = useState(today), [searchInput, setSearchInput] = useState(""), [search, setSearch] = useState("");
   const [status, setStatus] = useState(""), [page, setPage] = useState(1), [refresh, setRefresh] = useState(0);
   const [filters, setFilters] = useState({ period: "monthly", date: today, month: today.slice(0, 7), from: `${today.slice(0, 7)}-01`, to: today });
+  const [calendarMonth, setCalendarMonth] = useState(today.slice(0, 7)), [calendarSearch, setCalendarSearch] = useState("");
+  const [calendarSelectedId, setCalendarSelectedId] = useState(""), [calendarSelectedDate, setCalendarSelectedDate] = useState(today);
+  const [calendarResponse, setCalendarResponse] = useState(null);
   const [profileId, setProfileId] = useState(""), [response, setResponse] = useState(null), [attendanceDrafts, setAttendanceDrafts] = useState({});
   const [editor, setEditor] = useState(null), [attendanceEditor, setAttendanceEditor] = useState(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [errors, setErrors] = useState({}), [notice, setNotice] = useState("");
@@ -42,6 +46,21 @@ export default function StaffWorkspace({ apiBase, technical, admin, section, onS
     document.addEventListener("visibilitychange", load);
     return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener("focus", load); document.removeEventListener("visibilitychange", load); };
   }, [requestKey, refresh, onUnauthorized]);
+  const calendarKey = `${apiBase}/staff-reports?month=${encodeURIComponent(calendarMonth)}&search=${encodeURIComponent(calendarSearch)}`;
+  const calendarData = calendarResponse?.key === calendarKey ? calendarResponse.data : null;
+  useEffect(() => {
+    const controller = new AbortController();
+    setCalendarResponse((previous) => previous?.key === calendarKey && previous.data ? previous : { key: calendarKey, data: null, loading: true });
+    api(calendarKey, { signal: controller.signal }).then((result) => {
+      if (!controller.signal.aborted) {
+        setCalendarResponse({ key: calendarKey, data: result, loading: false });
+        if (result.calendar?.[0]) setCalendarSelectedId((current) => current || result.calendar[0].staffId);
+      }
+    }).catch((failure) => {
+      if (!controller.signal.aborted) setError(failure.message);
+    });
+    return () => controller.abort();
+  }, [calendarKey, refresh, onUnauthorized]);
 
   function choose(key) { setProfileId(""); setEditor(null); setAttendanceEditor(null); setPage(1); setError(""); setErrors({}); setNotice(""); setSearchInput(""); setSearch(""); onSection(key); }
   function profile(id) { setProfileId(id); setEditor(null); setAttendanceEditor(null); setPage(1); setFilters({ ...filters, period: "monthly" }); setError(""); setNotice(""); }
@@ -68,6 +87,12 @@ export default function StaffWorkspace({ apiBase, technical, admin, section, onS
   async function saveAttendance(body) {
     const response = await perform((signal) => api(`${apiBase}/staff-attendance${attendanceEditor.record ? `/${attendanceEditor.record._id}` : ""}`, { method: attendanceEditor.record ? "PATCH" : "POST", body: JSON.stringify(body), signal }), "Attendance saved.");
     if (response) { setAttendanceEditor(null); reload(); }
+  }
+  async function saveWeeklyHoliday(day, enabled) {
+    const current = calendarData?.weeklyHolidays || [0];
+    const weeklyHolidays = enabled ? [...new Set([...current, day])] : current.filter((value) => value !== day);
+    const result = await perform((signal) => api(`${apiBase}/staff-calendar-settings`, { method: "PATCH", body: JSON.stringify({ weeklyHolidays }), signal }), "Weekly holiday settings saved.");
+    if (result) reload();
   }
   useEffect(() => {
     if (section !== "staff-attendance" || !data?.staff) return;
@@ -104,7 +129,8 @@ export default function StaffWorkspace({ apiBase, technical, admin, section, onS
   return <div className="admin-tools staff-workspace">
     <header className="admin-tools-heading"><div><a href="/" aria-label="Eternal India home"><img className="staff-logo" src="/logo.webp" alt="Eternal India" width="183" height="58" /></a><span className="dashboard-section-label">{technical ? "TECHNICAL" : "ADMIN"} WORKSPACE / PEOPLE</span><h1>Our people. <span>Every day.</span></h1><p>Staff details, attendance and identity cards in one shared workspace.</p></div><div className="staff-actions"><button className="dashboard-button" onClick={onBack} disabled={busy}>← Back to enquiries</button><button className="dashboard-button" onClick={onLogout} disabled={busy}>Sign out</button></div></header>
     <div className="staff-layout"><aside className="staff-navigation"><span className="dashboard-section-label">STAFF WORKSPACE</span><nav aria-label="Staff navigation">{Object.entries(sections).filter(([key]) => key !== "staff-cards" || can("export")).map(([key, label], index) => <button key={key} type="button" disabled={busy} aria-current={section === key && !profileId ? "page" : undefined} onClick={() => choose(key)}><span>0{index + 1}</span>{label}</button>)}</nav><p>{admin.email}</p><small>Shared Admin & Technical records</small></aside>
-    <main className="staff-content"><div className="staff-section-heading"><div><span className="dashboard-section-label">ETERNAL INDIA / STAFF</span><h2>{profileId ? "Individual attendance profile" : sections[section]}</h2></div><div className="staff-actions">{profileId && <button className="dashboard-button" onClick={() => choose(section)} disabled={busy}>Back to list</button>}<button className="dashboard-button" disabled={busy || loading} onClick={reload}>Refresh</button>{section === "staff" && !profileId && can("create") && <button className="dashboard-button dashboard-button-primary" disabled={busy} onClick={() => { setEditor({ staff: null }); setErrors({}); setError(""); }}>+ Add staff</button>}</div></div>
+    <main className="staff-content"><StaffAttendanceCalendar data={calendarData} month={calendarMonth} search={calendarSearch} onSearch={(value) => { setCalendarSearch(value); setCalendarSelectedId(""); }} onMonthChange={(month) => { setCalendarMonth(month); setCalendarSelectedDate(`${month}-01`); }} onToday={() => { setCalendarMonth(today.slice(0, 7)); setCalendarSelectedDate(today); }} selectedId={calendarSelectedId} onSelect={(id) => { setCalendarSelectedId(id); setCalendarSelectedDate(`${calendarMonth}-01`); }} selectedDate={calendarSelectedDate.startsWith(calendarMonth) ? calendarSelectedDate : `${calendarMonth}-01`} onDateSelect={setCalendarSelectedDate} weeklyHolidays={calendarData?.weeklyHolidays || [0]} canEdit={can("attendance")} onEdit={(staff, record, selectedDate) => { setAttendanceEditor({ staff, record, date: selectedDate }); setErrors({}); setError(""); setNotice(""); }} onSaveHolidays={saveWeeklyHoliday} technical={technical} />
+    <div className="staff-section-heading"><div><span className="dashboard-section-label">ETERNAL INDIA / STAFF</span><h2>{profileId ? "Individual attendance profile" : sections[section]}</h2></div><div className="staff-actions">{profileId && <button className="dashboard-button" onClick={() => choose(section)} disabled={busy}>Back to list</button>}<button className="dashboard-button" disabled={busy || loading} onClick={reload}>Refresh</button>{section === "staff" && !profileId && can("create") && <button className="dashboard-button dashboard-button-primary" disabled={busy} onClick={() => { setEditor({ staff: null }); setErrors({}); setError(""); }}>+ Add staff</button>}</div></div>
     {error && <p className="admin-error admin-tool-error" role="alert">{error}</p>}{notice && <p className="admin-success" role="status">{notice}</p>}
     {editor && <StaffEditor key={editor.staff?._id || "new"} staff={editor.staff} busy={busy} errors={errors} onSave={saveStaff} onCancel={() => setEditor(null)} apiBase={apiBase} />}
     {attendanceEditor && <AttendanceEditor key={`${attendanceEditor.staff._id}:${attendanceEditor.date}:${attendanceEditor.record?.version || 0}`} {...attendanceEditor} busy={busy} errors={errors} onSave={saveAttendance} onCancel={() => setAttendanceEditor(null)} />}

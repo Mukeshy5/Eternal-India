@@ -9,7 +9,7 @@ export async function ensureStaffModels(db) {
     },
     staff_attendance: {
       bsonType: "object", required: ["staffId", "date", "status", "checkIn", "checkOut", "workingMinutes", "version", "createdAt", "updatedAt"],
-      properties: { staffId: { bsonType: "objectId" }, date: { ...string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }, status: { enum: ["present", "absent", "half_day", "leave"] }, checkIn: string, checkOut: string, workingMinutes: { ...integer, maximum: 1439 }, version: integer, createdAt: date, updatedAt: date },
+      properties: { staffId: { bsonType: "objectId" }, date: { ...string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }, status: { enum: ["present", "absent", "half_day", "leave"] }, checkIn: string, checkOut: string, workingMinutes: { ...integer, maximum: 1439 }, leaveType: { ...string, maxLength: 80 }, remarks: { ...string, maxLength: 300 }, version: integer, createdAt: date, updatedAt: date },
     },
   };
   for (const [name, schema] of Object.entries(schemas)) {

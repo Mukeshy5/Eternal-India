@@ -31,13 +31,18 @@ export function validateAttendance(body) {
   if (!Object.hasOwn({ ...attendanceStatuses, ...legacyAttendanceStatuses }, status || "")) errors.status = "Choose an attendance status.";
   const checkIn = body?.checkIn ?? "";
   const checkOut = body?.checkOut ?? "";
+  const leaveType = clean(body?.leaveType);
+  const remarks = clean(body?.remarks);
+  if (leaveType.length > 80) errors.leaveType = "Use up to 80 characters.";
+  if (remarks.length > 300) errors.remarks = "Use up to 300 characters.";
   for (const [key, value] of [["checkIn", checkIn], ["checkOut", checkOut]]) if (typeof value !== "string" || (value !== "" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(value))) errors[key] = "Use a valid 24-hour time.";
   if (["absent", "leave"].includes(status) && (checkIn || checkOut)) errors.checkIn = "Absent and Leave cannot include working times.";
+  if (status !== "leave" && leaveType) errors.leaveType = "Leave type is only used with Leave status.";
   if (checkOut && !checkIn) errors.checkIn = "Enter check-in before check-out.";
   if (checkIn && checkOut && checkOut <= checkIn) errors.checkOut = "Check-out must be later than check-in on the same day.";
   const minutes = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
   const workingMinutes = !Object.keys(errors).length && checkIn && checkOut ? minutes(checkOut) - minutes(checkIn) : 0;
-  return { fields: { date, status, checkIn, checkOut, workingMinutes }, errors };
+  return { fields: { date, status, checkIn, checkOut, workingMinutes, leaveType: status === "leave" ? leaveType : "", remarks }, errors };
 }
 
 export function reportRange(query) {
