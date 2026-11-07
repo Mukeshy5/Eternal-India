@@ -58,6 +58,18 @@
 .staff-profile p { font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
 .staff-breakdown { margin-top: 25px; padding-top: 20px; border-top: 1px solid #edf0e9; }
 .staff-breakdown summary { cursor: pointer; font-size: 13px; }
+.staff-calendar { margin-top: 25px; padding-top: 20px; border-top: 1px solid #edf0e9; }
+.staff-calendar-heading { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 14px; color: #273b32; font-size: 13px; }
+.staff-calendar-heading span { color: #667468; font-size: 11px; }
+.staff-calendar-weekdays, .staff-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.staff-calendar-weekdays span { padding: 5px; color: #667468; font-size: 10px; text-align: center; }
+.staff-calendar-day { min-height: 58px; display: flex; flex-direction: column; justify-content: space-between; padding: 8px; border: 1px solid #dfe5d9; border-radius: 7px; background: #fafcf8; }
+.staff-calendar-day strong { font-size: 12px; }
+.staff-calendar-day span { font-size: 9px; color: #667468; }
+.staff-calendar-present { border-color: #b7d4b0; background: #edf7e9; }
+.staff-calendar-absent { border-color: #e7b9c5; background: #fff0f3; }
+.staff-calendar-leave { border-color: #c6d0ec; background: #eff2fc; }
+.staff-calendar-empty { min-height: 58px; }
 .staff-identity-card { width: 100%; max-width: 270px; aspect-ratio: 539.8 / 856; height: auto; margin: 0 auto; overflow: hidden; background: white; border: 1px solid #e1e5eb; border-radius: 10px; box-shadow: 0 12px 28px #111a2b16, 0 2px 6px #111a2b0c; }
 .staff-identity-card img { display: block; width: 100%; height: auto; aspect-ratio: 539.8 / 856; }
 .staff-card-preview-details { margin-top: 22px; padding-top: 16px; border-top: 1px solid #edf0e9; }

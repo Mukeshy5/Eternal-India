@@ -59,16 +59,11 @@ export function StaffEditor({ staff, busy, errors, onSave, onCancel, apiBase }) 
 }
 
 export function AttendanceEditor({ staff, record, date, busy, errors, onSave, onCancel }) {
-  const [values, setValues] = useState({ status: record?.status || "present", checkIn: record?.checkIn || "", checkOut: record?.checkOut || "" });
-  const timed = ["present", "half_day"].includes(values.status);
-  const minutes = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
-  const hours = values.checkIn && values.checkOut && values.checkOut > values.checkIn ? ((minutes(values.checkOut) - minutes(values.checkIn)) / 60).toFixed(2) : "0.00";
-  return <form className="admin-tool-card staff-attendance-editor" aria-label="Mark attendance" onSubmit={(event) => { event.preventDefault(); onSave({ ...values, staffId: staff._id, date, ...(record ? { version: record.version } : {}) }); }}>
+  const [status, setStatus] = useState(["present", "absent", "leave"].includes(record?.status) ? record.status : "present");
+  return <form className="admin-tool-card staff-attendance-editor" aria-label="Mark attendance" onSubmit={(event) => { event.preventDefault(); onSave({ status, staffId: staff._id, date, ...(record ? { version: record.version } : {}) }); }}>
     <h2>{record ? "Update attendance" : "Mark attendance"}</h2><p>{staff.name} · {staff.employeeId} · {date}</p><fieldset disabled={busy}><div className="admin-tool-grid">
-      <Field label="Attendance" error={errors.status}><select name="attendanceStatus" value={values.status} onChange={(event) => setValues({ ...values, status: event.target.value, ...(["absent", "leave"].includes(event.target.value) ? { checkIn: "", checkOut: "" } : {}) })}>{Object.entries(attendanceStatuses).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field>
+      <Field label="Attendance" error={errors.status}><select name="attendanceStatus" value={status} onChange={(event) => setStatus(event.target.value)}>{Object.entries(attendanceStatuses).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field>
       <Field label="Date (Asia/Kolkata)" error={errors.date}><input type="date" value={date} max={indiaDate()} readOnly /></Field>
-      <Field label="Check-in (Asia/Kolkata)" error={errors.checkIn}><input name="checkIn" type="time" value={values.checkIn} disabled={!timed} onChange={(event) => setValues({ ...values, checkIn: event.target.value })} /></Field>
-      <Field label="Check-out (same day)" error={errors.checkOut}><input name="checkOut" type="time" value={values.checkOut} disabled={!timed} onChange={(event) => setValues({ ...values, checkOut: event.target.value })} /></Field>
-    </div><p className="staff-note">Working hours: {hours}. An open check-in records 0 hours until check-out is saved.</p><div className="admin-tool-actions"><button type="submit" className="dashboard-button dashboard-button-primary">{busy ? "Saving…" : "Save attendance"}</button><button type="button" className="dashboard-button" onClick={onCancel}>Cancel</button></div></fieldset>
+    </div><div className="admin-tool-actions"><button type="submit" className="dashboard-button dashboard-button-primary">{busy ? "Saving…" : "Save attendance"}</button><button type="button" className="dashboard-button" onClick={onCancel}>Cancel</button></div></fieldset>
   </form>;
 }

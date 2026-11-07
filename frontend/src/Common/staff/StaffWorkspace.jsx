@@ -56,6 +56,15 @@ export default function StaffWorkspace({ apiBase, technical, admin, section, onS
     const response = await perform((signal) => api(`${apiBase}/staff${editor.staff ? `/${editor.staff._id}` : ""}`, { method: editor.staff ? "PATCH" : "POST", body: form, signal }), editor.staff ? "Staff details and ID card updated." : "Staff saved. Your ID card is ready in Download ID Card.");
     if (response) { setEditor(null); reload(); }
   }
+  async function toggleStaffStatus(person) {
+    const nextStatus = person.status === "active" ? "inactive" : "active";
+    const response = await perform((signal) => api(`${apiBase}/staff/${person._id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: nextStatus, version: person.version }),
+      signal,
+    }), `${person.name} marked ${nextStatus}.`);
+    if (response) reload();
+  }
   async function saveAttendance(body) {
     const response = await perform((signal) => api(`${apiBase}/staff-attendance${attendanceEditor.record ? `/${attendanceEditor.record._id}` : ""}`, { method: attendanceEditor.record ? "PATCH" : "POST", body: JSON.stringify(body), signal }), "Attendance saved.");
     if (response) { setAttendanceEditor(null); reload(); }
@@ -117,7 +126,7 @@ export default function StaffWorkspace({ apiBase, technical, admin, section, onS
           <div className="staff-person-heading"><StaffPhoto staff={person} apiBase={apiBase} /><div><button className="staff-name" onClick={() => profile(person._id)}>{person.name}</button><small>{person.employeeId}</small><span className={`staff-badge staff-badge-${person.status}`}>{person.status}</span></div></div><p>{person.department} · {person.designation}</p><a href={`mailto:${person.email}`}>{person.email}</a><a href={`tel:${person.phone}`}>{person.phone}</a>
           <details className="staff-card-preview-details" open><summary>Employee ID card preview</summary><EmployeeIdCard person={person} apiBase={apiBase} /></details>
         </>}
-        <div className="staff-person-actions"><button disabled={busy} onClick={() => profile(person._id)}>View attendance</button>{section === "staff" && can("edit") && <button disabled={busy} onClick={() => { setEditor({ staff: person }); setErrors({}); setError(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Edit</button>}{section === "staff" && can("delete") && <button disabled={busy} onClick={() => remove(person)}>Delete</button>}</div>
+        <div className="staff-person-actions"><button disabled={busy} onClick={() => profile(person._id)}>View attendance</button>{section === "staff" && can("edit") && <><button disabled={busy} onClick={() => toggleStaffStatus(person)}>{person.status === "active" ? "Mark inactive" : "Mark active"}</button><button disabled={busy} onClick={() => { setEditor({ staff: person }); setErrors({}); setError(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Edit</button></>}{section === "staff" && can("delete") && <button disabled={busy} onClick={() => remove(person)}>Delete</button>}</div>
         {can("export") && <div className="staff-card-download-actions"><button className="staff-card-primary" disabled={busy} onClick={() => download(`/staff/${person._id}/card?format=pdf`, `${person.employeeId}-card.pdf`)}>Download PDF</button><button disabled={busy} onClick={() => download(`/staff/${person._id}/card?format=png`, `${person.employeeId}-card.png`)}>Download PNG</button><button disabled={busy} onClick={() => printCard(person)}>Print ID Card</button></div>}
       </article>)}</div>
       {!data.staff.length && <div className="admin-tool-card"><h3>No staff found</h3><p className="admin-tool-empty">Add your first staff member, or adjust the search and status filters.</p></div>}<Pager data={data} busy={busy} onPage={setPage} />

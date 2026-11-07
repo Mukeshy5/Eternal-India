@@ -34,7 +34,7 @@ Delete removes a member from current staff and attendance lists by setting `dele
 
 The attendance screen loads all active staff from MongoDB, left joined with that date's saved attendance. Unmarked is separate from Absent. Inactive/deleted staff cannot receive new attendance, but authorized users can correct existing historical attendance through reports.
 
-Each attendance row has only a Present / Absent / Leave selector. The selected date and one Submit attendance button are shown below the list; all staff choices are saved together. Unmarked rows cannot be submitted.
+Each staff card can be marked Active or Inactive. Inactive staff remain available in Staff Management but are excluded from the attendance list. Each attendance row has only a Present / Absent / Leave selector. The selected date and one Submit attendance button are shown below the list; all staff choices are saved together. Unmarked rows cannot be submitted. Clicking a staff member opens their monthly attendance history with a calendar view.
 
 - One record per staff/date is enforced by a compound unique index. POST duplicates return 409; PATCH updates the existing record with an optimistic version check.
 - New attendance submissions use `present`, `absent` or `leave` and save no check-in, check-out or working-hour values. Leave and unmarked dates are excluded from attendance percentage. No work schedule or holiday calendar is inferred.

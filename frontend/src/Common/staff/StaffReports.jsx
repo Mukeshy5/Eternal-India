@@ -7,7 +7,7 @@ export function Pager({ data, onPage, busy }) {
 }
 export function StaffStats({ stats }) {
   if (!stats) return null;
-  const entries = Object.hasOwn(stats, "totalStaff") ? [["Total staff", stats.totalStaff], ["Active staff", stats.activeStaff], ["Present", stats.present], ["Absent", stats.absent], ["Half Day", stats.half_day], ["On Leave", stats.leave], ["Unmarked", stats.unmarked]] : [["Working days", stats.totalWorkingDays], ["Present days", stats.present], ["Absent days", stats.absent], ["Half days", stats.half_day], ["Leave days", stats.leave], ["Attendance", `${stats.attendancePercentage}%`], ["Working hours", stats.totalWorkingHours]];
+  const entries = Object.hasOwn(stats, "totalStaff") ? [["Total staff", stats.totalStaff], ["Active staff", stats.activeStaff], ["Present", stats.present], ["Absent", stats.absent], ["On Leave", stats.leave], ["Unmarked", stats.unmarked]] : [["Working days", stats.totalWorkingDays], ["Present days", stats.present], ["Absent days", stats.absent], ["Leave days", stats.leave], ["Attendance", `${stats.attendancePercentage}%`]];
   return <div className="staff-stats">{entries.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>;
 }
 export function ReportFilters({ filters, onChange, individual }) {
@@ -18,11 +18,24 @@ export function ReportFilters({ filters, onChange, individual }) {
   </div>;
 }
 function Breakdown({ label, rows }) {
-  return <details className="staff-breakdown"><summary>{label}</summary><div className="admin-tool-table-wrap"><table className="admin-tool-table"><thead><tr><th>Period</th><th>Present</th><th>Absent</th><th>Half Day</th><th>Leave</th><th>Hours</th><th>Attendance %</th></tr></thead><tbody>{rows.map((row) => <tr key={row.date}><td>{row.date}</td><td>{row.present}</td><td>{row.absent}</td><td>{row.half_day}</td><td>{row.leave}</td><td>{row.totalWorkingHours}</td><td>{row.attendancePercentage}%</td></tr>)}</tbody></table></div></details>;
+  return <details className="staff-breakdown"><summary>{label}</summary><div className="admin-tool-table-wrap"><table className="admin-tool-table"><thead><tr><th>Period</th><th>Present</th><th>Absent</th><th>Leave</th><th>Attendance %</th></tr></thead><tbody>{rows.map((row) => <tr key={row.date}><td>{row.date}</td><td>{row.present}</td><td>{row.absent}</td><td>{row.leave}</td><td>{row.attendancePercentage}%</td></tr>)}</tbody></table></div></details>;
+}
+function AttendanceCalendar({ records, month }) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const firstDay = new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay();
+  const days = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  const byDate = Object.fromEntries(records.map((record) => [record.date, record.status]));
+  const cells = Array.from({ length: firstDay + days }, (_, index) => {
+    if (index < firstDay) return null;
+    const day = index - firstDay + 1;
+    const date = `${month}-${String(day).padStart(2, "0")}`;
+    return { day, date, status: byDate[date] || "" };
+  });
+  return <section className="staff-calendar" aria-label={`Attendance calendar for ${month}`}><div className="staff-calendar-heading"><strong>{month}</strong><span>Attendance calendar</span></div><div className="staff-calendar-weekdays">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span key={day}>{day}</span>)}</div><div className="staff-calendar-grid">{cells.map((cell, index) => cell ? <div className={`staff-calendar-day${cell.status ? ` staff-calendar-${cell.status}` : ""}`} key={cell.date}><strong>{cell.day}</strong><span>{statusLabel(cell.status) || "—"}</span></div> : <span className="staff-calendar-empty" key={`empty-${index}`} />)}</div></section>;
 }
 export function AttendanceReport({ data, individual, canExport, onExport, busy, onProfile, onEdit, canEdit, onPage }) {
   return <><StaffStats stats={data.summary} /><section className="admin-tool-card"><div className="staff-section-heading"><div><h2>{individual ? "Attendance history" : "Attendance report"}</h2><p className="staff-note">{data.from} to {data.to} · {data.total} marked records</p></div>{canExport && <div className="staff-actions"><button className="dashboard-button" disabled={busy} onClick={() => onExport("pdf")}>Export PDF</button><button className="dashboard-button" disabled={busy} onClick={() => onExport("xlsx")}>Export Excel</button></div>}</div>
-    <p className="staff-note">{attendancePolicy}</p><div className="admin-tool-table-wrap"><table className="admin-tool-table staff-history"><thead><tr>{!individual && <th>Staff</th>}<th>Date</th><th>Status</th><th>Check-in</th><th>Check-out</th><th>Hours</th>{canEdit && <th>Action</th>}</tr></thead><tbody>{data.records.map((row) => <tr key={row._id}>{!individual && <td><button onClick={() => onProfile(row.staffId)}>{row.name}</button><small>{row.employeeId}</small></td>}<td>{row.date}</td><td><span className={`staff-badge staff-badge-${row.status}`}>{statusLabel(row.status)}</span></td><td>{row.checkIn || "—"}</td><td>{row.checkOut || "—"}</td><td>{(row.workingMinutes / 60).toFixed(2)}</td>{canEdit && <td><button disabled={busy} onClick={() => onEdit(row)}>Edit attendance</button></td>}</tr>)}</tbody></table></div>{!data.records.length && <p className="admin-tool-empty">No attendance has been marked for this period.</p>}<Pager data={data} onPage={onPage} busy={busy} />
-    <Breakdown label="Daily totals" rows={data.daily} /><Breakdown label="Monthly totals" rows={data.monthly} />
+    <p className="staff-note">{attendancePolicy}</p><div className="admin-tool-table-wrap"><table className="admin-tool-table staff-history"><thead><tr>{!individual && <th>Staff</th>}<th>Date</th><th>Status</th>{canEdit && <th>Action</th>}</tr></thead><tbody>{data.records.map((row) => <tr key={row._id}>{!individual && <td><button onClick={() => onProfile(row.staffId)}>{row.name}</button><small>{row.employeeId}</small></td>}<td>{row.date}</td><td><span className={`staff-badge staff-badge-${row.status}`}>{statusLabel(row.status)}</span></td>{canEdit && <td><button disabled={busy} onClick={() => onEdit(row)}>Edit attendance</button></td>}</tr>)}</tbody></table></div>{!data.records.length && <p className="admin-tool-empty">No attendance has been marked for this period.</p>}<Pager data={data} onPage={onPage} busy={busy} />
+    {individual && <AttendanceCalendar records={data.records} month={data.from.slice(0, 7)} />}<Breakdown label="Daily totals" rows={data.daily} /><Breakdown label="Monthly totals" rows={data.monthly} />
   </section></>;
 }
