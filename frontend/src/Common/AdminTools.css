@@ -1,19 +1,19 @@
-.admin-tools { min-height: 100dvh; padding: 36px clamp(16px, 3vw, 52px) 60px; background: radial-gradient(circle at top right, #fdfcf8 0, transparent 34%), #eef3ee; color: #273b32; font-family: Arial, Helvetica, sans-serif; }
+.admin-tools { min-height: 100dvh; padding: 34px clamp(16px, 3vw, 52px) 60px; background: radial-gradient(circle at 90% 0, #eaf2ff 0, transparent 30%), #f3f6fa; color: #27364a; font-family: Arial, Helvetica, sans-serif; }
 .admin-tools h1, .admin-tools h2, .admin-tools h3 { font-family: inherit; font-weight: 600; }
 .admin-tools-heading { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 20px; max-width: 1540px; margin: 0 auto 28px; }
 .admin-tools-heading h1 { margin: 8px 0; font-size: clamp(28px, 3vw, 40px); letter-spacing: -.04em; }
 .admin-tools-heading h1 > span { color: #a62c60; }
 .admin-tools-heading p { color: #667468; font-size: 13px; line-height: 1.7; }
-.admin-tool-card { min-width: 0; max-width: 1180px; margin: 18px auto; padding: 28px; border: 1px solid #dfe5d9; border-radius: 16px; background: rgba(255,255,255,.9); box-shadow: 0 14px 36px rgba(36,63,53,.07); }
+.admin-tool-card { min-width: 0; max-width: 1180px; margin: 18px auto; padding: 28px; border: 1px solid #dbe3ec; border-radius: 14px; background: rgba(255,255,255,.96); box-shadow: 0 12px 32px rgba(31,56,80,.07); }
 .admin-success { padding: 12px 14px; margin: -5px 0 16px; border: 1px solid #cde2c7; border-left: 4px solid #6e8c6d; border-radius: 8px; background: #edf5e8; color: #405641; font-size: 12px; }
 .admin-tool-error { padding: 13px 15px; border: 1px solid #efc6d1; border-left: 4px solid #a62c60; border-radius: 8px; background: #fff2f5; color: #84244e; }
-.admin-tool-card h2 { margin: 0 0 22px; font-size: 18px; }
+.admin-tool-card h2 { margin: 0 0 22px; color: #17263b; font-size: 18px; }
 .admin-tool-card h2 > span { padding: 3px 7px; margin-left: 5px; border-radius: 4px; background: #f1f3ed; color: #667468; font-size: 11px; }
 .admin-tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .admin-tool-field { min-width: 0; display: flex; flex-direction: column; gap: 8px; margin: 10px 0; color: #536456; font-size: 12px; line-height: 1.6; }
 .admin-tool-field > span { overflow-wrap: anywhere; }
 .admin-tool-field-wide { grid-column: 1 / -1; }
-.admin-tool-field input, .admin-tool-field select, .admin-tool-field textarea { min-width: 0; width: 100%; min-height: 46px; padding: 11px 12px; border: 1px solid #cdd7c8; border-radius: 7px; background: #fff; color: #273b32; font: inherit; font-size: 14px; }
+.admin-tool-field input, .admin-tool-field select, .admin-tool-field textarea { min-width: 0; width: 100%; min-height: 46px; padding: 11px 12px; border: 1px solid #cbd6e2; border-radius: 8px; background: #fff; color: #27364a; font: inherit; font-size: 14px; }
 .admin-tool-field input[type=date] { min-width: 0; max-width: 100%; }
 .admin-tool-field textarea { min-height: 100px; resize: vertical; }
 .admin-tools :is(button, input, select, textarea):focus-visible { outline: 2px solid #a62c60; outline-offset: 3px; }
@@ -21,7 +21,7 @@
 .admin-tool-actions .dashboard-button { min-height: 46px; font-size: 12px; white-space: normal; }
 .admin-tool-table-wrap { max-width: 100%; overflow-x: auto; }
 .admin-tool-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.admin-tool-table th, .admin-tool-table td { padding: 15px 12px; border-bottom: 1px solid #edf0e9; text-align: left; overflow-wrap: anywhere; }
+.admin-tool-table th, .admin-tool-table td { padding: 15px 12px; border-bottom: 1px solid #e8edf3; text-align: left; overflow-wrap: anywhere; }
 .admin-tool-table th { color: #405641; font-weight: 600; }
 .admin-tool-table td button { min-height: 44px; padding: 8px; border: 0; background: none; color: #9a2c59; cursor: pointer; font: inherit; }
 .admin-tool-empty { margin-block: 18px; color: #667468; font-size: 13px; line-height: 1.6; }
