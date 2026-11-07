@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../api";
+import { api, apiUrl } from "../api";
 import { indiaDate } from "../../../../shared/staff.js";
 import { AttendanceEditor, Field, StaffEditor, StaffPhoto } from "./StaffForms";
 import { AttendanceReport, Pager, ReportFilters, StaffStats } from "./StaffReports";
@@ -85,7 +85,7 @@ export default function StaffWorkspace({ apiBase, technical, admin, section, onS
     if (response) reload();
   }
   async function fetchFile(url, signal) {
-      const response = await fetch(`/api${apiBase}${url}`, { credentials: "same-origin", signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]) });
+      const response = await fetch(apiUrl(`${apiBase}${url}`), { credentials: "include", signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]) });
       if (!response.ok) { const failure = await response.json().catch(() => ({})); const error = new Error(failure.message || "Download failed. Try again."); error.status = response.status; throw error; }
       return response.blob();
   }

@@ -29,7 +29,7 @@ Vite forwards `/api` to the backend address in `Backend/.env` (port 5000 by defa
 
 On first startup the server creates the admin account from `.env`, storing a salted scrypt password hash. Editing `.env` alone does not replace an existing account password. To change it, update `ADMIN_PASSWORD` (minimum 8 characters) and run `npm run admin:password` from `Backend`. This invalidates existing admin sessions. To configure a new checkout, copy `.env.example` to `.env` and replace both placeholder secrets.
 
-Sessions are stored in MongoDB with HttpOnly, SameSite cookies. Login attempts and submissions are rate limited. Enquiry listing and updates require server authentication. For deployment use HTTPS, set `NODE_ENV=production` and `FRONTEND_ORIGIN`, and configure TLS/session proxy handling for your host. The local server binds to loopback by default.
+Sessions are stored in MongoDB with HttpOnly cookies. Login attempts and submissions are rate limited. Enquiry listing and updates require server authentication. For deployment use HTTPS, set `NODE_ENV=production`, `MONGO_URI` to a reachable MongoDB deployment such as MongoDB Atlas, and `FRONTEND_ORIGIN` to the exact Vercel origin. Production sessions use secure cross-site cookies because the frontend and API are separate deployments. The production server binds to `0.0.0.0` by default so Render can reach it; local development still binds to loopback.
 
 ## Enquiries and recordings
 

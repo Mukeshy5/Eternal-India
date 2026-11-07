@@ -43,7 +43,7 @@ Travel navigation and page content share `src/Common/travelCatalog.js`. Tour Pac
 
 All travel pages and cards use supplied photos from `src/assets`, served as optimized WebP files in `public/images/travel`. The 41 source photos total 106.6 MiB; the two responsive versions (640px and 1280px) total 11.0 MiB. Hero images have priority loading; cards and galleries are lazy loaded. To regenerate with FFmpeg installed, run `node scripts/optimize-travel-images.mjs`. Generated paths are in `src/Common/travelImages.js`. Source photos for Goa, Maharashtra and Gujarat were not supplied; those pages clearly label the actual location of their inspiration photos.
 
-Deploy `dist/` to a static host with SPA fallback to `index.html`. A `_redirects` file is included for compatible hosts. Sites identity and static configuration are in `.openai/hosting.json`.
+Deploy `dist/` to a static host with SPA fallback to `index.html`. A `_redirects` file is included for compatible hosts, and `vercel.json` configures the same fallback on Vercel. When the API is deployed separately, set the Vercel build environment variable `VITE_API_BASE_URL` to the public backend origin (for example `https://eternal-india-api.onrender.com`).
 
 Shared office and destination information is in `src/Common/SiteUI.jsx`; support links and enquiry preparation are in `src/Common/enquiries.js`. Styles are in `src/index.css`.
 

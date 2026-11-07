@@ -49,7 +49,7 @@ export function createApp({ client, db, config, schedulerOptions }) {
 
   const store = MongoStore.create({ client, dbName: config.databaseName, collectionName: "admin_sessions", ttl: 8 * 60 * 60 });
   store.on("error", () => console.error("Admin session storage is unavailable."));
-  const cookie = { httpOnly: true, secure: config.production, sameSite: "strict", path: "/api", maxAge: 8 * 60 * 60 * 1000 };
+  const cookie = { httpOnly: true, secure: config.production, sameSite: config.production ? "none" : "strict", path: "/api", maxAge: 8 * 60 * 60 * 1000 };
   const management = express.Router();
   app.use(["/api/admin", "/api/technical"], session({ name: "eternal_india.sid", secret: config.sessionSecret, store, resave: false, saveUninitialized: false, rolling: true, cookie }));
 
@@ -107,7 +107,7 @@ export function createApp({ client, db, config, schedulerOptions }) {
   management.post("/logout", (req, res, next) => {
     req.session.destroy((error) => {
       if (error) return next(error);
-      res.clearCookie("eternal_india.sid", { path: "/api", httpOnly: true, sameSite: "strict", secure: config.production });
+      res.clearCookie("eternal_india.sid", { path: "/api", httpOnly: true, sameSite: config.production ? "none" : "strict", secure: config.production });
       res.sendStatus(204);
     });
   });

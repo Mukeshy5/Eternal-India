@@ -39,7 +39,7 @@ try {
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
 } catch (error) {
-  console.error(error.name === "MongoServerSelectionError" ? "MongoDB is unavailable. Start MongoDB on localhost:27017, then run npm run dev again." : error.message);
+  console.error(error.name === "MongoServerSelectionError" ? "MongoDB is unavailable. Set MONGO_URI to a reachable MongoDB deployment (for example MongoDB Atlas) before starting the server." : error.message);
   try {
     await connection?.client.close();
   } catch (closeError) {

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { api } from "../Common/api";
+import { api, apiUrl } from "../Common/api";
 import { Icon } from "../Common/SiteUI";
 import AdminDashboard from "../Common/AdminDashboard";
 import AdminTools from "../Common/AdminTools";
@@ -54,9 +54,9 @@ export default function Admin({ technical = false }) {
   useEffect(() => {
     const signOutOnPageExit = () => {
       if (intentionalLogout.current) return;
-      void fetch(`/api${basePath}/logout`, {
+      void fetch(apiUrl(`${basePath}/logout`), {
         method: "POST",
-        credentials: "same-origin",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: "{}",
         keepalive: true,

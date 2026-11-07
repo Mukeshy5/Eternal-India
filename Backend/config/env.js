@@ -10,7 +10,7 @@ export function readConfig(env = process.env) {
   const origins = (env.FRONTEND_ORIGIN || "http://localhost:5173").split(",").map((origin) => new URL(origin.trim()).origin);
   return {
     port,
-    host: env.HOST || "127.0.0.1",
+    host: env.HOST || (env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1"),
     production: env.NODE_ENV === "production",
     mongoUri: env.MONGO_URI || "mongodb://localhost:27017",
     databaseName: env.MONGO_DB || "eternal_india",

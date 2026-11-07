@@ -7,12 +7,18 @@ export class ApiError extends Error {
   }
 }
 
+const apiOrigin = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+
+export function apiUrl(path) {
+  return `${apiOrigin}/api${path}`;
+}
+
 export async function api(path, options = {}) {
   let response;
   try {
-    response = await fetch(`/api${path}`, {
+    response = await fetch(apiUrl(path), {
       ...options,
-      credentials: "same-origin",
+      credentials: "include",
       headers: { ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...options.headers },
       signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
     });
