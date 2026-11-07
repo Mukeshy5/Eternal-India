@@ -13,6 +13,8 @@ import { enquiryStatuses, validateEnquiry } from "./lib/validation.js";
 import { registerPromotions } from "./lib/promotions.js";
 import { registerFestivalRoutes } from "./festivals/routes.js";
 import { technicalAccess } from "./festivals/permissions.js";
+import { registerStaffRoutes } from "./staff/routes.js";
+import { staffAccess } from "./staff/permissions.js";
 
 export function createApp({ client, db, config, schedulerOptions }) {
   const app = express();
@@ -39,7 +41,7 @@ export function createApp({ client, db, config, schedulerOptions }) {
       res.vary("Origin");
     }
     if (req.method === "OPTIONS") return res.set({ "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" }).sendStatus(204);
-    const imageUpload = req.method === "POST" && (/^\/(admin|technical)\/offer-images$/.test(req.path) || req.path === "/technical/festival-assets") && req.is("multipart/form-data");
+    const imageUpload = req.is("multipart/form-data") && ((req.method === "POST" && (/^\/(admin|technical)\/offer-images$/.test(req.path) || req.path === "/technical/festival-assets")) || (["POST", "PATCH"].includes(req.method) && /^\/(admin|technical)\/staff(?:\/[a-f\d]{24})?$/i.test(req.path)));
     if (["POST", "PUT", "PATCH"].includes(req.method) && !imageUpload && !req.is("application/json")) return res.status(415).json({ message: "Use JSON to submit this request." });
     next();
   });
@@ -53,7 +55,7 @@ export function createApp({ client, db, config, schedulerOptions }) {
 
   const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
   const enquiryLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many enquiries. Please try again shortly." } });
-  const publicAdmin = (admin) => { const access = technicalAccess(admin, config); return { id: admin._id.toString(), email: admin.email, roles: access.roles, technicalPermissions: access.permissions }; };
+  const publicAdmin = (admin) => { const access = technicalAccess(admin, config); return { id: admin._id.toString(), email: admin.email, roles: access.roles, technicalPermissions: access.permissions, staffPermissions: staffAccess(admin, config) }; };
   async function requireAdmin(req, res, next) {
     if (!ObjectId.isValid(req.session?.adminId || "")) return res.status(401).json({ message: "Please sign in to continue." });
     const admin = await db.collection("admins").findOne({ _id: new ObjectId(req.session.adminId) });
@@ -234,13 +236,13 @@ export function createApp({ client, db, config, schedulerOptions }) {
     const enquiryId = new ObjectId(req.params.id);
     const current = await db.collection("enquiries").findOne({ _id: enquiryId }, { projection: { reference: 1, status: 1 } });
     if (!current) return res.status(404).json({ message: "Enquiry not found." });
-    const deletedAt = new Date();
     await db.collection("enquiries").deleteOne({ _id: enquiryId });
-    await db.collection("enquiry_history").insertOne({ enquiryId, reference: current.reference, action: "deleted", from: current.status, changedAt: deletedAt });
+    await db.collection("enquiry_history").deleteMany({ enquiryId });
     res.status(204).send();
   });
   const festivals = registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions });
   registerPromotions({ app, management, db, requireAdmin });
+  registerStaffRoutes({ management, db, requireAdmin, config });
   app.use(["/api/admin", "/api/technical"], management);
   app.use("/api", (_req, res) => res.status(404).json({ message: "API endpoint not found." }));
 

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../Common/api";
 import { Icon } from "../Common/SiteUI";
 import AdminDashboard from "../Common/AdminDashboard";
@@ -9,10 +9,15 @@ import "./Admin.css";
 
 const emptyData = { enquiries: [], total: 0, pages: 1, stats: { total: 0, new: 0, pending: 0, confirmed: 0, cancelled: 0, contacted: 0, closed: 0 } };
 const FestivalManagement = lazy(() => import("../Common/festivals/FestivalManagement"));
+const StaffWorkspace = lazy(() => import("../Common/staff/StaffWorkspace"));
+const staffSections = ["staff", "staff-attendance", "staff-cards", "staff-reports"];
 
 export default function Admin({ technical = false }) {
   const basePath = technical ? "/technical" : "/admin";
   const navigate = useNavigate();
+  const location = useLocation();
+  const entryPath = useRef(location.pathname);
+  const staffSection = staffSections.find((key) => location.pathname === `${basePath}/${key}`) || "";
   const [checking, setChecking] = useState(true);
   const [admin, setAdmin] = useState(null);
   const [email, setEmail] = useState("");
@@ -30,18 +35,16 @@ export default function Admin({ technical = false }) {
   const [page, setPage] = useState(1);
   const [refresh, setRefresh] = useState(0);
   const [selectedId, setSelectedId] = useState("");
-  const [history, setHistory] = useState([]);
-  const [showHistory, setShowHistory] = useState(false);
   const [activeTool, setActiveTool] = useState("");
   const intentionalLogout = useRef(false);
   const selected = data.enquiries.find((entry) => entry._id === selectedId);
 
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [activeTool, page, showHistory, status]);
+  }, [activeTool, page, status]);
 
   const clearAdminState = useCallback(() => {
-    setAdmin(null); setData(emptyData); setSelectedId(""); setPage(1); setSearch(""); setSearchInput(""); setStatus(""); setHistory([]); setShowHistory(false); setActiveTool("");
+    setAdmin(null); setData(emptyData); setSelectedId(""); setPage(1); setSearch(""); setSearchInput(""); setStatus(""); setActiveTool("");
     setLoaded(false); setLastUpdated(null);
   }, []);
   const handleUnauthorized = useCallback(() => {
@@ -76,7 +79,7 @@ export default function Admin({ technical = false }) {
     const controller = new AbortController();
     api(`${basePath}/me`, { signal: controller.signal }).then(({ admin: account }) => {
       setAdmin(account);
-      navigate(basePath, { replace: true });
+      if (entryPath.current === `${basePath}/login`) navigate(basePath, { replace: true });
     }).catch((failure) => {
       if (controller.signal.aborted) return;
       if (failure.status !== 401) setError(failure.message);
@@ -86,7 +89,7 @@ export default function Admin({ technical = false }) {
   }, [navigate, basePath]);
 
   useEffect(() => {
-    if (!admin) return;
+    if (!admin || staffSection) return;
     const controller = new AbortController();
     setLoading(true);
     setError("");
@@ -102,24 +105,15 @@ export default function Admin({ technical = false }) {
       if (failure.status === 401) { setAdmin(null); setData(emptyData); setLoaded(false); setLastUpdated(null); navigate(`${basePath}/login`, { replace: true }); }
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [admin, page, search, status, refresh, navigate, basePath]);
+  }, [admin, page, search, status, refresh, navigate, basePath, staffSection]);
 
   useEffect(() => {
-    if (!admin || !loaded) return undefined;
+    if (!admin || !loaded || staffSection) return undefined;
     const timer = window.setInterval(() => { if (!document.hidden) setRefresh((value) => value + 1); }, 30000);
     const refreshOnFocus = () => setRefresh((value) => value + 1);
     window.addEventListener("focus", refreshOnFocus);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", refreshOnFocus); };
-  }, [admin, loaded]);
-
-  useEffect(() => {
-    if (!admin || !showHistory) return undefined;
-    const controller = new AbortController();
-    api(`${basePath}/history`, { signal: controller.signal }).then((result) => setHistory(result.history || [])).catch((failure) => {
-      if (!controller.signal.aborted) setError(failure.message);
-    });
-    return () => controller.abort();
-  }, [admin, showHistory, refresh, basePath]);
+  }, [admin, loaded, staffSection]);
 
   async function login(event) {
     event.preventDefault();
@@ -158,7 +152,7 @@ export default function Admin({ technical = false }) {
     } finally { setUpdating(""); }
   }
   async function deleteEnquiry(id) {
-    if (!window.confirm("Delete this enquiry? Its history will be kept.")) return;
+    if (!window.confirm("Delete this enquiry permanently?")) return;
     setUpdating(id);
     setError("");
     try {
@@ -189,7 +183,7 @@ export default function Admin({ technical = false }) {
         <button className="button" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}<Icon size={18} /></button>
         <span className="admin-login-note">For Eternal India administrators.</span>{!technical && <Link to="/technical/login">Open technical panel →</Link>}
       </form>
-    </div> : technical && activeTool === "festivals" ? <Suspense fallback={<p className="admin-tools" role="status">Loading festival workspace…</p>}><FestivalManagement admin={admin} onBack={() => { setActiveTool(""); setError(""); }} onUnauthorized={handleUnauthorized} onLogout={logout} /></Suspense> : activeTool === "promotions" ? <PromotionManager apiBase={basePath} onBack={() => { setActiveTool(""); setError(""); }} onUnauthorized={handleUnauthorized} /> : activeTool ? <AdminTools apiBase={basePath} technical={technical} tool={activeTool} onBack={() => { setActiveTool(""); setError(""); }} onError={setError} error={error} /> : <AdminDashboard
+    </div> : staffSection ? <Suspense fallback={<p className="admin-tools" role="status">Loading staff workspace…</p>}><StaffWorkspace apiBase={basePath} technical={technical} admin={admin} section={staffSection} onSection={(key) => navigate(`${basePath}/${key}`)} onBack={() => { setActiveTool(""); navigate(basePath); }} onUnauthorized={handleUnauthorized} onLogout={logout} /></Suspense> : technical && activeTool === "festivals" ? <Suspense fallback={<p className="admin-tools" role="status">Loading festival workspace…</p>}><FestivalManagement admin={admin} onBack={() => { setActiveTool(""); setError(""); }} onUnauthorized={handleUnauthorized} onLogout={logout} /></Suspense> : activeTool === "promotions" ? <PromotionManager apiBase={basePath} onBack={() => { setActiveTool(""); setError(""); }} onUnauthorized={handleUnauthorized} /> : activeTool ? <AdminTools apiBase={basePath} technical={technical} tool={activeTool} onBack={() => { setActiveTool(""); setError(""); }} onError={setError} error={error} /> : <AdminDashboard
       technical={technical} admin={admin} data={data} loaded={loaded} loading={loading} busy={busy}
       updating={updating} error={error} searchInput={searchInput} search={search}
       status={status} page={page} lastUpdated={lastUpdated} selected={selected}
@@ -200,7 +194,7 @@ export default function Admin({ technical = false }) {
       onPage={(value) => { setPage(value); setSelectedId(""); }}
       onOpen={setSelectedId} onClose={() => setSelectedId("")}
       onUpdate={updateStatus} onDelete={deleteEnquiry} onRefresh={() => setRefresh((value) => value + 1)} onLogout={logout}
-      history={history} showHistory={showHistory} onToggleHistory={() => setShowHistory((value) => !value)} onTool={(tool) => { setError(""); setActiveTool(tool); }}
+      onTool={(tool) => { setError(""); if (staffSections.includes(tool)) navigate(`${basePath}/${tool}`); else setActiveTool(tool); }}
     />}
     <footer className="admin-footer">Eternal India · Thoughtfully planned. Personally yours.</footer>
   </div>;

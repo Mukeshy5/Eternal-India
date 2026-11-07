@@ -14,6 +14,7 @@ import { verifyAdminInteractions } from "./verify-admin.mjs";
 import { verifyPromotions } from "./verify-promotions.mjs";
 import { verifyVoucher } from "./verify-voucher.mjs";
 import { verifyFestivals } from "./verify-festivals.mjs";
+import { verifyStaff } from "./verify-staff.mjs";
 import { destinations, regions, tourPackages, indiaJourneys, destinationPath, regionPath, packagePath, indiaPath, travelPageTitles } from "../src/Common/travelCatalog.js";
 
 const server = await createServer({
@@ -203,6 +204,7 @@ try {
   await verifyPromotions(server);
   await verifyVoucher(server);
   await verifyFestivals(server);
+  await verifyStaff(server);
 } finally {
   await server.close();
 }

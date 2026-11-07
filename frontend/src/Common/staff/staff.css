@@ -1,0 +1,97 @@
+.staff-workspace { --staff-rose: #a62c60; }
+.staff-logo { display: block; width: 145px; height: auto; margin-bottom: 25px; }
+.staff-workspace .admin-tools-heading h1 span { color: var(--staff-rose); }
+.staff-layout { display: grid; grid-template-columns: 235px minmax(0, 1fr); gap: 28px; max-width: 1540px; margin: auto; align-items: start; }
+.staff-navigation { position: sticky; top: 20px; padding: 22px 15px; border: 1px solid #dfe5d9; background: #fffefa; border-radius: 12px; }
+.staff-navigation > span { padding-inline: 9px; font-size: 10px; }
+.staff-navigation nav { display: grid; gap: 7px; margin-block: 22px; }
+.staff-navigation button { display: flex; align-items: center; gap: 13px; width: 100%; min-height: 49px; padding: 12px; border: 0; border-radius: 6px; background: transparent; color: #536456; text-align: left; cursor: pointer; font: inherit; font-size: 12px; }
+.staff-navigation button span { color: #969d8d; font-size: 10px; }
+.staff-navigation button[aria-current=page] { background: #f6e9ee; color: #9a2c59; font-weight: bold; }
+.staff-navigation > p { margin: 28px 9px 8px; font-size: 11px; overflow-wrap: anywhere; }
+.staff-navigation > small { display: block; margin: 0 9px; font-size: 10px; color: #667468; line-height: 1.7; }
+.staff-content { min-width: 0; }
+.staff-content > .admin-tool-card { max-width: none; }
+.staff-section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; margin-bottom: 22px; }
+.staff-section-heading h2 { margin: 10px 0 0; font-size: 24px; letter-spacing: -.035em; }
+.staff-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.staff-workspace button { touch-action: manipulation; }
+.staff-workspace button:disabled { opacity: .55; cursor: wait; }
+.staff-content fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
+.staff-workspace .staff-note { margin-block: 10px 18px; font-size: 12px; color: #667468; line-height: 1.8; }
+.staff-filter-card { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 15px; padding: 13px 20px; border: 1px solid #dfe5d9; border-radius: 10px; background: #fffefa; margin-block: 20px; }
+.staff-filter-card > .admin-tool-field:first-child { flex: 1 1 220px; }
+.staff-filter-card .admin-tool-field { flex: 1 1 160px; margin: 4px 0; }
+.staff-filters { display: flex; flex: 2 1 320px; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+.staff-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 11px; margin-block: 20px; }
+.staff-stats > div { min-width: 0; display: grid; gap: 17px; padding: 20px 16px; background: #fffefa; border: 1px solid #dfe5d9; border-radius: 10px; }
+.staff-stats span { font-size: 11px; color: #667468; }
+.staff-stats strong { font-size: 26px; font-weight: 500; letter-spacing: -.045em; }
+.staff-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 17px; margin-block: 22px; }
+.staff-person { min-width: 0; padding: 22px; border: 1px solid #dfe5d9; border-radius: 12px; background: #fffefa; }
+.staff-person-heading { display: flex; align-items: flex-start; gap: 12px; }
+.staff-person-heading > div { display: grid; min-width: 0; gap: 7px; }
+.staff-person-heading small, .staff-attendance-table small, .staff-history small { display: block; color: #667468; font-size: 10px; margin-top: 3px; }
+.staff-avatar { flex-shrink: 0; object-fit: cover; width: 52px; height: 64px; border-radius: 7px; background: #e9eee4; }
+.staff-name { display: block; border: 0; padding: 0; background: transparent; color: #273b32; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; text-align: left; overflow-wrap: anywhere; }
+.staff-person > p { margin: 19px 0 12px; font-size: 12px; line-height: 1.7; }
+.staff-person > a { display: block; width: fit-content; max-width: 100%; margin-block: 10px; color: #667468; font-size: 12px; overflow-wrap: anywhere; }
+.staff-badge { display: inline-block; width: fit-content; padding: 5px 8px; border-radius: 4px; background: #edf0e9; color: #667468; font-size: 10px; text-transform: capitalize; white-space: nowrap; }
+.staff-badge-active, .staff-badge-present { background: #e8f1e4; color: #356039; }
+.staff-badge-inactive, .staff-badge-absent { background: #f8e8ed; color: #9a2c59; }
+.staff-badge-half_day { background: #fff0d3; color: #805f20; }
+.staff-badge-leave { background: #e9edf9; color: #4a5c8a; }
+.staff-person-actions { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 20px; padding-top: 12px; border-top: 1px solid #edf0e9; }
+.staff-person-actions button { padding: 8px 0; min-height: 40px; border: 0; background: transparent; color: #9a2c59; cursor: pointer; font: inherit; font-size: 11px; }
+.staff-pagination { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 13px; padding-block: 20px; }
+.staff-pagination span { font-size: 11px; color: #667468; }
+.staff-photo-editor { display: flex; align-items: center; flex-wrap: wrap; gap: 24px; margin-block: 24px; }
+.staff-photo-editor > :is(img, video, .staff-photo-placeholder) { width: 120px; height: 150px; object-fit: cover; border: 1px solid #dfe5d9; border-radius: 7px; background: #edf0e9; }
+.staff-photo-placeholder { display: grid; place-items: center; color: #667468; font-size: 12px; }
+.staff-photo-controls { flex: 1 1 230px; }
+.staff-photo-controls .dashboard-button { margin: 0 8px 10px 0; }
+.staff-field-error { color: #a62c60; font-size: 12px; line-height: 1.6; }
+.staff-profile { display: flex; align-items: flex-start; gap: 20px; }
+.staff-profile .staff-avatar { width: 95px; height: 120px; }
+.staff-profile h2 { margin-block: 0 9px; }
+.staff-profile strong { font-size: 12px; color: #a62c60; }
+.staff-profile p { font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.staff-breakdown { margin-top: 25px; padding-top: 20px; border-top: 1px solid #edf0e9; }
+.staff-breakdown summary { cursor: pointer; font-size: 13px; }
+.staff-identity-card { width: 100%; max-width: 270px; aspect-ratio: 539.8 / 856; height: auto; margin: 0 auto; overflow: hidden; background: white; border: 1px solid #e1e5eb; border-radius: 10px; box-shadow: 0 12px 28px #111a2b16, 0 2px 6px #111a2b0c; }
+.staff-identity-card img { display: block; width: 100%; height: auto; aspect-ratio: 539.8 / 856; }
+.staff-card-preview-details { margin-top: 22px; padding-top: 16px; border-top: 1px solid #edf0e9; }
+.staff-card-preview-details summary { margin-bottom: 18px; color: #667468; font-size: 11px; cursor: pointer; }
+.staff-card-preview-details .staff-identity-card { max-width: 215px; border-radius: 8px; }
+.staff-card-intro { margin: 20px 0; padding: 20px 24px; border: 1px solid #dde2ea; border-left: 3px solid #d42a45; border-radius: 8px; background: #fff; }
+.staff-card-intro strong { color: #111a2b; font-size: 14px; }
+.staff-card-intro p { max-width: 760px; margin-top: 8px; color: #647084; font-size: 12px; line-height: 1.8; }
+.staff-card-grid .staff-person { padding: 26px 20px 20px; background: #f9fafc; border-color: #dde2ea; }
+.staff-card-download-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.staff-card-download-actions button { flex: 1 1 100px; min-height: 41px; padding: 10px; border: 1px solid #dbe1e8; border-radius: 6px; background: #fff; color: #273347; font: inherit; font-size: 11px; cursor: pointer; }
+.staff-card-download-actions .staff-card-primary { background: #111a2b; border-color: #111a2b; color: white; }
+.staff-card-download-actions button:hover { border-color: #d42a45; }
+.staff-print-frame { position: fixed; width: 1px; height: 1px; left: -10000px; bottom: 0; border: 0; }
+.staff-attendance-table select, .staff-attendance-table input { display: block; min-height: 42px; width: 100%; border: 1px solid #cdd7c8; border-radius: 6px; padding: 8px; font: inherit; font-size: 12px; }
+.staff-attendance-table select { min-width: 146px; font-weight: 600; }
+.staff-attendance-table input { min-width: 112px; color: #273b32; background: #fff; }
+.staff-attendance-table input:disabled { color: #9ba29c; background: #f3f5f1; }
+.staff-attendance-table .staff-attendance-save { min-width: 118px; padding: 8px 10px; border-radius: 6px; background: #273b32; color: #fff; font-size: 11px; }
+.staff-row-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.staff-row-actions small { flex-basis: 100%; max-width: 180px; line-height: 1.7; }
+.staff-attendance-table .staff-draft-label { margin-top: 7px; color: #a62c60; font-size: 10px; }
+.staff-attendance-dirty { background: #fffbf0; }
+.staff-card-grid { grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); }
+@media (max-width: 1250px) { .staff-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .staff-layout { grid-template-columns: 205px minmax(0, 1fr); gap: 20px; } }
+@media (max-width: 900px) { .staff-layout { grid-template-columns: minmax(0, 1fr); } .staff-navigation { position: static; } .staff-navigation nav { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-block: 15px 0; } .staff-navigation button { padding: 10px; font-size: 11px; gap: 8px; } .staff-navigation > p, .staff-navigation > small { display: none; } }
+@media (max-width: 600px) { .staff-workspace { padding: 24px 14px 40px; } .staff-navigation nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .staff-grid { grid-template-columns: minmax(0, 1fr); } .staff-content .admin-tool-card { padding: 20px 14px; } .staff-editor .admin-tool-grid, .staff-attendance-editor .admin-tool-grid { grid-template-columns: minmax(0, 1fr); } .staff-profile { gap: 13px; } .staff-profile .staff-avatar { width: 62px; height: 79px; } .staff-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .staff-filter-card { padding: 14px; } .staff-filter-card > .admin-tool-field { flex-basis: 100%; } .staff-filters { flex-basis: 100%; } .staff-filters .admin-tool-field { flex-basis: 100%; } .staff-section-heading h2 { font-size: 22px; } }
+@media (max-width: 600px) {
+  .staff-attendance-table { display: block; }
+  .staff-attendance-table thead { display: none; }
+  .staff-attendance-table tbody { display: grid; gap: 16px; }
+  .staff-attendance-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px 12px; border: 1px solid #dfe5d9; border-radius: 9px; }
+  .staff-attendance-table td { min-width: 0; border: 0; padding: 0; }
+  .staff-attendance-table td::before { content: attr(data-label); display: block; margin-bottom: 8px; font-size: 10px; color: #667468; }
+  .staff-attendance-table td:first-child, .staff-attendance-table td:last-child { grid-column: 1 / -1; }
+  .staff-attendance-table :is(input,select) { min-width: 0; }
+}

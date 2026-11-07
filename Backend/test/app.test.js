@@ -88,7 +88,8 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       assert.equal((await request(`/admin/enquiries/${id}`, { method: "PATCH", body: { status: "cancelled" } })).status, 200);
       assert.equal((await request(`/admin/enquiries/${id}`, { method: "DELETE" })).status, 204);
       assert.equal(await db.collection("enquiries").findOne({ reference }), null);
-      assert.ok((await (await request("/admin/history")).json()).history.some((item) => item.action === "deleted"));
+      assert.equal(await db.collection("enquiry_history").countDocuments({ enquiryId: saved._id }), 0);
+      assert.equal((await (await request("/admin/history")).json()).history.some((item) => item.reference === reference), false);
     });
     await t.test("saves voucher addresses and distances with a hotel snapshot", async () => {
       const hotelReply = await request("/admin/hotels", { method: "POST", body: { name: "Voucher Test Stay", starRating: "4-Star (Upscale / Deluxe)", gst: 12, amount: 5000 } });
