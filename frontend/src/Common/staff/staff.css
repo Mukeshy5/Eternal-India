@@ -70,6 +70,25 @@
 .staff-calendar-absent { border-color: #e7b9c5; background: #fff0f3; }
 .staff-calendar-leave { border-color: #c6d0ec; background: #eff2fc; }
 .staff-calendar-empty { min-height: 58px; }
+.staff-team-calendar { margin-top: 25px; padding-top: 20px; border-top: 1px solid #edf0e9; }
+.staff-team-calendar-scroll { overflow-x: auto; padding-bottom: 5px; }
+.staff-team-calendar-grid { display: grid; grid-template-columns: minmax(180px, 1.4fr) repeat(var(--calendar-days), minmax(34px, 1fr)); min-width: 1220px; border-top: 1px solid #dfe5d9; border-left: 1px solid #dfe5d9; }
+.staff-team-calendar-name, .staff-team-calendar-date, .staff-team-calendar-cell { min-height: 36px; padding: 6px 4px; border-right: 1px solid #dfe5d9; border-bottom: 1px solid #dfe5d9; text-align: center; }
+.staff-team-calendar-name { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding-inline: 9px; text-align: left; background: #fafcf8; }
+.staff-team-calendar-name strong { color: #273b32; font-size: 10px; }
+.staff-team-calendar-name span, .staff-team-calendar-date span { color: #667468; font-size: 8px; }
+.staff-team-calendar-date { background: #f5f8f2; font-size: 10px; }
+.staff-team-calendar-date strong { display: block; color: #273b32; }
+.staff-team-calendar-cell { color: #9ba29c; font-size: 10px; font-weight: 700; }
+.staff-calendar-sunday { background: #fff0f0; color: #bd3344; }
+.staff-team-calendar-cell.staff-calendar-present { background: #edf7e9; color: #2d7a35; }
+.staff-team-calendar-cell.staff-calendar-absent { background: #fff0f3; color: #bd4966; }
+.staff-team-calendar-cell.staff-calendar-leave { background: #f2efff; color: #6444a5; font-size: 8px; }
+.staff-calendar-legend { display: flex; flex-wrap: wrap; gap: 8px; color: #667468; font-size: 10px; }
+.staff-calendar-legend-present::before, .staff-calendar-legend-absent::before, .staff-calendar-legend-leave::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 4px; border-radius: 2px; }
+.staff-calendar-legend-present::before { background: #b7d4b0; }
+.staff-calendar-legend-absent::before { background: #e7b9c5; }
+.staff-calendar-legend-leave::before { background: #c6b8ee; }
 .staff-identity-card { width: 100%; max-width: 270px; aspect-ratio: 539.8 / 856; height: auto; margin: 0 auto; overflow: hidden; background: white; border: 1px solid #e1e5eb; border-radius: 10px; box-shadow: 0 12px 28px #111a2b16, 0 2px 6px #111a2b0c; }
 .staff-identity-card img { display: block; width: 100%; height: auto; aspect-ratio: 539.8 / 856; }
 .staff-card-preview-details { margin-top: 22px; padding-top: 16px; border-top: 1px solid #edf0e9; }

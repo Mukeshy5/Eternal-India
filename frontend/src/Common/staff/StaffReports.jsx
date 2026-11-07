@@ -33,9 +33,32 @@ function AttendanceCalendar({ records, month }) {
   });
   return <section className="staff-calendar" aria-label={`Attendance calendar for ${month}`}><div className="staff-calendar-heading"><strong>{month}</strong><span>Attendance calendar</span></div><div className="staff-calendar-weekdays">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span key={day}>{day}</span>)}</div><div className="staff-calendar-grid">{cells.map((cell, index) => cell ? <div className={`staff-calendar-day${cell.status ? ` staff-calendar-${cell.status}` : ""}`} key={cell.date}><strong>{cell.day}</strong><span>{statusLabel(cell.status) || "—"}</span></div> : <span className="staff-calendar-empty" key={`empty-${index}`} />)}</div></section>;
 }
+function TeamAttendanceCalendar({ calendar, month }) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const days = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  const dates = Array.from({ length: days }, (_, index) => {
+    const day = index + 1;
+    const date = `${month}-${String(day).padStart(2, "0")}`;
+    return { day, date, sunday: new Date(Date.UTC(year, monthNumber - 1, day)).getUTCDay() === 0 };
+  });
+  return <section className="staff-team-calendar" aria-label={`All staff attendance calendar for ${month}`}>
+    <div className="staff-calendar-heading"><div><strong>All staff calendar</strong><span> {month}</span></div><div className="staff-calendar-legend"><span className="staff-calendar-legend-present">Present</span><span className="staff-calendar-legend-absent">Absent</span><span className="staff-calendar-legend-leave">CROS = Leave</span></div></div>
+    <div className="staff-team-calendar-scroll"><div className="staff-team-calendar-grid" style={{ "--calendar-days": days }}>
+      <div className="staff-team-calendar-name staff-team-calendar-header">Staff</div>
+      {dates.map(({ day, date, sunday }) => <div className={`staff-team-calendar-date${sunday ? " staff-calendar-sunday" : ""}`} key={date}><strong>{day}</strong><span>{new Date(Date.UTC(year, monthNumber - 1, day)).toLocaleDateString("en-IN", { weekday: "short", timeZone: "UTC" })}</span></div>)}
+      {calendar.map((person) => {
+        const byDate = Object.fromEntries(person.records.map((record) => [record.date, record.status]));
+        return <div className="staff-team-calendar-row" key={person.staffId}><div className="staff-team-calendar-name"><strong>{person.name}</strong><span>{person.employeeId}</span></div>{dates.map(({ date, sunday }) => {
+          const status = byDate[date] || "";
+          return <div className={`staff-team-calendar-cell${sunday ? " staff-calendar-sunday" : ""}${status ? ` staff-calendar-${status}` : ""}`} key={date} title={`${person.name} · ${date} · ${statusLabel(status) || "Unmarked"}`}>{status === "leave" ? "CROS" : status === "present" ? "P" : status === "absent" ? "A" : "—"}</div>;
+        })}</div>;
+      })}
+    </div></div>
+  </section>;
+}
 export function AttendanceReport({ data, individual, canExport, onExport, busy, onProfile, onEdit, canEdit, onPage }) {
   return <><StaffStats stats={data.summary} /><section className="admin-tool-card"><div className="staff-section-heading"><div><h2>{individual ? "Attendance history" : "Attendance report"}</h2><p className="staff-note">{data.from} to {data.to} · {data.total} marked records</p></div>{canExport && <div className="staff-actions"><button className="dashboard-button" disabled={busy} onClick={() => onExport("pdf")}>Export PDF</button><button className="dashboard-button" disabled={busy} onClick={() => onExport("xlsx")}>Export Excel</button></div>}</div>
     <p className="staff-note">{attendancePolicy}</p><div className="admin-tool-table-wrap"><table className="admin-tool-table staff-history"><thead><tr>{!individual && <th>Staff</th>}<th>Date</th><th>Status</th>{canEdit && <th>Action</th>}</tr></thead><tbody>{data.records.map((row) => <tr key={row._id}>{!individual && <td><button onClick={() => onProfile(row.staffId)}>{row.name}</button><small>{row.employeeId}</small></td>}<td>{row.date}</td><td><span className={`staff-badge staff-badge-${row.status}`}>{statusLabel(row.status)}</span></td>{canEdit && <td><button disabled={busy} onClick={() => onEdit(row)}>Edit attendance</button></td>}</tr>)}</tbody></table></div>{!data.records.length && <p className="admin-tool-empty">No attendance has been marked for this period.</p>}<Pager data={data} onPage={onPage} busy={busy} />
-    {individual && <AttendanceCalendar records={data.records} month={data.from.slice(0, 7)} />}<Breakdown label="Daily totals" rows={data.daily} /><Breakdown label="Monthly totals" rows={data.monthly} />
+    {individual && <AttendanceCalendar records={data.records} month={data.from.slice(0, 7)} />}{!individual && data.calendar && <TeamAttendanceCalendar calendar={data.calendar} month={data.from.slice(0, 7)} />}<Breakdown label="Daily totals" rows={data.daily} /><Breakdown label="Monthly totals" rows={data.monthly} />
   </section></>;
 }

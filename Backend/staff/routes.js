@@ -185,7 +185,23 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
       return download(res, excel ? await attendanceExcel(rows, result) : await attendancePdf(rows, result), excel ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/pdf", `attendance-${range.from}-${range.to}.${req.query.format}`);
     }
     const buckets = (groups) => [...new Set(groups.map((g) => g._id.date))].map((date) => ({ date, ...summary(groups.filter((g) => g._id.date === date).map((g) => ({ ...g, _id: g._id.status }))) }));
-    res.json({ ...result, records: rows, daily: buckets(daily), monthly: buckets(monthly) });
+    const calendar = !staffId && req.query.month
+      ? await (async () => {
+        const [people, monthRecords] = await Promise.all([
+          staff.find({ deletedAt: null, ...searchFilter(req.query.search) }, { projection: { _id: 1, name: 1, employeeId: 1 } }).sort({ name: 1, _id: 1 }).toArray(),
+          attendance.aggregate([...pipeline, { $sort: { date: 1, staffId: 1 } }, { $project: { _id: 0, staffId: 1, date: 1, status: 1 } }]).toArray(),
+        ]);
+        const recordsByStaff = new Map();
+        for (const record of monthRecords) {
+          const key = record.staffId.toString();
+          const records = recordsByStaff.get(key) || [];
+          records.push({ date: record.date, status: record.status });
+          recordsByStaff.set(key, records);
+        }
+        return people.map((person) => ({ staffId: person._id, name: person.name, employeeId: person.employeeId, records: recordsByStaff.get(person._id.toString()) || [] }));
+      })()
+      : undefined;
+    res.json({ ...result, records: rows, daily: buckets(daily), monthly: buckets(monthly), ...(calendar ? { calendar } : {}) });
   }
   const reportPermission = (req, res, next) => req.query.format ? guard("export")[1](req, res, next) : next();
   router.get("/staff-reports", ...guard(), reportPermission, (req, res) => report(req, res));
