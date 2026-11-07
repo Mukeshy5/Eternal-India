@@ -32,15 +32,12 @@ Delete removes a member from current staff and attendance lists by setting `dele
 
 ## Attendance policy
 
-The attendance screen loads active staff from MongoDB, left joined with that date's saved attendance. Unmarked is separate from Absent. Inactive/deleted staff cannot receive new attendance, but authorized users can correct existing historical attendance through reports.
+The attendance screen loads all active staff from MongoDB, left joined with that date's saved attendance. Unmarked is separate from Absent. Inactive/deleted staff cannot receive new attendance, but authorized users can correct existing historical attendance through reports.
 
-Each attendance row has a visible Present / Absent / Half Day / Leave selector, check-in/out inputs and a Save attendance button. Absent and Leave clear and disable working times. Choices remain drafts until saved. Saving refreshes server totals while preserving edits in other rows. Rows changed in another session require Reset before overwriting; MongoDB version checks also enforce this on the API.
+Each attendance row has only a Present / Absent / Leave selector. The selected date and one Submit attendance button are shown below the list; all staff choices are saved together. Unmarked rows cannot be submitted.
 
 - One record per staff/date is enforced by a compound unique index. POST duplicates return 409; PATCH updates the existing record with an optimistic version check.
-- Statuses: `present`, `absent`, `half_day`, `leave`.
-- Dates and times use Asia/Kolkata. Future attendance is rejected. Check-out must be later on the same day; overnight shifts are not supported.
-- Check-in can be saved without check-out. Hours remain zero until both times exist. Absent/Leave have no times or working hours. Working minutes are computed on the server; submitted hours are ignored.
-- Working days = Present + Absent + Half Day marked dates. Percentage = `(Present + 0.5 × Half Day) / Working days × 100`. Leave and unmarked dates are excluded. No work schedule or holiday calendar is inferred.
+- New attendance submissions use `present`, `absent` or `leave` and save no check-in, check-out or working-hour values. Leave and unmarked dates are excluded from attendance percentage. No work schedule or holiday calendar is inferred.
 - Daily, Monday–Sunday weekly, monthly and custom inclusive date ranges are available. Custom ranges support up to 366 days. History is paginated at 50 rows, staff lists at 24. Totals cover the full filter, not only the current page. PDF/Excel downloads include all matching rows (up to 50,000; narrow the filter for larger exports). Historical reports include inactive and deleted staff.
 
 ## REST endpoints
@@ -58,6 +55,7 @@ All paths are mounted under both `/api/admin` and `/api/technical` and use the e
 | `GET /staff/:id/card-preview` | Protected responsive SVG preview; requires view permission |
 | `GET /staff/:id/card?format=pdf\|png` | Exact-size PDF (default) or 600 DPI PNG; requires export permission |
 | `GET /staff-attendance?date=&search=&page=` | Active staff and daily counts |
+| `POST /staff-attendance/bulk` | Save Present / Absent / Leave for all active staff on one date |
 | `POST /staff-attendance` | Create a unique staff/date record |
 | `PATCH /staff-attendance/:id` | Correct status/times using `version` |
 | `GET /staff/:id/attendance` | Profile, totals, daily/monthly breakdown and history |

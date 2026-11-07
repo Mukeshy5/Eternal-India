@@ -1,4 +1,4 @@
-import { attendanceStatuses, indiaDate } from "../../shared/staff.js";
+import { attendanceStatuses, indiaDate, legacyAttendanceStatuses } from "../../shared/staff.js";
 
 export const validDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= "2000-01-01" && value <= "2100-12-31" && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 const clean = (value) => typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
@@ -28,7 +28,7 @@ export function validateAttendance(body) {
   const errors = {};
   const { date, status } = body || {};
   if (!validDate(date) || date > indiaDate()) errors.date = "Choose a valid date up to today (Asia/Kolkata).";
-  if (!Object.hasOwn(attendanceStatuses, status || "")) errors.status = "Choose an attendance status.";
+  if (!Object.hasOwn({ ...attendanceStatuses, ...legacyAttendanceStatuses }, status || "")) errors.status = "Choose an attendance status.";
   const checkIn = body?.checkIn ?? "";
   const checkOut = body?.checkOut ?? "";
   for (const [key, value] of [["checkIn", checkIn], ["checkOut", checkOut]]) if (typeof value !== "string" || (value !== "" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(value))) errors[key] = "Use a valid 24-hour time.";
@@ -63,7 +63,7 @@ export function reportRange(query) {
 
 export function summary(groups) {
   const result = { present: 0, absent: 0, half_day: 0, leave: 0, totalWorkingMinutes: 0 };
-  for (const group of groups) if (Object.hasOwn(attendanceStatuses, group._id)) { result[group._id] = group.count; result.totalWorkingMinutes += group.minutes || 0; }
+  for (const group of groups) if (["present", "absent", "half_day", "leave"].includes(group._id)) { result[group._id] = group.count; result.totalWorkingMinutes += group.minutes || 0; }
   result.totalWorkingDays = result.present + result.absent + result.half_day;
   result.totalRecordedDays = result.totalWorkingDays + result.leave;
   result.attendancePercentage = result.totalWorkingDays ? Math.round((result.present + result.half_day * 0.5) / result.totalWorkingDays * 10000) / 100 : 0;

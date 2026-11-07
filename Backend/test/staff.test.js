@@ -107,6 +107,9 @@ test("staff and attendance real MongoDB/API workflow", async (t) => {
       assert.equal(record.workingMinutes, 540);
       assert.equal((await request(`/admin/staff-attendance/${record._id}`, { method: "PATCH", body: { ...body, version: 1 } })).status, 409);
       for (const [index, status] of ["absent", "half_day", "leave"].entries()) assert.equal((await request("/technical/staff-attendance", { method: "POST", body: { staffId: person._id, date: `2026-01-0${index + 2}`, status, checkIn: status === "half_day" ? "09:00" : "", checkOut: status === "half_day" ? "13:00" : "" } })).status, 201);
+      const bulk = await request("/admin/staff-attendance/bulk", { method: "POST", body: { date: "2026-04-01", attendance: [{ staffId: person._id, status: "present" }] } });
+      assert.equal(bulk.status, 200);
+      assert.equal((await db.collection("staff_attendance").findOne({ staffId: new ObjectId(person._id), date: "2026-04-01" })).checkIn, "");
     });
     await t.test("dashboard counts, individual daily/monthly totals, search and complete PDF/Excel exports", async () => {
       const day = await (await request("/admin/staff-attendance?date=2026-01-01")).json(); assert.equal(day.stats.present, 1); assert.equal(day.stats.unmarked, 0); assert.equal(day.staff[0].attendance._id, record._id);

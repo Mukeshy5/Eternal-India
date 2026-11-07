@@ -1,11 +1,12 @@
-﻿.admin-tools { min-height: 100dvh; padding: 36px clamp(16px, 3vw, 52px) 60px; background: #f3f5ef; color: #273b32; font-family: Arial, Helvetica, sans-serif; }
+.admin-tools { min-height: 100dvh; padding: 36px clamp(16px, 3vw, 52px) 60px; background: radial-gradient(circle at top right, #fdfcf8 0, transparent 34%), #eef3ee; color: #273b32; font-family: Arial, Helvetica, sans-serif; }
 .admin-tools h1, .admin-tools h2, .admin-tools h3 { font-family: inherit; font-weight: 600; }
 .admin-tools-heading { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 20px; max-width: 1540px; margin: 0 auto 28px; }
 .admin-tools-heading h1 { margin: 8px 0; font-size: clamp(28px, 3vw, 40px); letter-spacing: -.04em; }
 .admin-tools-heading h1 > span { color: #a62c60; }
 .admin-tools-heading p { color: #667468; font-size: 13px; line-height: 1.7; }
-.admin-tool-card { min-width: 0; max-width: 1180px; margin: 18px auto; padding: 28px; border: 1px solid #dfe5d9; border-radius: 14px; background: #fffefa; box-shadow: 0 4px 22px #243f3504; }
-.admin-success { padding: 12px 14px; margin: -5px 0 16px; border-left: 3px solid #6e8c6d; background: #edf5e8; color: #405641; font-size: 12px; }
+.admin-tool-card { min-width: 0; max-width: 1180px; margin: 18px auto; padding: 28px; border: 1px solid #dfe5d9; border-radius: 16px; background: rgba(255,255,255,.9); box-shadow: 0 14px 36px rgba(36,63,53,.07); }
+.admin-success { padding: 12px 14px; margin: -5px 0 16px; border: 1px solid #cde2c7; border-left: 4px solid #6e8c6d; border-radius: 8px; background: #edf5e8; color: #405641; font-size: 12px; }
+.admin-tool-error { padding: 13px 15px; border: 1px solid #efc6d1; border-left: 4px solid #a62c60; border-radius: 8px; background: #fff2f5; color: #84244e; }
 .admin-tool-card h2 { margin: 0 0 22px; font-size: 18px; }
 .admin-tool-card h2 > span { padding: 3px 7px; margin-left: 5px; border-radius: 4px; background: #f1f3ed; color: #667468; font-size: 11px; }
 .admin-tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }

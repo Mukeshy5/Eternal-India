@@ -109,7 +109,7 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
   router.get("/staff-attendance", ...guard(), async (req, res) => {
     const date = req.query.date ?? indiaDate();
     if (!validDate(date)) return res.status(400).json({ message: "Choose a valid date." });
-    const page = pageOf(req.query), limit = 24;
+    const page = pageOf(req.query), limit = 500;
     const filter = { status: "active", deletedAt: null, ...searchFilter(req.query.search) };
     const activeLookup = [{ $lookup: { from: "staff", localField: "staffId", foreignField: "_id", pipeline: [{ $project: { status: 1, deletedAt: 1 } }], as: "person" } }, { $match: { "person.status": "active", "person.deletedAt": null } }];
     const [records, total, counts, totalStaff] = await Promise.all([
@@ -119,6 +119,28 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     const activeStaff = await staff.countDocuments({ status: "active", deletedAt: null });
     const stats = summary(counts);
     res.json({ staff: records, total, page, pages: Math.max(1, Math.ceil(total / limit)), date, stats: { ...stats, totalStaff, activeStaff, unmarked: Math.max(0, activeStaff - stats.totalRecordedDays) } });
+  });
+  router.post("/staff-attendance/bulk", ...guard("attendance"), async (req, res) => {
+    const date = req.body?.date;
+    const entries = Array.isArray(req.body?.attendance) ? req.body.attendance : [];
+    if (!validDate(date) || date > indiaDate() || !entries.length || entries.length > 500) return res.status(400).json({ message: "Choose today or an earlier date and mark attendance for every staff member." });
+    const unique = new Map();
+    for (const entry of entries) {
+      const staffId = id(entry?.staffId);
+      if (!staffId || !["present", "absent", "leave"].includes(entry?.status) || unique.has(staffId.toString())) return res.status(400).json({ message: "Choose Present, Absent or Leave once for every staff member." });
+      unique.set(staffId.toString(), { staffId, status: entry.status });
+    }
+    const active = await staff.find({ _id: { $in: [...unique.values()].map((entry) => entry.staffId) }, status: "active", deletedAt: null }, { projection: { _id: 1 } }).toArray();
+    if (active.length !== unique.size) return res.status(409).json({ message: "Refresh the staff list and mark attendance again." });
+    const now = new Date();
+    await attendance.bulkWrite([...unique.values()].map(({ staffId, status }) => ({
+      updateOne: {
+        filter: { staffId, date },
+        update: { $set: { status, checkIn: "", checkOut: "", workingMinutes: 0, updatedAt: now, updatedBy: req.admin._id }, $setOnInsert: { staffId, date, createdAt: now, createdBy: req.admin._id, version: 1 } },
+        upsert: true,
+      },
+    })));
+    res.json({ message: "Attendance saved.", date, count: unique.size });
   });
   router.post("/staff-attendance", ...guard("attendance"), async (req, res) => {
     const { fields, errors } = validateAttendance(req.body);

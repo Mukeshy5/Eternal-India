@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import ExcelJS from "exceljs";
 import { fileURLToPath } from "node:url";
-import { attendancePolicy, attendanceStatuses } from "../../shared/staff.js";
+import { attendancePolicy, attendanceStatuses, legacyAttendanceStatuses } from "../../shared/staff.js";
 export { cardPdf } from "./card.js";
 
 const pdfBuffer = (doc, draw) => new Promise((resolve, reject) => {
@@ -9,6 +9,7 @@ const pdfBuffer = (doc, draw) => new Promise((resolve, reject) => {
   try { doc.registerFont("Staff", fileURLToPath(new URL("./fonts/NotoSansDevanagari.ttf", import.meta.url))); draw(doc); doc.end(); } catch (error) { reject(error); doc.end(); }
 });
 const safeText = (value) => String(value ?? "").replace(/[\x00-\x1f\x7f]/g, " ");
+const statusLabel = (status) => attendanceStatuses[status] || legacyAttendanceStatuses[status] || status;
 export async function attendanceExcel(rows, report) {
   const book = new ExcelJS.Workbook(); book.creator = "Eternal India";
   const sheet = book.addWorksheet("Attendance", { views: [{ state: "frozen", ySplit: 1 }] });
@@ -18,7 +19,7 @@ export async function attendanceExcel(rows, report) {
     { header: "Status", key: "status", width: 15 }, { header: "Check-in", key: "checkIn", width: 14 },
     { header: "Check-out", key: "checkOut", width: 14 }, { header: "Working hours", key: "workingHours", width: 18 },
   ];
-  rows.forEach((row) => sheet.addRow({ ...row, status: attendanceStatuses[row.status], workingHours: Math.round(row.workingMinutes / 60 * 100) / 100 }));
+  rows.forEach((row) => sheet.addRow({ ...row, status: statusLabel(row.status), workingHours: Math.round(row.workingMinutes / 60 * 100) / 100 }));
   sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } }; sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF273B32" } };
   sheet.autoFilter = "A1:H1"; sheet.getColumn(8).numFmt = "0.00";
   const totals = book.addWorksheet("Summary");
@@ -49,7 +50,7 @@ export function attendancePdf(rows, report) {
     if (!rows.length) doc.text("No marked attendance in this period.", 33, y);
     for (const row of rows) {
       if (y > 510) { doc.addPage(); header(); y = 165; }
-      cellRow([row.employeeId, row.name, row.date, attendanceStatuses[row.status], row.checkIn || "-", row.checkOut || "-", (row.workingMinutes / 60).toFixed(2), row.department], y); y += 32;
+      cellRow([row.employeeId, row.name, row.date, statusLabel(row.status), row.checkIn || "-", row.checkOut || "-", (row.workingMinutes / 60).toFixed(2), row.department], y); y += 32;
     }
     const pages = doc.bufferedPageRange();
     for (let page = 0; page < pages.count; page++) { doc.switchToPage(page); doc.font("Helvetica").fontSize(7).fillColor("#667468").text(`Page ${page + 1} of ${pages.count}`, 30, 560, { width: 780, align: "right", lineBreak: false }); }
