@@ -33,7 +33,36 @@ Sessions are stored in MongoDB with HttpOnly cookies. Login attempts and submiss
 
 ## Panel accounts and password recovery
 
-The admin login has **Create account** and **Forgot password** options. Public account requests need approval from an existing administrator in **Panel accounts**; pending requests expire after seven days. Administrators can also create active Admin or Technical Panel accounts directly. Technical-only accounts cannot create or approve other panel accounts. Passwords are stored as salted hashes and are never returned by the accounts API.
+The admin login has **Create account** and **Forgot password** options. Both public registration and administrator-created credentials require Gmail OTP verification before any account is inserted. Public account requests still need approval in **Panel accounts**; pending requests expire after seven days. Administrators can create active Admin or Technical accounts, edit their Gmail/panel/password, and delete accounts. Changing an email or editing an older unverified account requires fresh Gmail verification. The signed-in account and configured owners are protected against edits/deletion here. Technical-only accounts cannot manage accounts. Existing logins remain valid without forcing legacy accounts through new registration.
+
+### Gmail OTP setup and real delivery testing
+
+Set these values privately in the ignored `Backend/.env` file:
+
+```dotenv
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=your-sender@gmail.com
+SMTP_PASSWORD=your-google-app-password
+SMTP_FROM=your-sender@gmail.com
+COMPANY_NAME=Eternal India
+OTP_TEST_EMAIL=your-test-inbox@gmail.com
+```
+
+Enable Google 2-Step Verification and generate a Google App Password; never use the normal Gmail password. `GMAIL_USER` / `GMAIL_APP_PASSWORD` are supported as alternatives to `SMTP_USER` / `SMTP_PASSWORD`. `OTP_HASH_SECRET` can be a dedicated random secret of at least 32 characters; otherwise the backend session secret is used. No email secrets belong in frontend/Vite variables. Official setup: [Google App Passwords](https://support.google.com/accounts/answer/185833) and [Nodemailer Gmail](https://nodemailer.com/guides/using-gmail).
+
+The existing registration handler is shared by `POST /api/auth/register` and the legacy panel registration routes. `POST /api/auth/send-otp` sends a real Gmail message; `POST /api/auth/verify-otp` verifies the latest challenge in the same HttpOnly browser session. Account management uses the same endpoints with a separately authorised creation/edit purpose. There are no frontend verification tokens, localStorage flags, returned OTPs, dummy codes or delivery fallbacks.
+
+Six-digit codes use cryptographic randomness and keyed SHA-256 hashing. MongoDB stores challenge hashes, attempt counters, expiry and verification status. Codes expire after five minutes, resend is locked for 60 seconds, and a challenge permits five attempts. Persistent per-Gmail and per-browser limits permit five sends per hour; IP rate limits also protect send/verify endpoints. Verified session proofs expire after ten minutes and are atomically consumed once. Used proofs are removed; TTL indexes remove expired challenges and rate-limit records. Gmail case/dot/tag/googlemail aliases share one canonical registration identity.
+
+After configuring the actual sender and a Gmail inbox you own, run:
+
+```powershell
+npm --prefix Backend run verify:gmail
+```
+
+This interactive integration runner uses actual Gmail SMTP, actual received codes and an isolated real MongoDB test database. It covers delivery, five-minute expiry enforcement, the real resend delay, public registration/approval/login, managed creation, verified email editing and deletion. It sends four real emails and asks for their received codes. It cleans only its own test database afterward. Without sender credentials and `OTP_TEST_EMAIL`, it stops without sending or creating an account. Automated API/UI security checks use real HTTP and MongoDB to verify that missing delivery configuration never grants verification; these checks do not replace the real Gmail delivery test.
 
 Both panels support email password recovery. Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM` in `Backend/.env` using your email provider's credentials. Reset links expire after 30 minutes, work once and revoke the account's existing sessions. The API reports that email is unavailable until SMTP is configured. Reset tokens are hashed in MongoDB and removed after use or during cleanup after expiry.
 

@@ -20,21 +20,18 @@ test("panel accounts, one-time password recovery and safe database cleanup", asy
   let cookie = "", techCookie = "", technical;
   const request = (path, method = "GET", body, sessionCookie = cookie) => fetch(base + path, { method, headers: { "Content-Type": "application/json", Origin: "http://localhost:5173", ...(sessionCookie ? { Cookie: sessionCookie } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
   try {
-    await t.test("public account requests require approval and credentials are protected", async () => {
+    await t.test("registration requires Gmail OTP while existing accounts and credentials remain protected", async () => {
       assert.equal((await request("/admin/accounts", "GET", undefined, "")).status, 401);
-      assert.equal((await request("/admin/register", "POST", { email: "new-admin@example.com", password: "NewAdminPassword9", roles: ["admin", "technical"], status: "active" }, "")).status, 202);
-      const pending = await db.collection("admins").findOne({ email: "new-admin@example.com" });
-      assert.equal(pending.status, "pending"); assert.deepEqual(pending.roles, []); assert.ok(pending.expiresAt);
-      assert.ok(await verifyPassword("NewAdminPassword9", pending.passwordHash));
-      assert.equal((await request("/admin/login", "POST", { email: pending.email, password: "NewAdminPassword9" }, "")).status, 403);
+      assert.equal((await request("/admin/register", "POST", { email: "new.admin@gmail.com", password: "NewAdminPassword9", emailVerified: true, roles: ["admin", "technical"], status: "active" }, "")).status, 403);
+      assert.equal(await db.collection("admins").countDocuments({ email: "new.admin@gmail.com" }), 0, "an unverified request never creates an account");
       const login = await request("/admin/login", "POST", { email: config.adminEmail, password: config.adminPassword }, "");
       cookie = login.headers.get("set-cookie").split(";")[0];
       assert.equal((await login.json()).admin.canManageAccounts, true);
-      assert.equal((await request(`/admin/accounts/${pending._id}/approve`, "PATCH", {})).status, 200);
-      const approved = await db.collection("admins").findOne({ _id: pending._id }); assert.equal(approved.expiresAt, undefined);
-      assert.equal((await request("/admin/login", "POST", { email: pending.email, password: "NewAdminPassword9" }, "")).status, 200);
-      const create = await request("/admin/accounts", "POST", { email: "engineer@example.com", password: "EngineerPassword9", role: "technical" }); assert.equal(create.status, 201);
-      technical = (await create.json()).account;
+      const create = await request("/admin/accounts", "POST", { email: "engineer.fixture@gmail.com", password: "EngineerPassword9", role: "technical" }); assert.equal(create.status, 403, "admin-created credentials also require Gmail verification");
+      // Seed an existing account to regression-test login/password recovery, independently of new registration.
+      const fixture = await ensureAdmin(db, { ...config, adminEmail: "engineer.fixture@gmail.com", adminPassword: "EngineerPassword9" });
+      await db.collection("admins").updateOne({ _id: fixture._id }, { $set: { roles: ["technical"] } });
+      technical = { ...fixture, _id: fixture._id.toString() };
       const technicalLogin = await request("/technical/login", "POST", { email: technical.email, password: "EngineerPassword9" }, ""); assert.equal(technicalLogin.status, 200);
       techCookie = technicalLogin.headers.get("set-cookie").split(";")[0];
       assert.equal((await technicalLogin.json()).admin.canManageAccounts, false);

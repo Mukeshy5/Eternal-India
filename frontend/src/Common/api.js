@@ -1,9 +1,10 @@
 export class ApiError extends Error {
-  constructor(message, status, errors = {}) {
+  constructor(message, status, errors = {}, details = {}) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.errors = errors;
+    this.details = details;
   }
 }
 
@@ -14,13 +15,14 @@ export function apiUrl(path) {
 }
 
 export async function api(path, options = {}) {
+  const { timeoutMs = 15000, ...requestOptions } = options;
   let response;
   try {
     response = await fetch(apiUrl(path), {
-      ...options,
+      ...requestOptions,
       credentials: "include",
       headers: { ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...options.headers },
-      signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
+      signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
     if (options.signal?.aborted) throw error;
@@ -30,7 +32,7 @@ export async function api(path, options = {}) {
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const message = data?.message || (response.status === 404 ? "This item could not be found. Refresh the workspace and try again." : "The server is unavailable. Please try again shortly.");
-    throw new ApiError(message, response.status, data?.errors);
+    throw new ApiError(message, response.status, data?.errors, data || {});
   }
   if (!data) throw new ApiError("The server returned an unexpected response. Please try again.", response.status);
   return data;

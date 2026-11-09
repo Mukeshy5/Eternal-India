@@ -8,6 +8,9 @@ export async function connectDatabase(config) {
     const db = client.db(config.databaseName);
     await Promise.all([
       db.collection("admins").createIndex({ email: 1 }, { unique: true }),
+      db.collection("admins").createIndex({ gmailKey: 1 }, { unique: true, partialFilterExpression: { gmailKey: { $type: "string" } } }),
+      db.collection("email_verifications").createIndex({ purgeAt: 1 }, { expireAfterSeconds: 0 }),
+      db.collection("email_verification_limits").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
       db.collection("admins").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
       db.collection("offer_images").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
       db.collection("decoration_assets").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),

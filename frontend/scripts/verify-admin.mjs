@@ -28,7 +28,6 @@ export async function verifyAdminInteractions(server, technical = false) {
       return signedIn ? response({ admin: { id: "admin", email: body.email, canManageAccounts: true } }) : response({ message: "Email or password is incorrect." }, 401);
     }
     if (url === `/api${basePath}/forgot-password`) return response({ message: "Password reset link sent." });
-    if (url === `/api${basePath}/register`) return response({ message: "Account request received. Administrator approval required." }, 202);
     if (url === `/api${basePath}/reset-password`) return response({ message: "Password updated." });
     if (url === `/api${basePath}/me`) return response({ message: "Please sign in." }, 401);
     if (url === `/api${basePath}/logout`) { signedIn = false; return response(null, 204); }
@@ -66,9 +65,13 @@ export async function verifyAdminInteractions(server, technical = false) {
     await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Back to sign in").click());
     if (!technical) {
       await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Create account").click());
-      await act(async () => { type(container.querySelector("#admin-password"), "NewAdminPassword9"); type(container.querySelector("#admin-confirm-password"), "NewAdminPassword9"); });
-      await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
-      assert.ok(container.querySelector('[role="status"]').textContent.includes("approval"));
+      assert.ok(container.querySelector('.gmail-verification'), 'registration has a Gmail OTP field');
+      assert.equal(container.querySelector('.admin-login-form button[type="submit"]').disabled, true, 'registration stays disabled before server verification');
+      await act(async () => type(container.querySelector('#admin-email'), 'registration.test@gmail.com'));
+      assert.equal(container.querySelector('.gmail-send').disabled, false);
+      await act(async () => container.querySelector('.admin-login-form').dispatchEvent(new testWindow.Event('submit', { bubbles: true, cancelable: true })));
+      assert.ok(container.querySelector('[role="alert"]').textContent.includes('Verify your Gmail'));
+      assert.equal(calls.some((call) => call.url === '/api/auth/register'), false, 'the unverified form never submits registration');
       await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Back to sign in").click());
     }
     await act(async () => { type(container.querySelector("#admin-email"), "admin@example.com"); type(container.querySelector("#admin-password"), "incorrect"); });
@@ -105,10 +108,10 @@ export async function verifyAdminInteractions(server, technical = false) {
     }
     await act(async () => [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "Panel accounts").click());
     await waitFor(() => container.querySelector('[name="accountEmail"]'));
-    await act(async () => { type(container.querySelector('[name="accountEmail"]'), "technical@example.com"); type(container.querySelector('[name="accountPassword"]'), "TechnicalPassword9"); });
-    await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
-    assert.ok(container.textContent.includes("technical@example.com"));
-    assert.equal(accounts[0].roles[0], "technical");
+    await act(async () => { type(container.querySelector('[name="accountEmail"]'), 'technical.account@gmail.com'); type(container.querySelector('[name="accountPassword"]'), 'TechnicalPassword9'); });
+    assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, true, 'admin-created accounts also require OTP');
+    assert.equal(container.querySelector('.gmail-send').disabled, false);
+    testWindow.confirm = () => true;
     await act(async () => [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "Journey Voucher History").click());
     await waitFor(() => container.textContent.includes("History Guest"));
     await act(async () => [...container.querySelectorAll("button")].find((button) => button.textContent === "View voucher").click());

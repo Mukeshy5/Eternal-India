@@ -18,6 +18,7 @@ import { staffAccess } from "./staff/permissions.js";
 import { managementAccess } from "./lib/panel-access.js";
 import { sessionLifecycle } from "./lib/session-lifecycle.js";
 import { canManageAccounts, registerAccounts } from "./lib/accounts.js";
+import { gmailAccountFilter, gmailIdentity } from "./lib/email-identity.js";
 
 export function createApp({ client, db, config, schedulerOptions, sendPasswordReset }) {
   const app = express();
@@ -56,7 +57,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   store.on("error", () => console.error("Admin session storage is unavailable."));
   const cookie = { httpOnly: true, secure: config.production, sameSite: config.production ? "none" : "strict", path: "/api", maxAge: 8 * 60 * 60 * 1000 };
   const management = express.Router();
-  app.use(["/api/admin", "/api/technical"], session({ name: "eternal_india.sid", secret: config.sessionSecret, store, resave: false, saveUninitialized: false, rolling: true, cookie }));
+  app.use(["/api/admin", "/api/technical", "/api/auth"], session({ name: "eternal_india.sid", secret: config.sessionSecret, store, resave: false, saveUninitialized: false, rolling: true, cookie }));
 
   const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
   const enquiryLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many enquiries. Please try again shortly." } });
@@ -99,7 +100,8 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase().slice(0, 200) : "";
     const password = typeof req.body?.password === "string" ? req.body.password : "";
     if (!email || !password || password.length > 256) return res.status(401).json({ message: "Email or password is incorrect." });
-    const admin = await db.collection("admins").findOne({ email });
+    const identity = gmailIdentity(email);
+    const admin = await db.collection("admins").findOne(identity ? gmailAccountFilter(identity) : { email });
     if (!admin || !await verifyPassword(password, admin.passwordHash)) return res.status(401).json({ message: "Email or password is incorrect." });
     if (["pending", "disabled"].includes(admin.status)) return res.status(403).json({ message: "Your account is awaiting administrator approval or has been disabled." });
     if (!managementAccess(admin, config)) return res.status(403).json({ message: "This account is not authorized for the management panels." });
@@ -257,7 +259,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     await db.collection("enquiry_history").deleteMany({ enquiryId });
     res.status(204).send();
   });
-  registerAccounts({ management, db, requireAdmin, config, sendPasswordReset });
+  registerAccounts({ app, management, db, requireAdmin, config, sendPasswordReset });
   const festivals = registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions });
   registerPromotions({ app, management, db, requireAdmin });
   registerStaffRoutes({ management, db, requireAdmin, config });
@@ -279,6 +281,10 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     if (res.headersSent) return next(error);
     if (error.type === "entity.parse.failed") return res.status(400).json({ message: "Invalid JSON request." });
     if (error.type === "entity.too.large") return res.status(413).json({ message: "This request is too large." });
+    if (error.publicMessage && Number.isInteger(error.status)) {
+      if (error.details?.retryAfter) res.set("Retry-After", String(error.details.retryAfter));
+      return res.status(error.status).json({ message: error.message, ...error.details });
+    }
     console.error("Request failed:", error.name);
     res.status(503).json({ message: "We couldn't save your request. Please try again shortly." });
   });
