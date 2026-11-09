@@ -35,7 +35,7 @@ export function createEmailVerification({ db, config, mailer }) {
   const release = (keys, reservation) => Promise.all(keys.map((_id) => limits.updateOne({ _id, reservation, count: { $gt: 0 } }, { $inc: { count: -1 }, $set: { nextSendAt: new Date(0) }, $unset: { reservation: "" } })));
   async function send(req, res) {
     context(req);
-    if (!mailer.otpConfigured) throw failure(503, "Gmail verification email is not available yet. Please contact the site administrator.", { code: "EMAIL_NOT_CONFIGURED" });
+    if (!mailer.otpConfigured) throw failure(503, "Verification email is not available yet. Please contact the site administrator.", { code: "EMAIL_NOT_CONFIGURED" });
     if (!req.session.otpBinding) { req.session.otpBinding = randomBytes(32).toString("hex"); await new Promise((resolve, reject) => req.session.save((error) => error ? reject(error) : resolve())); }
     const ctx = context(req);
     const target = ctx.accountId ? await db.collection("admins").findOne({ _id: new ObjectId(ctx.accountId) }) : null;
@@ -67,7 +67,7 @@ export function createEmailVerification({ db, config, mailer }) {
         console.error(`Verification email delivery failed: ${error.code}`);
         throw failure(503, error.message, { code: error.code, ...(error.retryAfter ? { retryAfter: error.retryAfter } : {}) });
       }
-      console.error(`Gmail OTP delivery failed: ${error.code || error.name}`);
+      console.error(`OTP delivery failed: ${error.code || error.name}`);
       throw failure(503, "The verification email could not be sent. Please try again later.", { code: "EMAIL_DELIVERY_FAILED" });
     }
     res.json({ message: "OTP sent to your Gmail. Check your inbox and spam folder.", challengeId, expiresAt, resendAvailableAt: record.resendAvailableAt, serverTime: new Date(), expiresIn: Math.max(0, Math.floor((expiresAt - new Date()) / 1000)), retryAfter: Math.max(0, Math.ceil((record.resendAvailableAt - new Date()) / 1000)) });
@@ -86,7 +86,7 @@ export function createEmailVerification({ db, config, mailer }) {
     const verificationExpiresAt = new Date(now.getTime() + proofLifetime);
     const result = await records.updateOne({ _id: ctx.contextId, challengeId, state: "sent", expiresAt: { $gt: new Date() } }, { $set: { state: "verified", verified: true, verifiedAt: now, verificationExpiresAt, purgeAt: verificationExpiresAt }, $unset: { otpHash: "" } });
     if (!result.modifiedCount) throw failure(409, "This verification request changed. Request a new OTP.");
-    res.json({ message: "Gmail verified successfully. You can now create the account.", verified: true, verificationExpiresAt, serverTime: new Date() });
+    res.json({ message: "Verified successfully. You can now create the account.", verified: true, verificationExpiresAt, serverTime: new Date() });
   }
   async function claim(req, email, purpose, accountId = "") {
     const ctx = context(req, { email, purpose, accountId });

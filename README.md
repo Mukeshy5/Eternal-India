@@ -49,7 +49,24 @@ SMTP verification starts after HTTP begins listening and does not hold up health
 
 ### Render Free: OTP and password recovery over HTTPS
 
-The backend supports Resend's HTTPS API on port 443 for both Gmail verification codes and password reset emails. No SMTP connection or Gmail App Password is used in this mode. In Resend, verify a sender domain you own, then create an API key with sending permission. Add these privately to **Render → Eternal-India-1 → Environment**, save and redeploy:
+The backend supports Brevo's HTTPS API on port 443 for both Gmail verification codes and password reset emails. No SMTP connection or Gmail App Password is used in this mode. In Brevo, verify a sender domain you own, then create an API key with sending permission. Add these privately to **Render → Eternal-India-1 → Environment**, save and redeploy:
+
+```dotenv
+EMAIL_PROVIDER=brevo
+BREVO_API_KEY=your-private-brevo-api-key
+BREVO_SENDER_EMAIL=otp@your-verified-domain.com
+BREVO_SENDER_NAME=Eternal India
+```
+
+Use your actual verified sender domain in `BREVO_SENDER_EMAIL`; a `gmail.com` sender does not support production delivery to arbitrary users. OTP recipients can still be Gmail addresses. Never put the API key in chat, frontend/Vite variables or Git. Existing SMTP settings can remain; `EMAIL_PROVIDER=brevo` uses HTTPS exclusively. `EMAIL_PROVIDER=auto` selects Brevo when `BREVO_API_KEY` is present, otherwise Resend when `RESEND_API_KEY` is present; explicitly choose `smtp` only on a host that allows it. Resend remains supported via `EMAIL_PROVIDER=resend`, `RESEND_API_KEY` and `EMAIL_FROM`.
+
+Missing configuration, rejected sends, provider outages and rate limits produce errors rather than a false success or SMTP fallback. Failed deliveries remove the OTP challenge and release send-limit reservations. OTP hashing, expiry, retry limits and one-time verification are unchanged. Startup only reports HTTPS configuration readiness; it does not claim a real email was delivered. Automated tests simulate the external provider and cannot establish real inbox delivery.
+
+For actual delivery verification, set `OTP_TEST_EMAIL` to a Gmail inbox you own and run `npm --prefix Backend run verify:email`. The interactive runner sends real emails and asks for the received codes; `verify:gmail` remains an alias. Real delivery requires a valid API key and a verified sender domain. Official setup: [Brevo SMTP API](https://developers.brevo.com/docs/api-smtp-email), [Brevo sender domains](https://developers.brevo.com/docs/authentication#api-key).
+
+### Resend HTTPS (alternative)
+
+Instead of Brevo, you may use Resend's HTTPS API on port 443. Verify a sender domain you own, then create an API key with sending permission. Add these privately to **Render → Eternal-India-1 → Environment**, save and redeploy:
 
 ```dotenv
 EMAIL_PROVIDER=resend
@@ -57,11 +74,7 @@ RESEND_API_KEY=your-private-resend-api-key
 EMAIL_FROM=otp@your-verified-domain.com
 ```
 
-Use your actual verified sender domain in `EMAIL_FROM`; a `gmail.com` sender or the Resend testing sender does not support production delivery to arbitrary users. OTP recipients can still be Gmail addresses. Never put the API key in chat, frontend/Vite variables or Git. Existing SMTP settings can remain; `EMAIL_PROVIDER=resend` uses HTTPS exclusively. `EMAIL_PROVIDER=auto` also selects Resend when `RESEND_API_KEY` is present; explicitly choose `smtp` only on a host that allows it.
-
-Missing configuration, rejected sends, provider outages and rate limits produce errors rather than a false success or SMTP fallback. Failed deliveries remove the OTP challenge and release send-limit reservations. OTP hashing, expiry, retry limits and one-time verification are unchanged. Startup only reports HTTPS configuration readiness; it does not claim a real email was delivered. Automated tests simulate the external provider and cannot establish real inbox delivery.
-
-For actual delivery verification, set `OTP_TEST_EMAIL` to a Gmail inbox you own and run `npm --prefix Backend run verify:email`. The interactive runner sends real emails and asks for the received codes; `verify:gmail` remains an alias. Real delivery requires a valid API key and a verified sender domain. Official setup: [Resend verified domains](https://resend.com/docs/dashboard/domains/introduction), [send email API](https://resend.com/docs/api-reference/emails/send-email).
+Use your actual verified sender domain in `EMAIL_FROM`; a `gmail.com` sender or the Resend testing sender does not support production delivery to arbitrary users. OTP recipients can still be Gmail addresses. Never put the API key in chat, frontend/Vite variables or Git.
 
 ### Gmail OTP setup and real delivery testing
 

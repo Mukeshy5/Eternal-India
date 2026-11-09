@@ -37,9 +37,17 @@ export function createMailer(config, { fetchImpl = globalThis.fetch } = {}) {
   const smtp = config.smtp || {};
   const provider = config.email?.provider || "smtp";
   const httpsEmail = config.email || {};
-  const configured = provider === "resend"
-    ? !!(httpsEmail.apiKey && /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(httpsEmail.from || ""))
-    : !!(smtp.host && /^[^\s<>:@]+@gmail\.com$/i.test(smtp.user || "") && smtp.password);
+  const brevoApiKey = (httpsEmail.brevoApiKey || "").trim();
+  const brevoSenderEmail = (httpsEmail.brevoSenderEmail || "").trim();
+  const brevoSenderName = (httpsEmail.brevoSenderName || "").trim();
+  let configured;
+  if (provider === "resend") {
+    configured = !!(httpsEmail.apiKey && /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(httpsEmail.from || ""));
+  } else if (provider === "brevo") {
+    configured = !!(brevoApiKey && brevoSenderEmail && /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(brevoSenderEmail));
+  } else {
+    configured = !!(smtp.host && /^[^\s<>:@]+@gmail\.com$/i.test(smtp.user || "") && smtp.password);
+  }
   const transport = configured && provider === "smtp" ? nodemailer.createTransport({ host: smtp.host, port: smtp.port, secure: smtp.secure, requireTLS: !smtp.secure, auth: { user: smtp.user, pass: smtp.password }, connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 15000, disableFileAccess: true, disableUrlAccess: true }) : null;
   async function sendHttps(email, message) {
     if (!configured) throw deliveryError("EMAIL_NOT_CONFIGURED", "Verification email is not available yet. Please contact the site administrator.");
@@ -59,7 +67,32 @@ export function createMailer(config, { fetchImpl = globalThis.fetch } = {}) {
     if (!response.ok || typeof result?.id !== "string" || !result.id) throw deliveryError("EMAIL_DELIVERY_FAILED", "The verification email could not be sent. Please try again later or contact the site administrator.");
     return { id: result.id };
   }
+  async function sendBrevo(email, message) {
+    if (!configured) throw deliveryError("EMAIL_NOT_CONFIGURED", "Verification email is not available yet. Please contact the site administrator.");
+    let response;
+    try {
+      response = await fetchImpl("https://api.brevo.com/v3/smtp/email", {
+        method: "POST", redirect: "error", signal: AbortSignal.timeout(15000),
+        headers: { "api-key": brevoApiKey, "Content-Type": "application/json", "accept": "application/json" },
+        body: JSON.stringify({
+          sender: { name: brevoSenderName || config.companyName || "Eternal India", email: brevoSenderEmail },
+          to: [{ email }],
+          subject: message.subject,
+          textContent: message.text,
+          ...(message.html ? { htmlContent: message.html } : {}),
+        }),
+      });
+    } catch {
+      throw deliveryError("EMAIL_CONNECTION_FAILED", "The email service could not be reached. Please try again shortly.");
+    }
+    const result = await response.json().catch(() => null);
+    if (response.status === 429) throw deliveryError("EMAIL_RATE_LIMITED", "The email service is busy. Please wait before requesting another code.", { retryAfter: Math.min(900, Math.max(1, Number(response.headers.get("retry-after")) || 60)) });
+    if ([401, 403].includes(response.status)) throw deliveryError("EMAIL_PROVIDER_REJECTED", "The email service rejected delivery. Please contact the site administrator to check its API key and verified sender.");
+    if (!response.ok || typeof result?.messageId !== "string" || !result.messageId) throw deliveryError("EMAIL_DELIVERY_FAILED", "The verification email could not be sent. Please try again later or contact the site administrator.");
+    return { id: result.messageId };
+  }
   const send = async (email, message) => {
+    if (provider === "brevo") return sendBrevo(email, message);
     if (provider === "resend") return sendHttps(email, message);
     if (!transport) throw Object.assign(new Error("Email delivery is not configured. Set SMTP_HOST, SMTP_USER and SMTP_PASSWORD in Backend/.env."), { code: "EMAIL_NOT_CONFIGURED" });
     try {
@@ -73,13 +106,13 @@ export function createMailer(config, { fetchImpl = globalThis.fetch } = {}) {
   return {
     provider,
     configured,
-    otpConfigured: configured && (provider === "resend" || smtp.host.toLowerCase() === "smtp.gmail.com"),
+    otpConfigured: configured && (provider === "resend" || provider === "brevo" || smtp.host.toLowerCase() === "smtp.gmail.com"),
     gmailConfigured: configured && provider === "smtp" && smtp.host.toLowerCase() === "smtp.gmail.com",
     sendOtp: (email, code) => send(email, otpEmail(code, config.companyName)),
     sendPasswordReset: ({ email, resetUrl }) => send(email, { subject: "Reset your Eternal India password", text: `Reset your Eternal India password using this link:\n${resetUrl}\n\nThis link expires in 30 minutes and works once. If you did not request this, ignore this email.` }),
     verify: async () => {
-      if (provider === "resend") {
-        if (!configured) throw deliveryError("EMAIL_NOT_CONFIGURED", "Configure RESEND_API_KEY and EMAIL_FROM in the backend environment first.");
+      if (provider === "resend" || provider === "brevo") {
+        if (!configured) throw deliveryError("EMAIL_NOT_CONFIGURED", `Configure ${provider.toUpperCase()}_API_KEY and sender email in the backend environment first.`);
         return { provider, configured: true, deliveryVerified: false };
       }
       if (!transport) throw Object.assign(new Error("Configure Gmail SMTP credentials in Backend/.env first."), { code: "EMAIL_NOT_CONFIGURED" });

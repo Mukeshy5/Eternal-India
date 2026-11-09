@@ -13,7 +13,7 @@ import { cookieHeader } from "../lib/cookies.js";
 
 const source = readConfig(), recipient = gmailIdentity(process.env.OTP_TEST_EMAIL);
 if (!createMailer(source).otpConfigured || !recipient) {
-  console.error("Real inbox verification cannot start. Configure Resend HTTPS (RESEND_API_KEY and EMAIL_FROM), or Gmail SMTP on a compatible host, plus OTP_TEST_EMAIL. No email was sent and no account was created.");
+  console.error("Real inbox verification cannot start. Configure Brevo HTTPS (BREVO_API_KEY, BREVO_SENDER_EMAIL and BREVO_SENDER_NAME), Resend HTTPS (RESEND_API_KEY and EMAIL_FROM), or Gmail SMTP on a compatible host, plus OTP_TEST_EMAIL. No email was sent and no account was created.");
   process.exitCode = 1;
 } else {
   await createMailer(source).verify();

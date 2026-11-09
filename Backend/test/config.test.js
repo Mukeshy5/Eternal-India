@@ -30,8 +30,13 @@ test("HTTPS delivery takes precedence only when configured and SMTP remains expl
   assert.equal(readConfig(base).email.provider, "smtp");
   const resend = readConfig({ ...base, RESEND_API_KEY: "fixture-key", EMAIL_FROM: "Eternal India <otp@example.com>" });
   assert.equal(resend.email.provider, "resend"); assert.equal(resend.email.from, "otp@example.com");
-  assert.equal(readConfig({ ...base, RESEND_API_KEY: "fixture-key", EMAIL_PROVIDER: "smtp" }).email.provider, "smtp");
+  const brevo = readConfig({ ...base, BREVO_API_KEY: "fixture-brevo-key", BREVO_SENDER_EMAIL: "otp@example.com", BREVO_SENDER_NAME: "Eternal India" });
+  assert.equal(brevo.email.provider, "brevo"); assert.equal(brevo.email.brevoApiKey, "fixture-brevo-key"); assert.equal(brevo.email.brevoSenderEmail, "otp@example.com"); assert.equal(brevo.email.brevoSenderName, "Eternal India");
+  assert.equal(readConfig({ ...base, BREVO_API_KEY: "fixture-key", EMAIL_PROVIDER: "smtp" }).email.provider, "smtp");
   assert.equal(readConfig({ ...base, EMAIL_PROVIDER: "resend" }).email.provider, "resend");
+  assert.equal(readConfig({ ...base, EMAIL_PROVIDER: "brevo" }).email.provider, "brevo");
+  assert.equal(readConfig({ ...base, RESEND_API_KEY: "fixture-key", BREVO_API_KEY: "fixture-brevo-key" }).email.provider, "brevo");
   assert.throws(() => readConfig({ ...base, EMAIL_PROVIDER: "invalid" }), /EMAIL_PROVIDER/);
   assert.throws(() => readConfig({ ...base, EMAIL_FROM: "not-an-address" }), /EMAIL_FROM/);
+  assert.throws(() => readConfig({ ...base, BREVO_SENDER_EMAIL: "not-an-address" }), /BREVO_SENDER_EMAIL/);
 });
