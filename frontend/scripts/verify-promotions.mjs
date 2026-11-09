@@ -29,6 +29,7 @@ export async function verifyPromotions(server) {
       assert.equal(options.headers["Content-Type"], undefined, "browser supplies the multipart boundary");
       return response({ image }, 201);
     }
+    if (url.startsWith("/api/technical/offer-images/") && options.method === "DELETE") return response(null, 204);
     if (url.startsWith("/api/technical/promotions/")) {
       const targetId = decodeURIComponent(url.split("/").at(-1));
       if (options.method === "DELETE") { delete saved[targetId]; return response(null, 204); }
@@ -83,6 +84,13 @@ export async function verifyPromotions(server) {
     assert.equal(saved["package:golden-triangle"].offerImage, image);
     assert.equal(saved["package:golden-triangle"].offerAmount, 20000);
     assert.ok(container.querySelector('[role="status"]').textContent.includes("saved"));
+    await act(async () => [...container.querySelectorAll("button")].find((button) => button.textContent === "Remove mini image").click());
+    assert.equal(saved["package:golden-triangle"].offerImage, "", "removing a saved mini image immediately updates the database API");
+    assert.equal(container.querySelector(".promotion-image-selection"), null);
+    const replacement = container.querySelector('[name="offerImage"]');
+    Object.defineProperty(replacement, "files", { configurable: true, value: [new File(["png"], "replacement.png", { type: "image/png" })] });
+    await act(async () => replacement.dispatchEvent(new testWindow.Event("change", { bubbles: true })));
+    await act(async () => submit());
     await act(async () => container.querySelector('[name="offerEnabled"]').click());
     assert.equal(container.querySelector(".promotion-preview .promotion-offer"), null, "disabled offer hides title and mini image");
     assert.equal(container.querySelector(".promotion-preview del"), null);

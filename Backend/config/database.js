@@ -8,6 +8,9 @@ export async function connectDatabase(config) {
     const db = client.db(config.databaseName);
     await Promise.all([
       db.collection("admins").createIndex({ email: 1 }, { unique: true }),
+      db.collection("admins").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+      db.collection("offer_images").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+      db.collection("decoration_assets").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
       db.collection("enquiries").createIndex({ submissionId: 1 }, { unique: true }),
       db.collection("enquiries").createIndex({ reference: 1 }, { unique: true }),
       db.collection("enquiries").createIndex({ createdAt: -1 }),

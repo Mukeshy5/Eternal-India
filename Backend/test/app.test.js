@@ -166,9 +166,25 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       assert.equal((await (await request("/technical/promotions")).json()).promotions[0].offerImage, image, "disabled offer is retained for editing");
       assert.equal((await request(path, { method: "DELETE", sessionCookie: "" })).status, 401);
       assert.equal((await request(path, { method: "DELETE" })).status, 204);
+      assert.equal(await db.collection("offer_images").countDocuments(), 0, "deleting the offer also deletes its unused uploaded image");
+      assert.equal(await db.collection("tour_promotions").countDocuments(), 0);
       assert.equal((await (await request("/promotions")).json()).promotions.length, 0);
       assert.equal((await request(path, { method: "PATCH", body: { amount: 0, offerAmount: null, offerEnabled: false, offerTitle: "", offerImage: "" } })).status, 200);
       assert.equal((await request(path, { method: "DELETE" })).status, 204);
+    });
+    await t.test("shared offer images are retained until the last reference is removed", async () => {
+      const body = new FormData(); body.append("image", new Blob([Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j4l8AAAAASUVORK5CYII=", "base64")], { type: "image/png" }), "offer.png");
+      const image = (await (await fetch(`${base}/api/technical/offer-images`, { method: "POST", headers: { Origin: "http://localhost:5173", Cookie: cookie }, body })).json()).image;
+      const promotion = { amount: 100, offerAmount: null, offerTitle: "Test offer", offerEnabled: true, offerImage: image };
+      for (const target of ["package:golden-triangle", "package:rajasthan-tour"]) assert.equal((await request(`/admin/promotions/${target}`, { method: "PATCH", body: promotion })).status, 200);
+      assert.equal((await request(`/admin/offer-images/${image.split("/").at(-1)}`, { method: "DELETE" })).status, 409, "an attached image cannot be discarded directly");
+      assert.equal((await request("/admin/promotions/package:golden-triangle", { method: "PATCH", body: { ...promotion, offerImage: "" } })).status, 200);
+      assert.equal(await db.collection("offer_images").countDocuments(), 1, "another saved offer still uses the image");
+      await request("/admin/promotions/package:rajasthan-tour", { method: "DELETE" });
+      assert.equal(await db.collection("offer_images").countDocuments(), 0);
+      await request("/admin/promotions/package:golden-triangle", { method: "DELETE" });
+      await request("/admin/promotions/package:golden-triangle", { method: "PATCH", body: { amount: null, offerAmount: null, offerTitle: "", offerEnabled: false, offerImage: "" } });
+      assert.equal(await db.collection("tour_promotions").countDocuments(), 0, "empty offer settings do not create unused documents");
     });
     await t.test("rotates login sessions and invalidates them on logout", async () => {
       const oldCookie = cookie;

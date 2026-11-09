@@ -145,13 +145,11 @@ test("real festival API, authorization, scheduling, publication, streams and per
       assert.equal((await active()).length, 0, "an edited decoration leaves the public website until it is published again");
       await request(`/technical/festival-decorations/${festival._id}/publish`, { method: "PATCH", body: { published: true } });
     });
-    await t.test("yearly recurrence, updates, deletions and append-only audit snapshots", async () => {
+    await t.test("yearly recurrence, updates and activity access controls", async () => {
       assert.equal((await request(`/technical/festival-schedules/${schedule._id}`, { method: "PUT", body: { ...scheduleBody(), recurringYearly: true } })).status, 200);
       now = new Date("2027-12-24T19:00:00Z"); await instance.decorationScheduler.reconcile(); assert.equal((await active())[0].id, festival._id);
-      assert.equal((await request(`/technical/festivals/${festival._id}`, { method: "DELETE" })).status, 409, "scheduled festivals cannot leave orphan schedules");
       const history = await (await request("/technical/decoration-history?search=Christmas")).json(); assert.ok(history.total > 0); assert.ok(history.history.some((entry) => entry.performedByRole === "technical"));
       const edit = await db.collection("decoration_activity").findOne({ action: "festival_updated", "performedBy.email": editor.email }); assert.ok(edit.previousValues); assert.ok(edit.newValues); assert.equal(edit.performedBy.email, editor.email);
-      assert.equal((await request("/technical/decoration-history", { method: "DELETE" })).status, 404);
       assert.equal((await request("/technical/decoration-history?from=bad")).status, 400);
       assert.equal((await (await request("/technical/decoration-history?search=Christmas.*")).json()).total, 0, "history searches escape regex characters");
       assert.equal((await request("/technical/decoration-history?from=2026-12-24&to=2026-12-26")).status, 200);
@@ -165,9 +163,12 @@ test("real festival API, authorization, scheduling, publication, streams and per
       assert.equal((await request("/technical/me")).status, 200, "existing session remains in MongoDB");
       assert.ok(await db.collection("decoration_activity").countDocuments() >= beforeCount);
       assert.equal(await db.collection("decoration_effects").countDocuments(), 36, "restarts do not duplicate the library");
-      assert.equal((await request(`/technical/festival-schedules/${schedule._id}`, { method: "DELETE" })).status, 204);
       assert.equal((await request(`/technical/festivals/${festival._id}`, { method: "DELETE" })).status, 204);
-      assert.ok(await db.collection("decoration_activity").countDocuments({ action: "festival_deleted" }));
+      assert.equal(await db.collection("festival_schedules").countDocuments({ festivalId: festival._id }), 0, "festival deletion also removes its schedules");
+      assert.equal(await db.collection("decoration_activity").countDocuments({ decorationId: festival._id }), 0);
+      assert.equal(await db.collection("decoration_assets").countDocuments(), 0);
+      assert.equal((await request("/technical/decoration-history", { method: "DELETE" })).status, 204);
+      assert.equal(await db.collection("decoration_activity").countDocuments(), 0);
     });
   } finally {
     await instance.decorationScheduler.stop(); await new Promise((resolve) => server.close(resolve));

@@ -2,12 +2,14 @@ import { readConfig } from "./config/env.js";
 import { connectDatabase } from "./config/database.js";
 import { ensureAdmin } from "./lib/passwords.js";
 import { createApp } from "./app.js";
+import { cleanupDatabase } from "./lib/database-cleanup.js";
 
 let connection;
 try {
   const config = readConfig();
   connection = await connectDatabase(config);
   await ensureAdmin(connection.db, config);
+  await cleanupDatabase(connection.db, { apply: true });
   const { app, drainSessions, decorationScheduler, decorationsReady } = createApp({ ...connection, config });
   await decorationsReady;
   const server = app.listen(config.port, config.host, () => console.log(`Eternal India API: http://localhost:${config.port}\nAdmin panel: http://localhost:5173/admin/login\nTechnical panel: http://localhost:5173/technical/login`));

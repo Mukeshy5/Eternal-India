@@ -69,6 +69,13 @@ export async function verifyCalendar(vite) {
     await act(async () => type('.attendance-calendar-filters input[type=search]', "")); await waitFor(() => container.querySelectorAll(".attendance-matrix tbody tr").length === 2, "search cleared");
     await act(async () => container.querySelector(".attendance-person").click()); await waitFor(() => container.querySelector(".staff-profile") && container.textContent.includes("50%"), "monthly staff summary");
     assert.ok(container.textContent.includes("Weekly Offs")); assert.ok(container.textContent.includes("Calendar Sundays")); assert.equal(container.querySelectorAll(".staff-history tbody tr").length, 5);
+    await click("Back to list");
+    await waitFor(() => container.querySelector('.attendance-calendar-filters input[type=month]'), "calendar after closing profile");
+    await act(async () => type('.attendance-calendar-filters input[type=month]', "2026-01"));
+    await waitFor(() => container.querySelector('button[aria-label="Calendar Alice, 2026-01-05: Present"]'), "saved January attendance cell");
+    await clickAria("Calendar Alice, 2026-01-05: Present");
+    await click("Delete attendance record", container.querySelector(".attendance-calendar-dialog"));
+    await waitFor(async () => !container.querySelector(".attendance-calendar-dialog") && await db.collection("staff_attendance").countDocuments({ date: "2026-01-05" }) === 0 && container.querySelector('button[aria-label="Calendar Alice, 2026-01-05: Not marked"]'), "attendance permanently deleted and cell unmarked");
     await click("Add hotel", container.querySelector(".panel-navigation")); await waitFor(() => container.querySelector(".admin-tool-form"), "persistent operations navigation");
     assert.equal(container.querySelector("#test-panel-route").textContent, "/technical/hotels");
     testWindow.dispatchEvent(new testWindow.Event("pagehide")); await act(async () => assert.equal((await globalThis.fetch("/api/technical/me")).status, 200, "refresh/navigation does not destroy the shared session"));

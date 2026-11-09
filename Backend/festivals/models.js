@@ -14,6 +14,7 @@ export async function ensureDecorationModels(db) {
     db.collection("decoration_activity").createIndex({ timestamp: -1 }),
     db.collection("decoration_activity").createIndex({ decorationId: 1, timestamp: -1 }),
     db.collection("decoration_activity").createIndex({ action: 1, timestamp: -1 }),
+    db.collection("decoration_activity").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
   ]);
   await db.collection("decoration_effects").bulkWrite(decorationEffects.map((effect) => ({ updateOne: { filter: { _id: effect.id }, update: { $set: { name: effect.name, group: effect.group, symbol: effect.symbol, motion: effect.motion, colors: effect.colors, cost: effect.cost, scene: effect.scene }, $setOnInsert: { enabled: true, defaults: effect.defaults, createdAt: new Date() } }, upsert: true } })));
   await db.collection("decoration_settings").updateOne({ _id: "global" }, { $setOnInsert: { ...globalDecorationDefaults, createdAt: new Date(), updatedAt: new Date(), updatedBy: null } }, { upsert: true });

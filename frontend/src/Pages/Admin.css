@@ -23,6 +23,15 @@
 .admin-login-form input { width: 100%; min-height: 48px; padding: 12px; margin-bottom: 22px; border: 1px solid #cbd6e2; border-radius: 8px; background: #f8fafc; color: var(--ink); }
 .admin-login-form .button { margin-top: 7px; }
 .admin-login-note { text-align: center; font-size: .6875rem; color: var(--muted); margin-top: 18px; }
+.panel-auth-fields { border: 0; padding: 0; min-width: 0; }
+.panel-auth-fields > label { display: block; }
+.panel-auth-links { display: flex; justify-content: space-between; gap: 16px; margin-top: 22px; font-size: .8125rem; }
+.panel-auth-links a, .panel-other-login { color: #244b75; text-decoration: underline; text-underline-offset: 3px; }
+.panel-other-login { margin-top: 14px; text-align: center; font-size: .75rem; }
+.panel-records { margin-top: 24px; }
+.panel-record-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 18px; padding: 20px 0; border-bottom: 1px solid #dbe3ec; }
+.panel-record-row > div { min-width: 0; overflow-wrap: anywhere; }
+.panel-record-row p { color: #61738a; font-size: .8125rem; margin-top: 6px; }
 .admin-error { padding: 13px 15px; margin-block: 14px; border-left: 3px solid #a62c60; background: #fae9ed; color: #7e2144; font-size: .8125rem; line-height: 1.6; }
 .admin-dashboard { max-width: 1320px; margin: 0 auto; padding: 45px 28px 55px; }
 .admin-page-heading { display: flex; justify-content: space-between; align-items: center; gap: 30px; margin-bottom: 32px; }

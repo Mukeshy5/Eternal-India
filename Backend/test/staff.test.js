@@ -138,16 +138,19 @@ test("staff and attendance real MongoDB/API workflow", async (t) => {
         assert.equal((await request(`/technical/staff/${person._id}/card`)).status, 200);
       } finally { await db.collection("staff_attendance").deleteMany({ staffId: new ObjectId(person._id), date: { $in: dates } }); }
     });
-    await t.test("inactive staff disappear from attendance, deleted staff preserve report history and persistence", async () => {
+    await t.test("inactive staff disappear from attendance; deleting staff permanently removes their attendance", async () => {
       person = (await (await request(`/admin/staff/${person._id}`, { method: "PATCH", body: { version: person.version, status: "inactive" } })).json()).staff;
       assert.equal((await (await request("/technical/staff-attendance?date=2026-01-01")).json()).staff.length, 0);
       assert.equal((await request("/admin/staff-attendance", { method: "POST", body: { staffId: person._id, date: "2026-01-05", status: "present" } })).status, 409);
       assert.equal((await request(`/technical/staff/${person._id}`, { method: "DELETE", body: { version: person.version } })).status, 204);
       assert.equal((await (await request("/admin/staff")).json()).total, 0);
-      assert.equal((await (await request("/admin/staff-reports?month=2026-01")).json()).total, 4);
+      assert.equal((await (await request("/admin/staff-reports?month=2026-01")).json()).total, 0);
+      assert.equal(await db.collection("staff").countDocuments({ _id: new ObjectId(person._id) }), 0);
+      assert.equal(await db.collection("staff_attendance").countDocuments({ staffId: new ObjectId(person._id) }), 0);
+      assert.equal((await request(`/admin/staff/${person._id}/photo`)).status, 404);
       const second = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await second.decorationsReady;
       const restarted = second.app.listen(0, "127.0.0.1"); await once(restarted, "listening");
-      try { const persisted = await fetch(`http://127.0.0.1:${restarted.address().port}/api/technical/staff/${person._id}/attendance?month=2026-01`, { headers: { Cookie: cookie } }); assert.equal(persisted.status, 200); assert.equal((await persisted.json()).summary.totalRecordedDays, 4); }
+      try { const persisted = await fetch(`http://127.0.0.1:${restarted.address().port}/api/technical/staff/${person._id}/attendance?month=2026-01`, { headers: { Cookie: cookie } }); assert.equal(persisted.status, 404); }
       finally { await second.decorationScheduler.stop(); await new Promise((resolve) => restarted.close(resolve)); }
     });
   } finally { await backend.decorationScheduler.stop(); await new Promise((resolve) => server.close(resolve)); await db.dropDatabase(); await client.close(); }

@@ -9,6 +9,7 @@ import { technicalGuard, technicalAccess } from "./permissions.js";
 import { asId, validId, validDate, validateDecoration, validateSchedule, validateSettings, zonedDate } from "./validation.js";
 import { currentOccurrence, occurrenceKey, schedulesConflict } from "./scheduling.js";
 import { createDecorationScheduler } from "./scheduler.js";
+import { activityForFestival, removeUnusedImage } from "../lib/database-cleanup.js";
 
 const fail = (res, errors) => res.status(400).json({ message: Object.values(errors).join(" "), errors });
 const actorFor = (req) => ({ id: req.admin._id.toString(), email: req.admin.email, role: "technical" });
@@ -37,7 +38,7 @@ export function registerFestivalRoutes({ app, db, requireAdmin, config, schedule
   const router = express.Router();
   const allow = (permission) => technicalGuard(requireAdmin, config, permission);
   router.use(async (_req, _res, next) => { await ready; next(); });
-  const audit = (req, action, previousValues, newValues, remarks = "") => db.collection("decoration_activity").insertOne({ action, decorationId: newValues?.festivalId || previousValues?.festivalId || newValues?._id?.toString() || previousValues?._id?.toString() || null, festivalName: newValues?.name || previousValues?.name || "", performedBy: actorFor(req), performedByRole: "technical", previousValues: previousValues || null, newValues: newValues || null, timestamp: scheduler.clock(), remarks });
+  const audit = (req, action, previousValues, newValues, remarks = "") => db.collection("decoration_activity").insertOne({ action, decorationId: newValues?.festivalId || previousValues?.festivalId || newValues?._id?.toString() || previousValues?._id?.toString() || null, festivalName: newValues?.name || previousValues?.name || "", performedBy: actorFor(req), performedByRole: "technical", previousValues: previousValues ? { _id: previousValues._id, festivalId: previousValues.festivalId, name: previousValues.name, enabled: previousValues.enabled, published: previousValues.published } : null, newValues: newValues ? { _id: newValues._id, festivalId: newValues.festivalId, name: newValues.name, enabled: newValues.enabled, published: newValues.published } : null, timestamp: scheduler.clock(), expiresAt: new Date(scheduler.clock().getTime() + 30 * 86400000), remarks });
   async function withScheduleLock(res, operation) {
     const token = randomUUID();
     try {
@@ -78,6 +79,7 @@ export function registerFestivalRoutes({ app, db, requireAdmin, config, schedule
     const now = scheduler.clock();
     const record = { ...decoration, published: false, createdBy: actorFor(req), updatedBy: actorFor(req), createdAt: now, updatedAt: now };
     const result = await db.collection("festival_decorations").insertOne(record); record._id = result.insertedId;
+    if (record.bannerImage) await db.collection("decoration_assets").updateOne({ _id: asId(record.bannerImage.split("/").at(-1)) }, { $unset: { expiresAt: "" } });
     await audit(req, "festival_created", null, record); res.status(201).json({ festival: record });
   };
   const updateFestival = async (req, res) => {
@@ -88,15 +90,21 @@ export function registerFestivalRoutes({ app, db, requireAdmin, config, schedule
     // Editing a published record creates a draft. Publishing permission is required again.
     const changes = { ...decoration, published: false, updatedBy: actorFor(req), updatedAt: scheduler.clock() };
     await db.collection("festival_decorations").updateOne({ _id: previous._id }, { $set: changes });
+    if (decoration.bannerImage) await db.collection("decoration_assets").updateOne({ _id: asId(decoration.bannerImage.split("/").at(-1)) }, { $unset: { expiresAt: "" } });
+    if (previous.bannerImage !== decoration.bannerImage) await removeUnusedImage(db, previous.bannerImage, "decoration_assets", "festival_decorations", "bannerImage");
     await audit(req, "festival_updated", previous, { ...previous, ...changes });
     await scheduler.reconcile(); res.json({ festival: { ...previous, ...changes } });
   };
   const deleteFestival = async (req, res) => {
     return withScheduleLock(res, async () => {
       const previous = await getFestival(req, res); if (!previous) return;
-      if (await db.collection("festival_schedules").countDocuments({ festivalId: previous._id.toString() })) return res.status(409).json({ message: "Remove this festival’s schedules before deleting it." });
       await db.collection("festival_decorations").deleteOne({ _id: previous._id });
-      await audit(req, "festival_deleted", previous, null); await scheduler.reconcile(); res.sendStatus(204);
+      await db.collection("festival_schedules").deleteMany({ festivalId: previous._id.toString() });
+      await db.collection("decoration_runtime").updateOne({ _id: "control", manualId: previous._id.toString() }, { $set: { manualId: null, manualUntil: null } });
+      await scheduler.reconcile();
+      await db.collection("decoration_activity").deleteMany(activityForFestival(previous._id.toString()));
+      await removeUnusedImage(db, previous.bannerImage, "decoration_assets", "festival_decorations", "bannerImage");
+      res.sendStatus(204);
     });
   };
   for (const path of ["/festival-decorations", "/festivals"]) {
@@ -179,8 +187,9 @@ export function registerFestivalRoutes({ app, db, requireAdmin, config, schedule
     return withScheduleLock(res, async () => {
       const previous = await db.collection("festival_schedules").findOne({ _id: asId(req.params.id) });
       if (!previous) return res.status(404).json({ message: "Schedule not found." });
-      const festival = await db.collection("festival_decorations").findOne({ _id: asId(previous.festivalId) }, { projection: { name: 1 } });
-      await db.collection("festival_schedules").deleteOne({ _id: previous._id }); await audit(req, "schedule_deleted", { ...previous, name: festival?.name || "" }, null); await scheduler.reconcile(); res.sendStatus(204);
+      await db.collection("festival_schedules").deleteOne({ _id: previous._id });
+      await db.collection("decoration_activity").deleteMany({ $or: [{ "previousValues._id": previous._id }, { "newValues._id": previous._id }] });
+      await scheduler.reconcile(); res.sendStatus(204);
     });
   });
   router.get("/decoration-settings", ...allow(["dashboard", "settings"]), async (req, res) => res.json({ settings: await db.collection("decoration_settings").findOne({ _id: "global" }), permissions: technicalAccess(req.admin, config).permissions }));
@@ -215,11 +224,16 @@ export function registerFestivalRoutes({ app, db, requireAdmin, config, schedule
     res.json({ history, total, page, pages: Math.max(1, Math.ceil(total / 25)), timezone: settings.timezone });
   });
 
+  router.delete("/decoration-history", ...allow("settings"), async (_req, res) => { await db.collection("decoration_activity").deleteMany({}); res.sendStatus(204); });
+  router.delete("/decoration-history/:id", ...allow("settings"), async (req, res) => {
+    if (!validId(req.params.id)) return fail(res, { id: "Choose a valid activity record." });
+    await db.collection("decoration_activity").deleteOne({ _id: asId(req.params.id) }); res.sendStatus(204);
+  });
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 0, parts: 1 } }).single("image");
   router.post("/festival-assets", ...allow(["createFestival", "editFestival"]), (req, res, next) => upload(req, res, (error) => error ? res.status(400).json({ message: "Upload one image up to 2 MB." }) : next()), async (req, res) => {
     const contentType = req.file && imageType(req.file.buffer);
     if (!contentType) return fail(res, { image: "Use a JPG, PNG, WebP or GIF image." });
-    const result = await db.collection("decoration_assets").insertOne({ data: req.file.buffer, contentType, createdAt: scheduler.clock(), createdBy: actorFor(req) });
+    const result = await db.collection("decoration_assets").insertOne({ data: req.file.buffer, contentType, createdAt: scheduler.clock(), expiresAt: new Date(Date.now() + 86400000), createdBy: actorFor(req) });
     res.status(201).json({ image: `/api/public/festival-assets/${result.insertedId}` });
   });
   app.use("/api/technical", router);

@@ -114,8 +114,9 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
   });
   router.delete("/staff/:id", ...guard("delete"), async (req, res) => {
     if (!id(req.params.id) || !Number.isInteger(req.body?.version)) return res.status(400).json({ message: "Choose a staff record and its current version." });
-    const result = await staff.updateOne({ _id: id(req.params.id), version: req.body.version, deletedAt: null }, { $set: { status: "inactive", deletedAt: new Date(), updatedAt: new Date(), updatedBy: req.admin._id }, $inc: { version: 1 } });
-    if (!result.modifiedCount) return res.status(409).json({ message: "This staff record changed or was deleted. Refresh and try again." });
+    const result = await staff.deleteOne({ _id: id(req.params.id), version: req.body.version, deletedAt: null });
+    if (!result.deletedCount) return res.status(409).json({ message: "This staff record changed or was deleted. Refresh and try again." });
+    await attendance.deleteMany({ staffId: id(req.params.id) });
     await changed();
     res.sendStatus(204);
   });
@@ -194,6 +195,13 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     res.json({ attendance: record });
   });
 
+  router.delete("/staff-attendance/:id", ...guard("attendance"), async (req, res) => {
+    if (!id(req.params.id) || !Number.isInteger(req.body?.version)) return res.status(400).json({ message: "Choose an attendance record and its current version." });
+    const result = await attendance.deleteOne({ _id: id(req.params.id), version: req.body.version });
+    if (!result.deletedCount) return res.status(409).json({ message: "Attendance changed or was deleted. Refresh and try again." });
+    await changed(); res.sendStatus(204);
+  });
+
   async function report(req, res, staffId) {
     const range = reportRange(req.query);
     if (!range) return res.status(400).json({ message: "Choose valid dates, at most 366 days, or a valid month." });
@@ -243,7 +251,7 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
   router.use((error, _req, res, next) => {
     if (error.code === 11000) {
       const key = Object.keys(error.keyPattern || {})[0];
-      return res.status(409).json({ message: key === "staffId" ? "Attendance already exists for this staff member on this date. Refresh to update it." : "A staff member with this email or phone already exists, including deleted staff. Use the existing record.", errors: key ? { [key]: "Already exists." } : {} });
+      return res.status(409).json({ message: key === "staffId" ? "Attendance already exists for this staff member on this date. Refresh to update it." : "A staff member with this email or phone already exists. Use the existing record.", errors: key ? { [key]: "Already exists." } : {} });
     }
     next(error);
   });

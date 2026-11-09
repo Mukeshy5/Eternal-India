@@ -31,6 +31,27 @@ On first startup the server creates the admin account from `.env`, storing a sal
 
 Sessions are stored in MongoDB with HttpOnly cookies. Login attempts and submissions are rate limited. Enquiry listing and updates require server authentication. For deployment use HTTPS, set `NODE_ENV=production`, `MONGO_URI` to a reachable MongoDB deployment such as MongoDB Atlas, and `FRONTEND_ORIGIN` to the exact Vercel origin. Production sessions use secure cross-site cookies because the frontend and API are separate deployments. The production server binds to `0.0.0.0` by default so Render can reach it; local development still binds to loopback.
 
+## Panel accounts and password recovery
+
+The admin login has **Create account** and **Forgot password** options. Public account requests need approval from an existing administrator in **Panel accounts**; pending requests expire after seven days. Administrators can also create active Admin or Technical Panel accounts directly. Technical-only accounts cannot create or approve other panel accounts. Passwords are stored as salted hashes and are never returned by the accounts API.
+
+Both panels support email password recovery. Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM` in `Backend/.env` using your email provider's credentials. Reset links expire after 30 minutes, work once and revoke the account's existing sessions. The API reports that email is unavailable until SMTP is configured. Reset tokens are hashed in MongoDB and removed after use or during cleanup after expiry.
+
+**Journey Voucher History** is available in both panels, with search, pagination, itinerary previews, printing/PDF and permanent deletion.
+
+## Permanent deletion and database maintenance
+
+Deleting staff permanently removes their profile, photo and attendance records. Individual attendance records can be deleted from the calendar details. Deleting an offer removes its `tour_promotions` document and any image no other offer uses. Removing or replacing an offer image also deletes the unused image. `offer_images` contains uploaded image bytes, content type, upload time and uploader identity; it does not contain login passwords.
+
+Deleting a festival also deletes its schedules, related activity and unused banner. **Activity History** in Festival Management allows authorised settings managers to delete individual records or clear history. Activity uses compact summaries and expires after 30 days. Unattached image uploads expire after 24 hours; saved images have no upload expiry.
+
+Startup cleanup removes records already marked deleted, orphan attendance, activity for deleted festivals, unused images older than 24 hours, and expired reset tokens. It preserves active/inactive staff, saved vouchers and referenced images. To inspect or run the same cleanup manually:
+
+```powershell
+npm --prefix Backend run db:clean
+npm --prefix Backend run db:clean -- --apply
+```
+
 ## Enquiries and recordings
 
 The form has a direct **Submit enquiry** button plus WhatsApp/email options. Every option first validates and saves to MongoDB. A reference is displayed and the selected Hindi or English recording plays only after the save succeeds. Retries of the same unchanged submission reuse an idempotency key to prevent duplicates. The admin inbox supports search, filters, pagination and New / Contacted / Closed statuses.
@@ -39,7 +60,7 @@ Recordings are in `frontend/src/assets/Plan your trip page Voice/`. Only the lan
 
 ## Technical panel and tour offers
 
-Open `/technical/login` with the existing administrator account. This panel includes all admin features: enquiry search, filters, pagination, details, status changes, deletion, hotel inventory, and journey vouchers with print/PDF. The admin workspace links to the technical panel.
+Open `/technical/login` with an authorised technical account. This panel includes enquiry search, filters, pagination, details, status changes, deletion, hotel inventory, journey vouchers and voucher history with print/PDF. Administrators create Technical Panel credentials from **Panel accounts**.
 
 Choose **Tour amounts & offers** under Tools. All 35 entries are available: 4 tour packages, 17 places, 6 India/beyond journeys, 5 regions and 3 featured journeys. Select an entry, enter its INR package amount, optionally enable an offer, add its title and discounted amount, then choose either a mini image upload or a text badge. JPG, PNG, WebP and GIF files up to 2 MB are supported. Click **Save changes** to show the saved details on the website. Uploading an image alone does not publish it. A card preview shows the draft before saving, and public cards reserve space at the bottom for the amount and offer.
 
@@ -49,7 +70,7 @@ The `/api/technical` API shares authenticated admin handlers and MongoDB session
 
 ## Verification
 
-The Technical Panel also includes **Special Days & Festival Management** with 36 reusable effects, festival drafts/publication, backend scheduling, isolated preview, master ON/OFF and append-only history. The Staff Workspace now has a monthly interactive calendar at the top: active staff can be searched and selected, dates can be inspected or corrected, Present/Absent/Leave/Half Day records show distinct indicators, Sundays and configurable weekly holidays are separate, and summary cards show the selected employee's totals. Access uses existing accounts with technical permissions. See [the implementation and operations guide](docs/FESTIVAL_MANAGEMENT.md) for models, API endpoints, permissions, file inventory and verification details.
+The Technical Panel also includes **Special Days & Festival Management** with 36 reusable effects, festival drafts/publication, backend scheduling, isolated preview, master ON/OFF and activity history. The Staff Workspace has a monthly interactive calendar: active staff can be searched and selected, dates can be inspected, corrected or deleted, Present/Absent/Leave/Half Day records show distinct indicators, Sundays and configurable weekly holidays are separate, and summary cards show the selected employee's totals. Access uses existing accounts with technical permissions. See [the implementation and operations guide](docs/FESTIVAL_MANAGEMENT.md) for models, API endpoints, permissions, file inventory and verification details; the permanent deletion policy above supersedes its historical retention descriptions.
 
 ```powershell
 cd Backend

@@ -86,7 +86,7 @@ export async function verifyFestivals(vite) {
     await waitFor(() => container.querySelector(".dashboard-table"), "real authenticated inbox");
     await click("Special Days & Festival Management");
     await waitFor(() => container.querySelector(".festival-stat-grid"), "festival dashboard from real APIs");
-    assert.equal(container.querySelectorAll(".festival-navigation button").length, 7);
+    assert.equal(container.querySelectorAll(".festival-navigation button").length, 8);
     assert.equal(container.querySelector(".festival-stat-totalEffects strong").textContent, "36");
     assert.equal(container.querySelector(".festival-stat-totalFestivals strong").textContent, "0");
     await section("Effects Library"); assert.equal(container.querySelectorAll(".festival-effect-card").length, 36);
@@ -123,6 +123,13 @@ export async function verifyFestivals(vite) {
     assert.equal((await publicState()).decorations.length, 0);
     await waitFor(() => button("Turn decorations ON"), "master toggle refresh"); await click("Turn decorations ON");
     await waitFor(async () => (await db.collection("decoration_settings").findOne({ _id: "global" }))?.enabled === true, "master ON");
+    await section("Activity History");
+    await waitFor(() => container.querySelectorAll(".panel-record-row").length > 0, "saved decoration activity");
+    const previousActivityCount = await db.collection("decoration_activity").countDocuments();
+    await click("Delete activity", container.querySelector(".panel-record-row"));
+    await waitFor(async () => await db.collection("decoration_activity").countDocuments() === previousActivityCount - 1, "activity deleted permanently from MongoDB");
+    await click("Clear activity history");
+    await waitFor(async () => await db.collection("decoration_activity").countDocuments() === 0 && container.querySelectorAll(".panel-record-row").length === 0, "all activity cleared from UI and MongoDB");
     const { default: App } = await vite.ssrLoadModule("/src/App.jsx");
     await act(async () => root.render(createElement(MemoryRouter, { key: "public-home", initialEntries: ["/"] }, createElement(App))));
     await waitFor(() => testWindow.document.querySelector('.public-decoration-host .fx-field'), "public active decoration fetched from backend");
@@ -162,7 +169,7 @@ export async function verifyFestivals(vite) {
     await act(async () => testWindow.document.dispatchEvent(new testWindow.Event("visibilitychange")));
     assert.ok(container.querySelector(".decoration-motion-paused"));
     const persisted = await db.collection("decoration_settings").findOne({ _id: "global" }); assert.equal(persisted.timezone, globalDecorationDefaults.timezone);
-    console.log("PASS all 36 reusable effects, seven technical sections, real MongoDB/API login/create/publish/activate/schedule/settings, isolated device preview, public visitor hide, and hidden-tab pause");
+    console.log("PASS all 36 reusable effects, eight technical sections, real MongoDB/API login/create/publish/activate/schedule/settings, permanent activity deletion, isolated preview and public controls");
   } finally {
     await act(async () => { root.unmount(); await delay(40); }); globalThis.fetch = originalFetch; testWindow.close();
     for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }

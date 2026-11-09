@@ -67,12 +67,29 @@ export default function PromotionManager({ apiBase = "/technical", onBack, onUna
     setError(Object.values(error.errors || {}).join(" ") || error.message);
     if (error.status === 401) onUnauthorized();
   }
+  async function discardUpload(path) {
+    if (!path || Object.values(promotions).some((promotion) => promotion.offerImage === path)) return;
+    await api(`${apiBase}/offer-images/${path.split("/").at(-1)}`, { method: "DELETE" });
+  }
+  async function removeImage() {
+    if (locked || !form.offerImage) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      if (promotions[selectedId]?.offerImage === form.offerImage) {
+        const { promotion } = await api(`${apiBase}/promotions/${encodeURIComponent(selectedId)}`, { method: "PATCH", body: JSON.stringify({ ...payload(editable(promotions[selectedId])), offerImage: "" }) });
+        setPromotions((current) => ({ ...current, [selectedId]: promotion }));
+      } else await discardUpload(form.offerImage);
+      change("offerImage", ""); setNotice("Mini image removed from the offer and deleted when no saved offer uses it.");
+    } catch (error) { failure(error); }
+    finally { setBusy(false); }
+  }
   async function save(event) {
     event.preventDefault();
     if (locked || !event.currentTarget.reportValidity()) return;
     setBusy(true); setError(""); setNotice("");
     try {
       const { promotion } = await api(`${apiBase}/promotions/${encodeURIComponent(selectedId)}`, { method: "PATCH", body: JSON.stringify(payload(form)) });
+      if (form.offerImage !== promotion.offerImage) await discardUpload(form.offerImage);
       setPromotions((current) => ({ ...current, [selectedId]: promotion }));
       setForm(editable(promotion));
       setNotice(`${target.title}: amount and offer saved. The website will show these details.`);
@@ -90,6 +107,7 @@ export default function PromotionManager({ apiBase = "/technical", onBack, onUna
     try {
       const body = new FormData(); body.append("image", file);
       const result = await api(`${apiBase}/offer-images`, { method: "POST", body });
+      await discardUpload(form.offerImage);
       change("offerImage", result.image);
       setNotice("Image uploaded. Save changes to show it on the website.");
     } catch (error) { failure(error); }
@@ -100,6 +118,7 @@ export default function PromotionManager({ apiBase = "/technical", onBack, onUna
     setBusy(true); setError(""); setNotice("");
     try {
       await api(`${apiBase}/promotions/${encodeURIComponent(selectedId)}`, { method: "DELETE" });
+      await discardUpload(form.offerImage);
       setPromotions((current) => { const next = { ...current }; delete next[selectedId]; return next; });
       setForm(blank); setNotice(`Amount and offer removed from ${target.title}.`);
     } catch (error) { failure(error); }
@@ -134,7 +153,7 @@ export default function PromotionManager({ apiBase = "/technical", onBack, onUna
               <label className="admin-tool-field"><span>Offer amount (INR, optional)</span><input name="offerAmount" type="number" min="0" max={form.amount === "" ? "100000000" : Math.max(0, Number(form.amount) - 0.01)} step="0.01" inputMode="decimal" value={form.offerAmount} onChange={(event) => change("offerAmount", event.target.value)} placeholder="e.g. 20000" /></label>
             </div>
             <label className="admin-tool-field"><span>Offer mini format</span><select value={form.offerType} onChange={(event) => change("offerType", event.target.value)}><option value="image">Mini image</option><option value="text">Text badge</option></select></label>
-            {form.offerType === "text" ? <label className="admin-tool-field"><span>Offer mini text</span><input name="offerText" maxLength={120} required={form.offerEnabled} value={form.offerText} onChange={(event) => change("offerText", event.target.value)} placeholder="e.g. SAVE 20%" /><small>This text appears in the small offer badge.</small></label> : <><label className="admin-tool-field"><span>Offer mini image</span><input ref={uploadInput} name="offerImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={upload} /><small>JPG, PNG, WebP or GIF · up to 2 MB. Save after uploading.</small></label>{form.offerImage && <div className="promotion-image-selection"><img src={form.offerImage} alt="Selected offer mini image" width="58" height="58" /><button type="button" className="dashboard-button" onClick={() => change("offerImage", "")}>Remove mini image</button></div>}</>}
+            {form.offerType === "text" ? <label className="admin-tool-field"><span>Offer mini text</span><input name="offerText" maxLength={120} required={form.offerEnabled} value={form.offerText} onChange={(event) => change("offerText", event.target.value)} placeholder="e.g. SAVE 20%" /><small>This text appears in the small offer badge.</small></label> : <><label className="admin-tool-field"><span>Offer mini image</span><input ref={uploadInput} name="offerImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={upload} /><small>JPG, PNG, WebP or GIF · up to 2 MB. Save after uploading.</small></label>{form.offerImage && <div className="promotion-image-selection"><img src={form.offerImage} alt="Selected offer mini image" width="58" height="58" /><button type="button" className="dashboard-button" disabled={locked} onClick={removeImage}>Remove mini image</button></div>}</>}
             <div className="admin-tool-actions"><button type="submit" className="dashboard-button dashboard-button-primary" disabled={locked}>{busy ? "Saving…" : uploading ? "Uploading image…" : "Save changes"}</button><button type="button" className="dashboard-button" disabled={locked || !promotions[selectedId]} onClick={reset}>Remove amount & offer</button></div>
           </fieldset>
           <p className="promotion-save-hint">{dirty ? "Unsaved changes" : "All changes saved"} · Public pages refresh offers within 30 seconds or when reopened.</p>

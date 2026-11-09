@@ -9,7 +9,8 @@
     "dev": "node --watch server.js",
     "admin:password": "node scripts/reset-admin-password.js",
     "technical:access": "node scripts/technical-access.js",
-    "staff:access": "node scripts/staff-access.js"
+    "staff:access": "node scripts/staff-access.js",
+    "db:clean": "node scripts/clean-database.js"
   },
   "keywords": [],
   "author": "",

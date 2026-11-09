@@ -1,7 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../Common/api";
-import { Icon } from "../Common/SiteUI";
+import PanelAuth from "../Common/PanelAuth";
+import AccountManager from "../Common/AccountManager";
+import VoucherHistory from "../Common/VoucherHistory";
 import AdminDashboard, { adminStatuses } from "../Common/AdminDashboard";
 import AdminTools from "../Common/AdminTools";
 import PromotionManager from "../Common/PromotionManager";
@@ -23,7 +25,6 @@ function Workspace({ technical }) {
   const route = useRef(""); route.current = location.pathname + location.search;
   const initial = useRef({ path: route.current, from: location.state?.from });
   const [admin, setAdmin] = useState(null), [checking, setChecking] = useState(true);
-  const [email, setEmail] = useState(""), [password, setPassword] = useState(""), [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false), [updating, setUpdating] = useState(""), [error, setError] = useState("");
   const [response, setResponse] = useState(null), [loading, setLoading] = useState(false), [lastUpdated, setLastUpdated] = useState(null);
   const [searchInput, setSearchInput] = useState(""), [refresh, setRefresh] = useState(0), [selectedId, setSelectedId] = useState("");
@@ -52,7 +53,7 @@ function Workspace({ technical }) {
     }).catch((failure) => {
       if (controller.signal.aborted) return;
       if (failure.status !== 401) setError(failure.message);
-      navigateRef.current(`${basePath}/login`, { replace: true, state: { from: safePanelDestination(initial.current.path, basePath) } });
+      if (!["register", "forgot-password", "reset-password"].includes(panelSection(initial.current.path.split("?")[0], basePath))) navigateRef.current(`${basePath}/login`, { replace: true, state: { from: safePanelDestination(initial.current.path, basePath) } });
     }).finally(() => { if (!controller.signal.aborted) setChecking(false); });
     return () => controller.abort();
   }, [basePath]);
@@ -91,9 +92,8 @@ function Workspace({ technical }) {
     if (busy || updating || !navigation.confirmNavigation()) return false;
     setError(""); setSelectedId(""); navigate(sectionPath(basePath, key)); return true;
   }
-  function login(event) {
-    event.preventDefault();
-    void perform((signal) => api(`${basePath}/login`, { method: "POST", body: JSON.stringify({ email, password }), signal }), ({ admin: account }) => { setAdmin(account); setPassword(""); navigate(safePanelDestination(location.state?.from, basePath), { replace: true }); });
+  function login(credentials) {
+    void perform((signal) => api(`${basePath}/login`, { method: "POST", body: JSON.stringify(credentials), signal }), ({ admin: account }) => { setAdmin(account); navigate(safePanelDestination(location.state?.from, basePath), { replace: true }); });
   }
   function logout() {
     if (!navigation.confirmNavigation()) return;
@@ -106,13 +106,13 @@ function Workspace({ technical }) {
   }
   const toolError = useCallback((message) => setError(message), []);
   const sectionInfo = panelSections[section];
-  const forbidden = sectionInfo && ((sectionInfo.technical && !technical) || (sectionInfo.permission && !admin?.staffPermissions?.includes(sectionInfo.permission)));
+  const forbidden = sectionInfo && ((sectionInfo.technical && !technical) || (sectionInfo.accountManagement && !admin?.canManageAccounts) || (sectionInfo.permission && !admin?.staffPermissions?.includes(sectionInfo.permission)));
   if (checking) return <section className="admin-checking"><h1>{technical ? "Technical Panel" : "Admin Panel"}</h1><p role="status">Checking your session…</p></section>;
-  if (!admin) return <div className="admin-shell"><header className="admin-header"><Link to="/" aria-label="Eternal India home"><img src="/logo.webp" alt="Eternal India" width="183" height="58" /></Link><span className="admin-header-label">{technical ? "Technical Panel" : "Administration"}</span><Link to="/">View website</Link></header><div className="admin-login-layout"><div className="admin-login-story"><span className="admin-eyebrow">ETERNAL INDIA WORKSPACE</span><Icon name="compass" size={48} /><h1>Everything you need.<br /><em>One workspace.</em></h1><p>Manage staff, attendance, guest enquiries and journey operations from your {technical ? "technical" : "admin"} panel.</p><div className="admin-story-foot"><span className="availability-dot" />Connected to your Eternal India team.</div></div><form className="admin-login-form" onSubmit={login}><span className="admin-eyebrow">{technical ? "TECHNICAL PANEL" : "ADMIN PANEL"}</span><h2>Sign in to your workspace</h2><p>Use your authorized Eternal India account.</p><label htmlFor="admin-email">Email address</label><input id="admin-email" type="email" autoComplete="username" required maxLength={200} value={email} onChange={(event) => setEmail(event.target.value)} /><label htmlFor="admin-password">Password</label><div className="admin-password-field"><input id="admin-password" type={showPassword ? "text" : "password"} autoComplete="current-password" required maxLength={256} value={password} onChange={(event) => setPassword(event.target.value)} /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((value) => !value)}>{showPassword ? "Hide" : "Show"}</button></div>{error && <p className="admin-error" role="alert">{error}</p>}<button className="button" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}<Icon size={18} /></button><span className="admin-login-note">For authorized Eternal India team members.</span><Link to={technical ? "/admin/login" : "/technical/login"}>Open {technical ? "admin" : "technical"} panel →</Link></form></div></div>;
+  if (!admin || ["register", "forgot-password", "reset-password"].includes(section)) return <PanelAuth technical={technical} busy={busy} error={error} onError={setError} onLogin={login} />;
   return <div className="admin-shell"><PanelLayout admin={admin} technical={technical} section={section} busy={busy || !!updating} onNavigate={go} onLogout={logout}>
     {error && !["enquiries", "hotels", "vouchers"].includes(section) && <p className="admin-error panel-global-error" role="alert">{error}</p>}
     <PanelErrorBoundary key={section} onHome={() => go("enquiries")}><Suspense fallback={<div className="admin-tools" role="status">Loading workspace…</div>}>
-      {forbidden ? <section className="panel-failure"><h1>Access restricted</h1><p>Your account does not have permission to open this section.</p><button className="dashboard-button" onClick={() => go("enquiries")}>Back to enquiries</button></section> : section.startsWith("staff") ? <StaffWorkspace key={section} apiBase={basePath} technical={technical} admin={admin} section={section} onSection={go} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} onLogout={logout} /> : section === "festivals" ? <FestivalManagement admin={admin} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} onLogout={logout} /> : section === "promotions" ? <PromotionManager apiBase={basePath} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} /> : ["hotels", "vouchers"].includes(section) ? <AdminTools key={section} apiBase={basePath} technical={technical} tool={section} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} onError={toolError} error={error} /> : section !== "enquiries" ? <section className="panel-failure"><h1>Section not found</h1><p>Choose a section from the workspace navigation.</p><button className="dashboard-button" onClick={() => go("enquiries")}>Back to enquiries</button></section> : <AdminDashboard technical={technical} admin={admin} data={data} loaded={loaded} loading={loading} busy={busy} updating={updating} error={error} searchInput={searchInput} search={search} status={status} page={page} lastUpdated={lastUpdated} selected={selected} onSearchInput={(value) => { setSearchInput(value); if (!value && search) enquiryQuery({ search: "", page: 1 }); }} onSearch={(event) => { event.preventDefault(); enquiryQuery({ search: searchInput.trim(), page: 1 }); }} onStatusFilter={(value) => enquiryQuery({ status: value, page: 1 })} onSelectStatus={(value) => enquiryQuery({ status: value, search: "", page: 1 })} onClearFilters={() => enquiryQuery({ status: "", search: "", page: 1 })} onPage={(value) => enquiryQuery({ page: value })} onOpen={setSelectedId} onClose={() => setSelectedId("")} onUpdate={updateStatus} onDelete={deleteEnquiry} onRefresh={() => { setError(""); setRefresh((value) => value + 1); }} onLogout={logout} onTool={go} />}
+      {forbidden ? <section className="panel-failure"><h1>Access restricted</h1><p>Your account does not have permission to open this section.</p><button className="dashboard-button" onClick={() => go("enquiries")}>Back to enquiries</button></section> : section === "accounts" ? <AccountManager apiBase={basePath} admin={admin} onUnauthorized={handleUnauthorized} /> : section === "voucher-history" ? <VoucherHistory apiBase={basePath} onUnauthorized={handleUnauthorized} /> : section.startsWith("staff") ? <StaffWorkspace key={section} apiBase={basePath} technical={technical} admin={admin} section={section} onSection={go} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} onLogout={logout} /> : section === "festivals" ? <FestivalManagement admin={admin} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} onLogout={logout} /> : section === "promotions" ? <PromotionManager apiBase={basePath} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} /> : ["hotels", "vouchers"].includes(section) ? <AdminTools key={section} apiBase={basePath} technical={technical} tool={section} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} onError={toolError} error={error} /> : section !== "enquiries" ? <section className="panel-failure"><h1>Section not found</h1><p>Choose a section from the workspace navigation.</p><button className="dashboard-button" onClick={() => go("enquiries")}>Back to enquiries</button></section> : <AdminDashboard technical={technical} admin={admin} data={data} loaded={loaded} loading={loading} busy={busy} updating={updating} error={error} searchInput={searchInput} search={search} status={status} page={page} lastUpdated={lastUpdated} selected={selected} onSearchInput={(value) => { setSearchInput(value); if (!value && search) enquiryQuery({ search: "", page: 1 }); }} onSearch={(event) => { event.preventDefault(); enquiryQuery({ search: searchInput.trim(), page: 1 }); }} onStatusFilter={(value) => enquiryQuery({ status: value, page: 1 })} onSelectStatus={(value) => enquiryQuery({ status: value, search: "", page: 1 })} onClearFilters={() => enquiryQuery({ status: "", search: "", page: 1 })} onPage={(value) => enquiryQuery({ page: value })} onOpen={setSelectedId} onClose={() => setSelectedId("")} onUpdate={updateStatus} onDelete={deleteEnquiry} onRefresh={() => { setError(""); setRefresh((value) => value + 1); }} onLogout={logout} onTool={go} />}
     </Suspense></PanelErrorBoundary>
   </PanelLayout></div>;
 }

@@ -19,5 +19,6 @@ export function readConfig(env = process.env) {
     adminEmail: (env.ADMIN_EMAIL || "").trim().toLowerCase(),
     adminPassword: env.ADMIN_PASSWORD || "",
     technicalEmail: (env.TECHNICAL_EMAIL || "").trim().toLowerCase(),
+    smtp: { host: env.SMTP_HOST || "", port: Number(env.SMTP_PORT || 587), secure: env.SMTP_SECURE === "true", user: env.SMTP_USER || "", password: env.SMTP_PASSWORD || "", from: env.SMTP_FROM || env.SMTP_USER || env.ADMIN_EMAIL },
   };
 }

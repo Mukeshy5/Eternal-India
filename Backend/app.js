@@ -17,8 +17,9 @@ import { registerStaffRoutes } from "./staff/routes.js";
 import { staffAccess } from "./staff/permissions.js";
 import { managementAccess } from "./lib/panel-access.js";
 import { sessionLifecycle } from "./lib/session-lifecycle.js";
+import { canManageAccounts, registerAccounts } from "./lib/accounts.js";
 
-export function createApp({ client, db, config, schedulerOptions }) {
+export function createApp({ client, db, config, schedulerOptions, sendPasswordReset }) {
   const app = express();
   app.disable("x-powered-by");
   app.use(compression());
@@ -59,11 +60,11 @@ export function createApp({ client, db, config, schedulerOptions }) {
 
   const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
   const enquiryLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many enquiries. Please try again shortly." } });
-  const publicAdmin = (admin) => { const access = technicalAccess(admin, config); return { id: admin._id.toString(), email: admin.email, roles: access.roles, technicalPermissions: access.permissions, staffPermissions: staffAccess(admin, config) }; };
+  const publicAdmin = (admin) => { const access = technicalAccess(admin, config); return { id: admin._id.toString(), email: admin.email, roles: access.roles, canManageAccounts: canManageAccounts(admin, config), technicalPermissions: access.permissions, staffPermissions: staffAccess(admin, config) }; };
   async function requireAdmin(req, res, next) {
     if (!ObjectId.isValid(req.session?.adminId || "")) return res.status(401).json({ message: "Please sign in to continue." });
     const admin = await db.collection("admins").findOne({ _id: new ObjectId(req.session.adminId) });
-    if (!admin || (admin.passwordChangedAt && new Date(req.session.signedInAt) <= admin.passwordChangedAt)) return res.status(401).json({ message: "Please sign in again." });
+    if (!admin || ["pending", "disabled"].includes(admin.status) || (admin.passwordChangedAt && (!req.session.signedInAt || new Date(req.session.signedInAt) <= admin.passwordChangedAt))) return res.status(401).json({ message: "Please sign in again." });
     if (!managementAccess(admin, config)) return res.status(403).json({ message: "This account is not authorized for the management panels." });
     if (req.originalUrl.startsWith("/api/technical/") && !technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
     req.admin = admin;
@@ -100,6 +101,7 @@ export function createApp({ client, db, config, schedulerOptions }) {
     if (!email || !password || password.length > 256) return res.status(401).json({ message: "Email or password is incorrect." });
     const admin = await db.collection("admins").findOne({ email });
     if (!admin || !await verifyPassword(password, admin.passwordHash)) return res.status(401).json({ message: "Email or password is incorrect." });
+    if (["pending", "disabled"].includes(admin.status)) return res.status(403).json({ message: "Your account is awaiting administrator approval or has been disabled." });
     if (!managementAccess(admin, config)) return res.status(403).json({ message: "This account is not authorized for the management panels." });
     if (req.originalUrl.startsWith("/api/technical/") && !technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
     req.session.regenerate((error) => {
@@ -177,9 +179,18 @@ export function createApp({ client, db, config, schedulerOptions }) {
     if (!result.deletedCount) return res.status(404).json({ message: "Hotel not found." });
     res.status(204).send();
   });
-  management.get("/vouchers", requireAdmin, async (_req, res) => {
-    const vouchers = await db.collection("journey_vouchers").find({}, { projection: { billing: 1, journey: 1, stops: 1, message: 1, voucherNumber: 1, createdAt: 1 } }).sort({ createdAt: -1 }).limit(200).toArray();
-    res.json({ vouchers });
+  management.get("/vouchers", requireAdmin, async (req, res) => {
+    const page = Math.max(1, Math.min(100000, Number.parseInt(req.query.page, 10) || 1));
+    const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 120) : "";
+    const pattern = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const filter = search ? { $or: ["billing.name", "billing.visitingCardNo", "voucherNumber", "journey.from"].map((field) => ({ [field]: { $regex: pattern, $options: "i" } })) } : {};
+    const [vouchers, total] = await Promise.all([db.collection("journey_vouchers").find(filter, { projection: { billing: 1, journey: 1, stops: 1, message: 1, voucherNumber: 1, createdAt: 1 } }).sort({ createdAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).toArray(), db.collection("journey_vouchers").countDocuments(filter)]);
+    res.json({ vouchers, total, page, pages: Math.max(1, Math.ceil(total / 20)) });
+  });
+  management.delete("/vouchers/:id", requireAdmin, async (req, res) => {
+    if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid voucher." });
+    if (!(await db.collection("journey_vouchers").deleteOne({ _id: new ObjectId(req.params.id) })).deletedCount) return res.status(404).json({ message: "Voucher not found." });
+    res.sendStatus(204);
   });
   management.post("/vouchers", requireAdmin, async (req, res) => {
     const billing = req.body?.billing;
@@ -246,6 +257,7 @@ export function createApp({ client, db, config, schedulerOptions }) {
     await db.collection("enquiry_history").deleteMany({ enquiryId });
     res.status(204).send();
   });
+  registerAccounts({ management, db, requireAdmin, config, sendPasswordReset });
   const festivals = registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions });
   registerPromotions({ app, management, db, requireAdmin });
   registerStaffRoutes({ management, db, requireAdmin, config });

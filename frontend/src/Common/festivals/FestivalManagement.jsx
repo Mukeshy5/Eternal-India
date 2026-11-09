@@ -12,6 +12,7 @@ const sections = [
   ["festivals", "Festival Management", "dashboard", "03"], ["schedules", "Schedule Management", "dashboard", "04"],
   ["preview", "Live Preview", "effects", "05"], ["active", "Active Decorations", "dashboard", "06"],
   ["settings", "Global Settings", "settings", "07"],
+  ["history", "Activity History", "history", "08"],
 ];
 const time = (value, zone = "Asia/Kolkata") => value ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: zone }).format(new Date(value)) : "—";
 const counterLabels = { totalEffects: "Available effects", scheduledFestivals: "Scheduled festivals", activeDecorations: "Active decorations", upcomingFestivals: "Upcoming festivals", expiredDecorations: "Expired decorations", enabledEffects: "Enabled effects", disabledEffects: "Disabled effects", totalFestivals: "Saved festivals" };
@@ -28,6 +29,7 @@ export default function FestivalManagement({ admin, onBack, onUnauthorized, onLo
   usePanelNavigationGuard(false, busy);
   const [loading, setLoading] = useState(true);
   const [refresh, setRefresh] = useState(0);
+  const [historyPage, setHistoryPage] = useState(1);
   const [previewDraft, setPreviewDraft] = useState(null);
   const [scheduleFestival, setScheduleFestival] = useState("");
   const actionLock = useRef(false);
@@ -47,7 +49,7 @@ export default function FestivalManagement({ admin, onBack, onUnauthorized, onLo
           has("dashboard") ? api("/technical/festival-schedules", { signal: controller.signal }) : { schedules: [] },
           has("dashboard") || has("settings") ? api("/technical/decoration-settings", { signal: controller.signal }) : { settings: {} },
           has("dashboard") ? api("/technical/festival-decorations/active", { signal: controller.signal }) : { decorations: [], settings: {} },
-          { history: [], pages: 1, total: 0 },
+          has("history") && section === "history" ? api(`/technical/decoration-history?page=${historyPage}`, { signal: controller.signal }) : { history: [], pages: 1, total: 0 },
         ]);
         if (!controller.signal.aborted) setData({ dashboard: results[0], effects: results[1].effects, festivals: results[2].festivals, schedules: results[3].schedules, settings: results[4].settings, active: results[5], history: results[6] });
       } catch (failure) {
@@ -59,7 +61,7 @@ export default function FestivalManagement({ admin, onBack, onUnauthorized, onLo
     const refreshOnFocus = ["dashboard", "active"].includes(section) ? () => void load() : null;
     if (refreshOnFocus) window.addEventListener("focus", refreshOnFocus);
     return () => { controller.abort(); if (timer) window.clearInterval(timer); if (refreshOnFocus) window.removeEventListener("focus", refreshOnFocus); };
-  }, [refresh, section, permissionKey, onUnauthorized]);
+  }, [refresh, section, historyPage, permissionKey, onUnauthorized]);
 
   async function perform(path, options, message) {
     if (actionLock.current) return false;
@@ -89,6 +91,7 @@ export default function FestivalManagement({ admin, onBack, onUnauthorized, onLo
         {section === "preview" && <FestivalPreview key={previewDraft?._id || previewDraft?.selectedEffects?.join(",") || "new"} data={data} initial={previewDraft || { ...animationDefaults, intensity: data.settings.defaultIntensity || "medium" }} can={can} busy={busy} perform={perform} onCancel={() => choose("effects")} />}
         {section === "active" && <ActiveDecorations data={data} can={can} busy={busy} perform={perform} onPreview={preview} />}
         {section === "settings" && can("settings") && <DecorationSettings key={`${data.settings.updatedAt}:${data.settings.enabled}`} settings={data.settings} busy={busy} perform={perform} />}
+        {section === "history" && <section className="admin-tool-card"><div className="admin-tool-actions"><h3>Activity History · {data.history.total}</h3>{can("settings") && <button className="dashboard-button dashboard-button-danger" disabled={busy || !data.history.total} onClick={() => { if (window.confirm("Permanently delete all decoration activity history?")) { setHistoryPage(1); void perform("/decoration-history", { method: "DELETE" }, "Activity history permanently deleted."); } }}>Clear activity history</button>}</div><p className="festival-help">Activity is kept for 30 days. Deleting a festival also deletes its related activity.</p>{data.history.history.map((entry) => <article className="panel-record-row" key={entry._id}><div><strong>{entry.festivalName || entry.action.replaceAll("_", " ")}</strong><p>{entry.action.replaceAll("_", " ")} · {time(entry.timestamp, data.settings.timezone)}</p><p>{entry.performedBy?.email}</p></div>{can("settings") && <button className="dashboard-button dashboard-button-danger" disabled={busy} onClick={() => { if (window.confirm("Permanently delete this activity record?")) void perform(`/decoration-history/${entry._id}`, { method: "DELETE" }, "Activity record permanently deleted."); }}>Delete activity</button>}</article>)}<div className="admin-tool-actions"><button className="dashboard-button" disabled={busy || historyPage <= 1} onClick={() => setHistoryPage((value) => value - 1)}>Previous</button><span>Page {historyPage} of {data.history.pages}</span><button className="dashboard-button" disabled={busy || historyPage >= data.history.pages} onClick={() => setHistoryPage((value) => value + 1)}>Next</button></div></section>}
       </>}
       </section>
     </div>

@@ -31,6 +31,11 @@ const titles = {
   "/admin/login": "Admin login",
   "/technical": "Technical panel",
   "/technical/login": "Technical login",
+  "/admin/register": "Create admin account",
+  "/admin/forgot-password": "Forgot password",
+  "/admin/reset-password": "Reset password",
+  "/technical/forgot-password": "Forgot password",
+  "/technical/reset-password": "Reset password",
 };
 export default function App() {
   const { pathname, hash, search, key } = useLocation();

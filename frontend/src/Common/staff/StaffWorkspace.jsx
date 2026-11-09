@@ -86,8 +86,8 @@ export default function StaffWorkspace({ apiBase, technical, admin, section, onS
     if (result) { setAttendanceDrafts((previous) => Object.fromEntries(Object.entries(previous).map(([id, value]) => [id, { ...value, dirty: false }]))); reload(); }
   }
   async function remove(staff) {
-    if (!window.confirm(`Delete ${staff.name} (${staff.employeeId})? Their attendance history will be preserved.`)) return;
-    const response = await perform((signal) => api(`${apiBase}/staff/${staff._id}`, { method: "DELETE", body: JSON.stringify({ version: staff.version }), signal }), "Staff deleted. Attendance history remains available in reports.");
+    if (!window.confirm(`Delete ${staff.name} (${staff.employeeId})? Their profile, photo and all attendance records will be permanently deleted.`)) return;
+    const response = await perform((signal) => api(`${apiBase}/staff/${staff._id}`, { method: "DELETE", body: JSON.stringify({ version: staff.version }), signal }), "Staff and all attendance records permanently deleted.");
     if (response) reload();
   }
   async function fetchFile(url, signal) {

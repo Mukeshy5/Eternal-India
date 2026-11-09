@@ -50,9 +50,10 @@ export function createDecorationScheduler(db, { clock = () => new Date(), interv
       const changed = previousSignature !== signature;
       const state = { active, checkedAt: now, lastActivatedAt: changed && active.length ? now : previous?.lastActivatedAt || null };
       await db.collection("decoration_runtime").updateOne({ _id: "state" }, { $set: state }, { upsert: true });
-      if (changed) {
+      const activityFestivalId = active[0]?.decorationId || previous?.active?.[0]?.decorationId;
+      if (changed && activityFestivalId && await db.collection("festival_decorations").findOne({ _id: new ObjectId(activityFestivalId) }, { projection: { _id: 1 } })) {
         const actor = { id: "system", email: "Backend scheduler", role: "system" };
-        await db.collection("decoration_activity").insertOne({ action: active.length ? "decoration_activated" : "decoration_deactivated", decorationId: active[0]?.decorationId || previous?.active?.[0]?.decorationId || null, festivalName: winner?.festival.name || previous?.festivalName || "", performedBy: actor, performedByRole: "system", previousValues: { active: previous?.active || [] }, newValues: { active }, timestamp: now, remarks: active.length ? `Activated by ${winner.source}; highest priority wins.` : "No eligible published decoration or master OFF." });
+        await db.collection("decoration_activity").insertOne({ action: active.length ? "decoration_activated" : "decoration_deactivated", decorationId: activityFestivalId, festivalName: winner?.festival.name || previous?.festivalName || "", performedBy: actor, performedByRole: "system", previousValues: { active: previous?.active || [] }, newValues: { active }, timestamp: now, expiresAt: new Date(now.getTime() + 30 * 86400000), remarks: active.length ? `Activated by ${winner.source}; highest priority wins.` : "No eligible published decoration or master OFF." });
       }
       if (winner) await db.collection("decoration_runtime").updateOne({ _id: "state" }, { $set: { festivalName: winner.festival.name } });
       const publicState = await readPublicState();
