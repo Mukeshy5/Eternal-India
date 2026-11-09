@@ -3,7 +3,8 @@ import { ObjectId } from "mongodb";
 import { gmailAccountFilter, gmailIdentity } from "./email-identity.js";
 
 const purposes = ["registration", "account-create", "account-edit"];
-const otpLifetime = 5 * 60000, proofLifetime = 10 * 60000, resendDelay = 60000;
+const otpLifetime = 5 * 60000, proofLifetime = 10 * 60000, resendDelay = 60 * 1000;
+const maxSends = 5, limitWindow = 15 * 60 * 1000;
 const failure = (status, message, details = {}) => Object.assign(new Error(message), { status, details, publicMessage: true });
 
 export function createEmailVerification({ db, config, mailer }) {
@@ -18,14 +19,14 @@ export function createEmailVerification({ db, config, mailer }) {
     return { ...identity, purpose, accountId, sessionKey, contextId: sessionKey ? hash(`${sessionKey}:${purpose}:${accountId}`) : "" };
   };
   const reserve = async (key, now, reservation) => {
-    await limits.updateOne({ _id: key, expiresAt: { $lte: now } }, { $set: { count: 0, nextSendAt: new Date(0), expiresAt: new Date(now.getTime() + 3600000) } });
-    let slot = await limits.findOneAndUpdate({ _id: key, count: { $lt: 5 }, nextSendAt: { $lte: now } }, { $inc: { count: 1 }, $set: { nextSendAt: new Date(now.getTime() + resendDelay), reservation } }, { returnDocument: "after" });
+    await limits.updateOne({ _id: key, expiresAt: { $lte: now } }, { $set: { count: 0, nextSendAt: new Date(0), expiresAt: new Date(now.getTime() + limitWindow) } });
+    let slot = await limits.findOneAndUpdate({ _id: key, count: { $lt: maxSends }, nextSendAt: { $lte: now } }, { $inc: { count: 1 }, $set: { nextSendAt: new Date(now.getTime() + resendDelay), reservation } }, { returnDocument: "after" });
     if (!slot) {
-      try { slot = { _id: key, count: 1, nextSendAt: new Date(now.getTime() + resendDelay), expiresAt: new Date(now.getTime() + 3600000), reservation }; await limits.insertOne(slot); }
+      try { slot = { _id: key, count: 1, nextSendAt: new Date(now.getTime() + resendDelay), expiresAt: new Date(now.getTime() + limitWindow), reservation }; await limits.insertOne(slot); }
       catch (error) {
         if (error.code !== 11000) throw error;
         const current = await limits.findOne({ _id: key });
-        const retryAfter = Math.max(1, Math.ceil(((current?.count >= 5 ? current.expiresAt : current?.nextSendAt) - now) / 1000) || 60);
+        const retryAfter = Math.max(1, Math.ceil(((current?.count >= maxSends ? current.expiresAt : current?.nextSendAt) - now) / 1000) || 60);
         throw failure(429, `Please wait ${retryAfter} seconds before requesting another OTP.`, { retryAfter });
       }
     }
@@ -41,9 +42,13 @@ export function createEmailVerification({ db, config, mailer }) {
     if (ctx.accountId && !target) throw failure(404, "Account not found.");
     if (await db.collection("admins").findOne(gmailAccountFilter(ctx, target?._id), { projection: { _id: 1 } })) throw failure(409, "This Gmail address already has an account or pending request. Sign in or use Forgot password.");
     const now = new Date(), reservation = randomBytes(16).toString("hex"), slots = [];
+  // Rate limit per email address and IP address. Only actual send attempts increment the counter;
+  // validation failures, missing SMTP configuration and failed deliveries never increment it.
+  const ip = String(req.ip || (req.socket && req.socket.remoteAddress) || "").replace(/^::ffff:/, "");
+  const ipKey = `ip:${hash(String(ip))}`;
     try {
       slots.push(await reserve(`email:${hash(ctx.gmailKey)}`, now, reservation));
-      slots.push(await reserve(`session:${ctx.sessionKey}`, now, reservation));
+      slots.push(await reserve(ipKey, now, reservation));
     } catch (error) { await release(slots, reservation); throw error; }
     const challengeId = randomBytes(16).toString("hex"), code = randomInt(0, 1000000).toString().padStart(6, "0");
     const expiresAt = new Date(now.getTime() + otpLifetime);

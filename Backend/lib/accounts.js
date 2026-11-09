@@ -27,14 +27,21 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
     : next();
   const guard = [requireAdmin, adminPanelOnly, (req, res, next) => canManageAccounts(req.admin, config) ? next() : res.status(403).json({ message: "Only an administrator can manage panel accounts." })];
   const auth = Router();
-  const sendLimit = rateLimit({ windowMs: 60 * 60000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many OTP email requests. Please try again later.", retryAfter: 3600 } });
+
   const verifyLimit = rateLimit({ windowMs: 15 * 60000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many OTP verification attempts. Please try again in 15 minutes.", retryAfter: 900 } });
   const verificationAccess = (req, res, next) => {
     if (!req.body?.purpose || req.body.purpose === "registration") return next();
     return requireAdmin(req, res, () => canManageAccounts(req.admin, config) ? next() : res.status(403).json({ message: "Only an administrator can verify an address for account management." }));
   };
-  auth.post("/send-otp", sendLimit, verificationAccess, verification.send);
+  // OTP email sending is rate limited by the MongoDB-backed reserve() in email-verification.js
+  // (5 sends per 15 minutes per email+IP address, 60-second resend cooldown). The old
+  // express-rate-limit sendLimit (1-hour window, hard-coded retryAfter: 3600) is removed so it
+  // can no longer block OTP resends for one hour or count non-delivery requests.
+  auth.post("/send-otp", verificationAccess, verification.send);
   auth.post("/verify-otp", verifyLimit, verificationAccess, verification.verify);
+  // Mounted once on /api/auth so both the Admin Panel and Technical Panel share the same
+  // endpoint and the same MongoDB-backed OTP send/verify limits.
+  app.use("/api/auth", auth);
   async function createAccount(req, res, managed = false) {
     const identity = gmailIdentity(req.body?.email), password = req.body?.password, role = req.body?.role;
     if (!identity || !validPassword(password) || managed && !["admin", "technical"].includes(role)) return res.status(400).json({ message: "Enter a valid Gmail, a password of 8–256 characters and a valid panel type." });
