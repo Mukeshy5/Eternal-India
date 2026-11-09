@@ -15,7 +15,7 @@ export function apiUrl(path) {
 }
 
 export async function api(path, options = {}) {
-  const { timeoutMs = 15000, ...requestOptions } = options;
+  const { timeoutMs = 60000, ...requestOptions } = options;
   let response;
   try {
     response = await fetch(apiUrl(path), {

@@ -19,3 +19,10 @@ test("local development keeps loopback while ordinary production supports explic
 test("Gmail configuration rejects mailto links instead of attempting invalid SMTP authentication", () => {
   assert.throws(() => readConfig({ ...base, SMTP_HOST: "smtp.gmail.com", SMTP_USER: "mailto:sender@gmail.com" }), /SMTP_USER must be a Gmail address/);
 });
+test("Render allows the deployed Vercel frontend even with copied development origins", () => {
+  const config = readConfig({ ...base, RENDER: "true", FRONTEND_ORIGIN: "http://localhost:5173/" });
+  assert.equal(config.origins[0], "https://eternal-india-phi.vercel.app", "password recovery links use the live frontend rather than copied localhost settings");
+  assert.ok(!config.origins.includes("*"));
+  assert.deepEqual(readConfig(base).origins, ["http://localhost:5173"]);
+  assert.deepEqual(readConfig({ ...base, NODE_ENV: "production" }).origins, ["https://eternal-india-phi.vercel.app"]);
+});

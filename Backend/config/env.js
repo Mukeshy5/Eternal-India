@@ -12,7 +12,11 @@ export function readConfig(env = process.env) {
   if (env.AUTH_TOKEN_SECRET && env.AUTH_TOKEN_SECRET.length < 32) throw new Error("AUTH_TOKEN_SECRET must contain at least 32 characters.");
   const mongoUri = (env.MONGO_URI || "mongodb://localhost:27017").trim();
   if (!/^mongodb(?:\+srv)?:\/\/[^\s]+$/.test(mongoUri) || /[<>]/.test(mongoUri)) throw new Error("Set MONGO_URI to a valid mongodb:// or mongodb+srv:// connection string in Backend/.env.");
-  const origins = (env.FRONTEND_ORIGIN || "http://localhost:5173").split(",").map((origin) => new URL(origin.trim()).origin);
+  const frontendOrigin = "https://eternal-india-phi.vercel.app";
+  const origins = [...new Set([
+    ...(onRender ? [frontendOrigin] : []),
+    ...(env.FRONTEND_ORIGIN || (production ? frontendOrigin : "http://localhost:5173")).split(",").map((origin) => new URL(origin.trim()).origin),
+  ])];
   const smtpUser = (env.SMTP_USER || env.GMAIL_USER || "").trim();
   const smtpHost = (env.SMTP_HOST || (smtpUser ? "smtp.gmail.com" : "")).trim().toLowerCase();
   const smtpPort = Number(env.SMTP_PORT || (smtpHost === "smtp.gmail.com" ? 465 : 587));

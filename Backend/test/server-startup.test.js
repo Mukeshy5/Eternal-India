@@ -31,6 +31,11 @@ test("the deployed server opens Render's public port with copied localhost setti
     }
     const health = await fetch(`http://127.0.0.1:${port}/api/health`);
     assert.equal(health.status, 200); assert.equal((await health.json()).status, "ok");
+    const preflight = await fetch(`http://127.0.0.1:${port}/api/admin/login`, { method: "OPTIONS", headers: { Origin: "https://eternal-india-phi.vercel.app", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" } });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get("access-control-allow-origin"), "https://eternal-india-phi.vercel.app");
+    assert.equal(preflight.headers.get("access-control-allow-credentials"), "true");
+    assert.equal((await fetch(`http://127.0.0.1:${port}/api/health`, { headers: { Origin: "https://untrusted.example.com" } })).status, 403);
     const login = await fetch(`http://127.0.0.1:${port}/api/admin/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://frontend.example.com", "X-Forwarded-Proto": "https" }, body: JSON.stringify({ email: "render-startup@example.com", password: "RenderStartupPassword9" }) });
     assert.equal(login.status, 200);
     const cookies = login.headers.getSetCookie();
