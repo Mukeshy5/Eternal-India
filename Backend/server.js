@@ -30,6 +30,19 @@ async function start() {
   // Connect to MongoDB (with retries) before starting the Express server.
   connection = await connectDatabase(config);
   await ensureAdmin(connection.db, config);
+
+  // Activate existing email-verified accounts stuck in pending/disabled status
+  // so they can log in immediately without requiring administrator approval.
+  const activationResult = await connection.db
+    .collection("admins")
+    .updateMany(
+      { status: { $in: ["pending", "disabled"] }, emailVerified: true },
+      { $set: { status: "active" }, $unset: { expiresAt: "" } }
+    );
+  if (activationResult.modifiedCount > 0) {
+    console.log(`Activated ${activationResult.modifiedCount} email-verified account(s) to active status.`);
+  }
+
   await cleanupDatabase(connection.db, { apply: true });
 
   // Verify Gmail SMTP configuration at startup so OTP emails are confirmed working

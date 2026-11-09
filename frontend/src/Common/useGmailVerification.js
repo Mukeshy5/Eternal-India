@@ -40,6 +40,5 @@ export function useGmailVerification({ email, purpose = "registration", accountI
       if (failure.status === 401) onUnauthorized?.();
     } finally { if (request.current === controller) locked.current = false; }
   }
-  return { verified, busy: !!active?.busy, sent, code, setCode: (value) => setCode(value.replace(/\D/g, "").slice(0, 6)), remaining, resendIn, valid: gmail(email), error: active?.error || "", message: active?.message || "", proofExpired: !!active?.verified && !verified, send: () => { if (busy || resendIn || verified) return; void perform("send"); }, verify: () => { if (sent && remaining && code.length === 6) void perform("verify"); }, reset };
+  return { verified, busy: !!active?.busy, sent, code, setCode: (value) => setCode(value.replace(/\D/g, "").slice(0, 6)), remaining, resendIn, valid: gmail(email), error: active?.error || "", message: active?.message || "", proofExpired: !!active?.verified && !verified, send: () => { if (!resendIn && !verified) void perform("send"); }, verify: () => { if (sent && remaining && code.length === 6) void perform("verify"); }, reset };
 }
-
