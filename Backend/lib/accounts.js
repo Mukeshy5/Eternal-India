@@ -13,8 +13,13 @@ const validEmail = (value) => value.length <= 200 && /^[^\s@]+@[^\s@]+\.[^\s@]+$
 const validPassword = (value) => typeof value === "string" && value.length >= 8 && value.length <= 256;
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 const safeAccount = ({ _id, email, roles, status, createdAt, emailVerified, emailVerifiedAt, version }, manager, config) => {
-  const protectedAccount = _id.equals(manager._id) || email === config.adminEmail || email === config.technicalEmail;
-  return { _id, email, roles: roles || ["admin"], status: status || "active", createdAt, emailVerified: emailVerified === true, emailVerifiedAt, version: version || 0, editable: !protectedAccount, deletable: !protectedAccount };
+  const configuredOwner = email === config.adminEmail || email === config.technicalEmail;
+  const managementRestriction = configuredOwner
+    ? "Owner account. Editing and deletion are unavailable here. Use Forgot password on the sign-in page to change its password."
+    : _id.equals(manager._id)
+      ? "You are signed in with this account. Sign in with another administrator account to edit or delete it."
+      : "";
+  return { _id, email, roles: roles || ["admin"], status: status || "active", createdAt, emailVerified: emailVerified === true, emailVerifiedAt, version: version || 0, editable: !managementRestriction, deletable: !managementRestriction, managementRestriction };
 };
 const sessionFilter = (id) => ({ $or: [{ "session.adminId": id.toString() }, { session: { $regex: `"adminId"\\s*:\\s*"${id}"` } }] });
 
