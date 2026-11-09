@@ -22,7 +22,10 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
   const accounts = db.collection("admins");
   const mailer = createMailer(config), verification = createEmailVerification({ db, config, mailer });
   const limit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many account requests. Please try again in 15 minutes." } });
-  const guard = [requireAdmin, (req, res, next) => canManageAccounts(req.admin, config) ? next() : res.status(403).json({ message: "Only an administrator can manage panel accounts." })];
+  const adminPanelOnly = (req, res, next) => req.originalUrl.startsWith("/api/technical/")
+    ? res.status(403).json({ message: "Panel account management is available only in the Admin Panel." })
+    : next();
+  const guard = [requireAdmin, adminPanelOnly, (req, res, next) => canManageAccounts(req.admin, config) ? next() : res.status(403).json({ message: "Only an administrator can manage panel accounts." })];
   const auth = Router();
   const sendLimit = rateLimit({ windowMs: 60 * 60000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many OTP email requests. Please try again later.", retryAfter: 3600 } });
   const verifyLimit = rateLimit({ windowMs: 15 * 60000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many OTP verification attempts. Please try again in 15 minutes.", retryAfter: 900 } });
@@ -53,7 +56,9 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
   const register = (req, res) => createAccount(req, res);
   auth.post("/register", limit, register);
   app.use("/api/auth", auth);
-  management.post("/register", limit, register);
+  management.post("/register", limit, (req, res, next) => req.originalUrl.startsWith("/api/technical/")
+    ? res.status(403).json({ message: "Account requests are available only through the Admin Panel registration page." })
+    : register(req, res, next));
   management.get("/accounts", ...guard, async (req, res) => {
     const records = await accounts.find({}, { projection: { email: 1, roles: 1, status: 1, createdAt: 1, emailVerified: 1, emailVerifiedAt: 1, version: 1 } }).sort({ createdAt: -1 }).limit(500).toArray();
     res.json({ accounts: records.map((account) => safeAccount(account, req.admin, config)) });

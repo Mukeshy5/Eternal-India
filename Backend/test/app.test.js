@@ -1,19 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, scrypt as scryptCallback } from "node:crypto";
 import { once } from "node:events";
+import { promisify } from "node:util";
 import { readConfig } from "../config/env.js";
 import { connectDatabase } from "../config/database.js";
-import { ensureAdmin, verifyPassword } from "../lib/passwords.js";
+import { ensureAdmin, hashPassword, verifyPassword } from "../lib/passwords.js";
 import { createApp } from "../app.js";
 import { promotionTargets } from "../../shared/travelCatalog.js";
 
+const scrypt = promisify(scryptCallback);
+
 test("MongoDB enquiry and administrator workflow", async (t) => {
+  assert.throws(() => readConfig({ ...process.env, MONGO_URI: "not-a-mongo-uri" }), /valid mongodb/);
   const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "test-admin@example.com", adminPassword: randomBytes(24).toString("hex") };
   const { client, db } = await connectDatabase(config);
   const admin = await ensureAdmin(db, config);
   const configuredAdmin = await ensureAdmin(db, { ...config, adminEmail: "configured-admin@example.com", adminPassword: "LocalPass9" });
   assert.ok(await verifyPassword("LocalPass9", configuredAdmin.passwordHash), "a configured nine-character password can create the local admin account");
+  assert.match(configuredAdmin.passwordHash, /^bcrypt-sha256\$\$2[aby]\$12\$/, "new passwords use bcrypt with a work factor of 12");
+  const longPasswordHash = await hashPassword("x".repeat(100));
+  assert.ok(await verifyPassword("x".repeat(100), longPasswordHash), "bcrypt pre-hashing preserves passwords longer than bcrypt's input limit");
+  assert.equal(await verifyPassword("x".repeat(72) + "y".repeat(28), longPasswordHash), false);
   await assert.rejects(ensureAdmin(db, { ...config, adminEmail: "invalid-admin@example.com", adminPassword: "short" }), /at least 8 characters/);
   const { app, decorationScheduler } = createApp({ client, db, config });
   const server = app.listen(0, "127.0.0.1");
@@ -61,6 +69,18 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       assert.equal((await login.json()).admin.email, config.adminEmail);
       assert.equal((await request("/admin/me")).status, 200);
       assert.equal((await request("/admin/history")).status, 200);
+    });
+    await t.test("upgrades legacy scrypt hashes to bcrypt after successful login", async () => {
+      const email = "legacy-password@example.com", password = "LegacyPassword9", salt = randomBytes(16).toString("hex");
+      const key = await scrypt(password, salt, 64);
+      const legacy = `scrypt$${salt}$${key.toString("hex")}`;
+      const inserted = await db.collection("admins").insertOne({ email, passwordHash: legacy, createdAt: new Date() });
+      const login = await request("/admin/login", { method: "POST", body: { email, password } });
+      assert.equal(login.status, 200);
+      cookie = login.headers.get("set-cookie").split(";")[0];
+      const upgraded = await db.collection("admins").findOne({ _id: inserted.insertedId });
+      assert.match(upgraded.passwordHash, /^bcrypt-sha256\$\$2[aby]\$12\$/);
+      assert.ok(await verifyPassword(password, upgraded.passwordHash));
     });
     await t.test("shows saved details, supports search and status updates", async () => {
       const list = await (await request("/admin/enquiries")).json();

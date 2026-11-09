@@ -36,6 +36,10 @@ test("panel accounts, one-time password recovery and safe database cleanup", asy
       techCookie = technicalLogin.headers.get("set-cookie").split(";")[0];
       assert.equal((await technicalLogin.json()).admin.canManageAccounts, false);
       assert.equal((await request("/technical/accounts", "POST", { email: "bad@example.com", password: "AnyPassword9", role: "admin" }, techCookie)).status, 403);
+      await db.collection("admins").updateOne({ _id: fixture._id }, { $set: { roles: ["admin", "technical"] } });
+      assert.equal((await request("/technical/accounts", "GET", undefined, techCookie)).status, 403, "even an account with both roles cannot administer accounts through the Technical Panel");
+      assert.equal((await request("/technical/accounts", "POST", { email: "bad@example.com", password: "AnyPassword9", role: "admin" }, techCookie)).status, 403);
+      await db.collection("admins").updateOne({ _id: fixture._id }, { $set: { roles: ["technical"] } });
       const list = await (await request("/admin/accounts")).json(); assert.ok(list.accounts.every((account) => !account.passwordHash && !account.passwordReset));
     });
     await t.test("reset links are hashed, expire, work once, and revoke the old account sessions", async () => {

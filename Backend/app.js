@@ -8,7 +8,7 @@ import { ObjectId } from "mongodb";
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { verifyPassword } from "./lib/passwords.js";
+import { hashPassword, isBcryptPasswordHash, verifyPassword } from "./lib/passwords.js";
 import { enquiryStatuses, validateEnquiry } from "./lib/validation.js";
 import { registerPromotions } from "./lib/promotions.js";
 import { registerFestivalRoutes } from "./festivals/routes.js";
@@ -103,6 +103,12 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     const identity = gmailIdentity(email);
     const admin = await db.collection("admins").findOne(identity ? gmailAccountFilter(identity) : { email });
     if (!admin || !await verifyPassword(password, admin.passwordHash)) return res.status(401).json({ message: "Email or password is incorrect." });
+    if (!isBcryptPasswordHash(admin.passwordHash)) {
+      const passwordHash = await hashPassword(password);
+      const upgraded = await db.collection("admins").updateOne({ _id: admin._id, passwordHash: admin.passwordHash }, { $set: { passwordHash } });
+      if (!upgraded.modifiedCount) return res.status(401).json({ message: "Your credentials changed. Please sign in again." });
+      admin.passwordHash = passwordHash;
+    }
     if (["pending", "disabled"].includes(admin.status)) return res.status(403).json({ message: "Your account is awaiting administrator approval or has been disabled." });
     if (!managementAccess(admin, config)) return res.status(403).json({ message: "This account is not authorized for the management panels." });
     if (req.originalUrl.startsWith("/api/technical/") && !technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });

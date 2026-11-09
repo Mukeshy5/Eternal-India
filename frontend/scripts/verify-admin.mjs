@@ -14,7 +14,7 @@ export async function verifyAdminInteractions(server, technical = false) {
   }
   const originalFetch = globalThis.fetch;
   const calls = [];
-  let signedIn = false;
+  let signedIn = false, backendAvailable = true;
   const accounts = [];
   let vouchers = [{ _id: "000000000000000000000002", voucherNumber: "EIV-HISTORY-TEST", billing: { name: "History Guest", visitingCardNo: "H-1" }, journey: { from: "Delhi", fromAddress: "Airport" }, stops: [{ name: "Jaipur", address: "Hotel", distanceKm: 280, duration: "2 nights", arrivalDate: "2026-11-01", departureDate: "2026-11-03", meals: [], hotel: { name: "Test Hotel", starRating: "3-Star", gst: 12, amount: 2000 } }], message: "Happy travels", createdAt: "2026-11-01T00:00:00Z" }];
   const entry = { _id: "000000000000000000000001", name: "Admin UI Guest", email: "guest@example.com", phone: "+91 9000000000", destination: "Jaipur", travellers: 2, date: "", message: "Family holiday\nHeritage and local food", voiceLanguage: "hi", reference: "EI-TEST-UI", status: "new", createdAt: "2026-11-05T08:00:00Z" };
@@ -22,6 +22,7 @@ export async function verifyAdminInteractions(server, technical = false) {
   globalThis.fetch = async (url, options = {}) => {
     calls.push({ url, options });
     if (url === `/api${basePath}/login`) {
+      if (!backendAvailable) throw new TypeError("fetch failed");
       const body = JSON.parse(options.body);
       assert.equal(body.email, "admin@example.com");
       signedIn = body.password === "correct-password";
@@ -78,6 +79,12 @@ export async function verifyAdminInteractions(server, technical = false) {
     await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
     assert.ok(container.querySelector('[role="alert"]').textContent.includes("incorrect"));
     await act(async () => type(container.querySelector("#admin-password"), "correct-password"));
+    backendAvailable = false;
+    await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
+    await waitFor(() => container.querySelector('[role="alert"]')?.textContent.includes("couldn't connect"));
+    assert.equal(signedIn, false, "backend failure does not authenticate the user");
+    assert.equal(container.querySelector(".dashboard-table"), null, "backend failure does not open a protected panel");
+    backendAvailable = true;
     await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
     await waitFor(() => container.querySelector(".dashboard-table")?.textContent.includes(entry.name));
     const menu = container.querySelector(".dashboard-mobile-menu");
@@ -106,11 +113,17 @@ export async function verifyAdminInteractions(server, technical = false) {
         assert.ok(container.querySelector(".dashboard-table"), "returning from a technical tool restores enquiries");
       }
     }
-    await act(async () => [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "Panel accounts").click());
-    await waitFor(() => container.querySelector('[name="accountEmail"]'));
-    await act(async () => { type(container.querySelector('[name="accountEmail"]'), 'technical.account@gmail.com'); type(container.querySelector('[name="accountPassword"]'), 'TechnicalPassword9'); });
-    assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, true, 'admin-created accounts also require OTP');
-    assert.equal(container.querySelector('.gmail-send').disabled, false);
+    const accountsLink = [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "Panel accounts");
+    if (technical) {
+      assert.equal(accountsLink, undefined, "panel account administration is hidden from the Technical Panel");
+    } else {
+      assert.ok(accountsLink, "panel account administration is available in the Admin Panel");
+      await act(async () => accountsLink.click());
+      await waitFor(() => container.querySelector('[name="accountEmail"]'));
+      await act(async () => { type(container.querySelector('[name="accountEmail"]'), 'technical.account@gmail.com'); type(container.querySelector('[name="accountPassword"]'), 'TechnicalPassword9'); });
+      assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, true, 'admin-created accounts also require OTP');
+      assert.equal(container.querySelector('.gmail-send').disabled, false);
+    }
     testWindow.confirm = () => true;
     await act(async () => [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "Journey Voucher History").click());
     await waitFor(() => container.textContent.includes("History Guest"));

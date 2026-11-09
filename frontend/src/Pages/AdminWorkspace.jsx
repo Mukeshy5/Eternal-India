@@ -106,7 +106,7 @@ function Workspace({ technical }) {
   }
   const toolError = useCallback((message) => setError(message), []);
   const sectionInfo = panelSections[section];
-  const forbidden = sectionInfo && ((sectionInfo.technical && !technical) || (sectionInfo.accountManagement && !admin?.canManageAccounts) || (sectionInfo.permission && !admin?.staffPermissions?.includes(sectionInfo.permission)));
+  const forbidden = sectionInfo && ((sectionInfo.technical && !technical) || (sectionInfo.adminOnly && (technical || !admin?.canManageAccounts)) || (sectionInfo.permission && !admin?.staffPermissions?.includes(sectionInfo.permission)));
   if (checking) return <section className="admin-checking"><h1>{technical ? "Technical Panel" : "Admin Panel"}</h1><p role="status">Checking your session…</p></section>;
   if (!admin || ["register", "forgot-password", "reset-password"].includes(section)) return <PanelAuth technical={technical} busy={busy} error={error} onError={setError} onLogin={login} />;
   return <div className="admin-shell"><PanelLayout admin={admin} technical={technical} section={section} busy={busy || !!updating} onNavigate={go} onLogout={logout}>

@@ -13,7 +13,7 @@ export function otpEmail(code, company = "Eternal India") {
 
 export function createMailer(config) {
   const smtp = config.smtp || {};
-  const configured = !!(smtp.host && smtp.user && smtp.password);
+  const configured = !!(smtp.host && /^[^\s@]+@gmail\.com$/i.test(smtp.user || "") && smtp.password);
   const transport = configured ? nodemailer.createTransport({ host: smtp.host, port: smtp.port, secure: smtp.secure, requireTLS: !smtp.secure, auth: { user: smtp.user, pass: smtp.password }, connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 15000, disableFileAccess: true, disableUrlAccess: true }) : null;
   const send = async (email, message) => {
     if (!transport) throw Object.assign(new Error("Email delivery is not configured."), { code: "EMAIL_NOT_CONFIGURED" });

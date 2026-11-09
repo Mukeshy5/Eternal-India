@@ -27,6 +27,8 @@ Vite forwards `/api` to the backend address in `Backend/.env` (port 5000 by defa
 
 `Backend/config/env.js` loads `Backend/.env`; `Backend/config/database.js` connects MongoDB and creates indexes. `.env` is ignored by Git. A local `.env` has been created with `MONGO_URI=mongodb://localhost:27017`, database `eternal_india`, admin email `admin@eternal-india.local`, a unique admin password and a random session secret. Open that file to read the password; it is not included in the frontend.
 
+To use MongoDB Atlas instead of a local MongoDB/Compass connection, replace `MONGO_URI` in the ignored `Backend/.env` with the `mongodb+srv://...` connection string from the Atlas **Connect → Drivers** dialog. Keep `MONGO_DB=eternal_india` (or choose the intended database), allow the deployed backend's network address in the Atlas network access list, and URL-encode special characters in the database user's password. Compass is not used by the application; the backend connects directly with the MongoDB driver. Never put Atlas credentials in frontend settings, source control, or chat.
+
 On first startup the server creates the admin account from `.env`, storing a salted scrypt password hash. Editing `.env` alone does not replace an existing account password. To change it, update `ADMIN_PASSWORD` (minimum 8 characters) and run `npm run admin:password` from `Backend`. This invalidates existing admin sessions. To configure a new checkout, copy `.env.example` to `.env` and replace both placeholder secrets.
 
 Sessions are stored in MongoDB with HttpOnly cookies. Login attempts and submissions are rate limited. Enquiry listing and updates require server authentication. For deployment use HTTPS, set `NODE_ENV=production`, `MONGO_URI` to a reachable MongoDB deployment such as MongoDB Atlas, and `FRONTEND_ORIGIN` to the exact Vercel origin. Production sessions use secure cross-site cookies because the frontend and API are separate deployments. The production server binds to `0.0.0.0` by default so Render can reach it; local development still binds to loopback.
@@ -51,6 +53,8 @@ OTP_TEST_EMAIL=your-test-inbox@gmail.com
 ```
 
 Enable Google 2-Step Verification and generate a Google App Password; never use the normal Gmail password. `GMAIL_USER` / `GMAIL_APP_PASSWORD` are supported as alternatives to `SMTP_USER` / `SMTP_PASSWORD`. `OTP_HASH_SECRET` can be a dedicated random secret of at least 32 characters; otherwise the backend session secret is used. No email secrets belong in frontend/Vite variables. Official setup: [Google App Passwords](https://support.google.com/accounts/answer/185833) and [Nodemailer Gmail](https://nodemailer.com/guides/using-gmail).
+
+`SMTP_FROM` is optional: if left blank, the backend uses `SMTP_USER` as the sender address.
 
 The existing registration handler is shared by `POST /api/auth/register` and the legacy panel registration routes. `POST /api/auth/send-otp` sends a real Gmail message; `POST /api/auth/verify-otp` verifies the latest challenge in the same HttpOnly browser session. Account management uses the same endpoints with a separately authorised creation/edit purpose. There are no frontend verification tokens, localStorage flags, returned OTPs, dummy codes or delivery fallbacks.
 

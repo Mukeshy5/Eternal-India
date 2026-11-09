@@ -1,13 +1,28 @@
-import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
+import bcrypt from "bcryptjs";
+import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 
 const scrypt = promisify(scryptCallback);
+const bcryptRounds = 12;
+
 export async function hashPassword(password) {
-  const salt = randomBytes(16).toString("hex");
-  const key = await scrypt(password, salt, 64);
-  return `scrypt$${salt}$${key.toString("hex")}`;
+  const input = createHash("sha256").update(password, "utf8").digest("hex");
+  return `bcrypt-sha256$${await bcrypt.hash(input, bcryptRounds)}`;
 }
+
+export function isBcryptPasswordHash(value) {
+  const hash = String(value || "").replace(/^bcrypt-sha256\$/, "");
+  return /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(hash);
+}
+
 export async function verifyPassword(password, stored) {
+  if (typeof password !== "string") return false;
+  if (isBcryptPasswordHash(stored)) {
+    const wrapped = stored.startsWith("bcrypt-sha256$");
+    const hash = wrapped ? stored.slice("bcrypt-sha256$".length) : stored;
+    const input = wrapped ? createHash("sha256").update(password, "utf8").digest("hex") : password;
+    return bcrypt.compare(input, hash);
+  }
   const [algorithm, salt, value] = String(stored || "").split("$");
   if (algorithm !== "scrypt" || !/^[a-f0-9]{32}$/.test(salt) || !/^[a-f0-9]{128}$/.test(value)) return false;
   const key = await scrypt(password, salt, 64);
