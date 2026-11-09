@@ -19,6 +19,8 @@
 .admin-tools :is(button, input, select, textarea):focus-visible { outline: 2px solid #a62c60; outline-offset: 3px; }
 .admin-tool-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 .admin-tool-actions .dashboard-button { min-height: 46px; font-size: 12px; white-space: normal; }
+#panel-account-editor h2 { overflow-wrap: anywhere; scroll-margin-top: 24px; }
+.panel-records .admin-tool-actions { gap: 12px; margin-top: 0; }
 .admin-tool-table-wrap { max-width: 100%; overflow-x: auto; }
 .admin-tool-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .admin-tool-table th, .admin-tool-table td { padding: 15px 12px; border-bottom: 1px solid #e8edf3; text-align: left; overflow-wrap: anywhere; }

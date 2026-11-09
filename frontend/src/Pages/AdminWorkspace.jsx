@@ -40,9 +40,9 @@ function Workspace({ technical }) {
   useEffect(() => { alive.current = true; return () => { alive.current = false; actionController.current?.abort(); }; }, []);
   useEffect(() => { setSearchInput(search); }, [search]);
   const clearAccount = useCallback(() => { setAdmin(null); setResponse(null); setSelectedId(""); setLastUpdated(null); setLoading(false); }, []);
-  const handleUnauthorized = useCallback(() => {
+  const handleUnauthorized = useCallback((message) => {
     const from = safePanelDestination(route.current, basePath);
-    clearAccount(); navigateRef.current(`${basePath}/login`, { replace: true, state: { from } });
+    clearAccount(); navigateRef.current(`${basePath}/login`, { replace: true, state: { from, notice: typeof message === "string" ? message : "" } });
   }, [basePath, clearAccount]);
   useEffect(() => {
     const controller = new AbortController();

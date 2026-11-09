@@ -45,3 +45,13 @@ export async function ensureAdmin(db, config, reset = false) {
   const result = await db.collection("admins").insertOne(admin);
   return { ...admin, _id: result.insertedId };
 }
+
+// Bootstrap once per installation. Renaming/deleting the original administrator
+// through account management must not recreate its old credentials on restart.
+export async function ensureInitialAdmin(db, config) {
+  const settings = db.collection("application_settings");
+  if (await settings.findOne({ _id: "initial-admin" })) return;
+  const existing = await db.collection("admins").findOne({ status: { $nin: ["pending", "disabled"] }, $or: [{ roles: "admin" }, { roles: { $exists: false } }] });
+  if (!existing) await ensureAdmin(db, config);
+  await settings.updateOne({ _id: "initial-admin" }, { $setOnInsert: { initializedAt: new Date() } }, { upsert: true });
+}

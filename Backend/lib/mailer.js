@@ -11,7 +11,7 @@ export function otpEmail(code, company = "Eternal India") {
   };
 }
 
-const smtpErrorMessage = (error) => {
+const smtpErrorMessage = (error, config) => {
   const code = error?.code || "";
   const name = error?.name || "";
   const message = error?.message || "";
@@ -21,7 +21,8 @@ const smtpErrorMessage = (error) => {
     return Object.assign(new Error("SMTP authentication failed. Verify SMTP_USER and SMTP_PASSWORD (Gmail App Password) in Backend/.env. The App Password must be the 16-character value without spaces."), { code: "SMTP_AUTH_FAILED" });
   }
   if (combined.includes("econnrefused") || combined.includes("econnection") || combined.includes("etimedout") || combined.includes("timeout") || combined.includes("network") || combined.includes("unreachable")) {
-    return Object.assign(new Error("Could not connect to Gmail SMTP (smtp.gmail.com:465). Check your network, firewall, and SMTP_HOST/SMTP_PORT in Backend/.env."), { code: "SMTP_CONNECTION_FAILED" });
+    const hostingHelp = config.render ? " Render Free services block outbound SMTP ports 25, 465 and 587. Use a plan that permits SMTP or configure email delivery through HTTPS." : " Check your network, firewall and backend SMTP_HOST/SMTP_PORT settings.";
+    return Object.assign(new Error(`Could not connect to SMTP (${config.smtp?.host}:${config.smtp?.port}).${hostingHelp}`), { code: "SMTP_CONNECTION_FAILED" });
   }
   if (combined.includes("eenvelope") || combined.includes("rejected") || combined.includes("recipient") || combined.includes("sender")) {
     return Object.assign(new Error("Gmail rejected the email. Verify SMTP_FROM and the recipient address in Backend/.env."), { code: "SMTP_REJECTED" });
@@ -31,7 +32,7 @@ const smtpErrorMessage = (error) => {
 
 export function createMailer(config) {
   const smtp = config.smtp || {};
-  const configured = !!(smtp.host && /^[^\s@]+@gmail\.com$/i.test(smtp.user || "") && smtp.password);
+  const configured = !!(smtp.host && /^[^\s<>:@]+@gmail\.com$/i.test(smtp.user || "") && smtp.password);
   const transport = configured ? nodemailer.createTransport({ host: smtp.host, port: smtp.port, secure: smtp.secure, requireTLS: !smtp.secure, auth: { user: smtp.user, pass: smtp.password }, connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 15000, disableFileAccess: true, disableUrlAccess: true }) : null;
   const send = async (email, message) => {
     if (!transport) throw Object.assign(new Error("Email delivery is not configured. Set SMTP_HOST, SMTP_USER and SMTP_PASSWORD in Backend/.env."), { code: "EMAIL_NOT_CONFIGURED" });
@@ -40,7 +41,7 @@ export function createMailer(config) {
       if (!result.accepted?.length || result.rejected?.length) throw Object.assign(new Error("The email provider rejected this message."), { code: "EMAIL_REJECTED" });
     } catch (error) {
       if (error.code === "EMAIL_REJECTED" || error.status) throw error;
-      throw smtpErrorMessage(error);
+      throw smtpErrorMessage(error, config);
     }
   };
   return {
@@ -50,7 +51,7 @@ export function createMailer(config) {
     sendPasswordReset: ({ email, resetUrl }) => send(email, { subject: "Reset your Eternal India password", text: `Reset your Eternal India password using this link:\n${resetUrl}\n\nThis link expires in 30 minutes and works once. If you did not request this, ignore this email.` }),
     verify: async () => {
       if (!transport) throw Object.assign(new Error("Configure Gmail SMTP credentials in Backend/.env first."), { code: "EMAIL_NOT_CONFIGURED" });
-      try { return await transport.verify(); } catch (error) { throw smtpErrorMessage(error); }
+      try { return await transport.verify(); } catch (error) { throw smtpErrorMessage(error, config); }
     },
   };
 }

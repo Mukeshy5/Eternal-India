@@ -1,6 +1,6 @@
 import { readConfig } from "./config/env.js";
 import { connectDatabase } from "./config/database.js";
-import { ensureAdmin } from "./lib/passwords.js";
+import { ensureInitialAdmin } from "./lib/passwords.js";
 import { createApp } from "./app.js";
 import { cleanupDatabase } from "./lib/database-cleanup.js";
 import { createMailer } from "./lib/mailer.js";
@@ -29,7 +29,7 @@ async function start() {
 
   // Connect to MongoDB (with retries) before starting the Express server.
   connection = await connectDatabase(config);
-  await ensureAdmin(connection.db, config);
+  await ensureInitialAdmin(connection.db, config);
 
   // Activate existing email-verified accounts stuck in pending/disabled status
   // so they can log in immediately without requiring administrator approval.
@@ -45,26 +45,20 @@ async function start() {
 
   await cleanupDatabase(connection.db, { apply: true });
 
-  // Verify Gmail SMTP configuration at startup so OTP emails are confirmed working
-  // before the server accepts requests. Credentials are never logged.
-  const startupMailer = createMailer(config);
-  if (startupMailer.gmailConfigured) {
-    try {
-      await startupMailer.verify();
-      console.log("Gmail SMTP verified successfully. OTP emails are enabled.");
-    } catch (smtpError) {
-      // Log a clear, credential-safe error but do not crash — non-email flows still work.
-      console.error(`Gmail SMTP startup verification failed: ${smtpError.code}. ${smtpError.message}`);
-    }
-  } else {
-    console.error("Gmail SMTP is not configured. OTP emails will not be sent. Set SMTP_HOST, SMTP_USER and SMTP_PASSWORD (Gmail App Password) in Backend/.env.");
-  }
-
   const { app, drainSessions, decorationScheduler, decorationsReady } = createApp({ ...connection, config });
   await decorationsReady;
 
   server = app.listen(config.port, config.host, () => {
-    console.log(`Eternal India API: http://localhost:${config.port}\nAdmin panel: http://localhost:5173/admin/login\nTechnical panel: http://localhost:5173/technical/login`);
+    console.log(`Eternal India API listening on ${config.host}:${config.port}`);
+    if (!config.production) console.log("Admin panel: http://localhost:5173/admin/login\nTechnical panel: http://localhost:5173/technical/login");
+    // SMTP can be unavailable on a hosting plan. Check it after opening HTTP so
+    // a slow or blocked mail connection never delays Render's health/port scan.
+    const startupMailer = createMailer(config);
+    if (startupMailer.gmailConfigured) {
+      void startupMailer.verify().then(() => console.log("Gmail SMTP verified successfully. OTP emails are enabled.")).catch((error) => {
+        console.error(`Gmail SMTP startup verification failed: ${error.code}. ${error.message}`);
+      });
+    } else console.error("Gmail SMTP is not configured. Set SMTP_HOST, SMTP_USER and SMTP_PASSWORD in the backend environment to enable OTP email.");
   });
 
   const closeDatabase = async () => {

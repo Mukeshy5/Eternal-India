@@ -6,13 +6,13 @@ import { MemoryRouter } from "react-router-dom";
 import { Window } from "happy-dom";
 import { readConfig } from "../../Backend/config/env.js";
 import { connectDatabase } from "../../Backend/config/database.js";
-import { ensureAdmin } from "../../Backend/lib/passwords.js";
+import { ensureAdmin, ensureInitialAdmin } from "../../Backend/lib/passwords.js";
 import { createApp } from "../../Backend/app.js";
 import { cookieHeader } from "./cookie-header.mjs";
 
 export async function verifyOtpGates(vite) {
   const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "otp-ui-owner@eternal-india.local", technicalEmail: "", adminPassword: "OtpUiOwnerPassword9", smtp: {} };
-  const { client, db } = await connectDatabase(config); await ensureAdmin(db, config);
+  const { client, db } = await connectDatabase(config); await ensureInitialAdmin(db, config);
   const legacy = await ensureAdmin(db, { ...config, adminEmail: "existing.ui.account@gmail.com" });
   const backend = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await backend.decorationsReady;
   const server = backend.app.listen(0, "127.0.0.1"); await once(server, "listening");
@@ -45,14 +45,22 @@ export async function verifyOtpGates(vite) {
     await waitFor(() => container.querySelectorAll(".panel-record-row").length === 2, "real managed account list");
     const accountRow = (email) => [...container.querySelectorAll(".panel-record-row")].find((item) => item.querySelector("strong")?.textContent === email);
     const accountButton = (email, label) => [...(accountRow(email)?.querySelectorAll("button") || [])].find((button) => button.textContent === label);
-    const ownerRow = accountRow(config.adminEmail);
     for (const label of ["Edit account", "Delete account"]) {
       const button = accountButton(config.adminEmail, label);
-      assert.ok(button, "protected accounts still show their management options");
-      assert.equal(button.disabled, true);
-      assert.ok(browser.document.getElementById(button.getAttribute("aria-describedby"))?.textContent.includes("Owner account"), "protected controls explain why they are unavailable");
+      assert.ok(button, "owner accounts show their management options");
+      assert.equal(button.disabled, false, "owner and signed-in account actions are enabled");
     }
-    assert.ok(ownerRow.textContent.includes("Forgot password"));
+    await act(async () => accountButton(config.adminEmail, "Edit account").click());
+    assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, false, "the existing owner can change its password without SMTP/OTP");
+    await act(async () => type('[name="accountEmail"]', "changed.owner@gmail.com"));
+    assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, true, "changing the owner's email still requires OTP");
+    await act(async () => { type('[name="accountEmail"]', config.adminEmail); type('[name="accountPassword"]', "UpdatedOwnerUiPassword9"); });
+    await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new browser.Event("submit", { bubbles: true, cancelable: true })));
+    await waitFor(() => container.querySelector(".admin-login-form"), "editing your own account returns to sign in");
+    assert.ok(container.querySelector(".admin-success")?.textContent.includes("updated"));
+    await act(async () => { type("#admin-email", config.adminEmail); type("#admin-password", "UpdatedOwnerUiPassword9"); });
+    await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new browser.Event("submit", { bubbles: true, cancelable: true })));
+    await waitFor(() => accountRow(config.adminEmail), "updated owner credentials sign in and return to accounts");
     await act(async () => { type('[name="accountEmail"]', "managed.ui.account@gmail.com"); type('[name="accountPassword"]', "ManagedUiPassword9"); });
     assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, true);
     await act(async () => container.querySelector(".gmail-send").click());
@@ -69,6 +77,9 @@ export async function verifyOtpGates(vite) {
     await act(async () => [...row.querySelectorAll("button")].find((button) => button.textContent === "Delete account").click());
     await waitFor(async () => await db.collection("admins").findOne({ _id: legacy._id }) === null && container.querySelectorAll(".panel-record-row").length === 1, "account deletion updates MongoDB and UI");
     assert.equal(container.querySelector('[name="accountEmail"]').value, "", "deleting the edited account clears the editor");
+    await act(async () => accountButton(config.adminEmail, "Delete account").click());
+    await waitFor(() => container.querySelector('[role="alert"]')?.textContent.includes("last active administrator"), "last administrator deletion explains how to proceed");
+    assert.ok(accountRow(config.adminEmail));
 
     const verified = await ensureAdmin(db, { ...config, adminEmail: "verified.ui.account@gmail.com", adminPassword: "OriginalUiPassword9" });
     const pending = await ensureAdmin(db, { ...config, adminEmail: "pending.ui.account@gmail.com" });
@@ -115,7 +126,13 @@ export async function verifyOtpGates(vite) {
     await act(async () => accountButton(pending.email, "Reject request").click());
     await waitFor(() => !accountRow(pending.email), "rejecting a request removes it from the list");
     assert.equal(await db.collection("admins").findOne({ _id: pending._id }), null);
-    console.log("PASS real MongoDB/API Gmail gates, visible protected account controls, account editing/password sign-in/session revocation, approval, cancelled/failed/successful deletion and request rejection. Real Gmail delivery is tested separately with verify:gmail.");
+    await ensureAdmin(db, { ...config, adminEmail: "backup.ui.owner@gmail.com" });
+    await act(async () => accountButton(config.adminEmail, "Delete account").click());
+    await waitFor(() => container.querySelector(".admin-login-form"), "deleting your own owner account signs you out");
+    assert.ok(container.querySelector(".admin-success")?.textContent.includes("deleted"));
+    await ensureInitialAdmin(db, config);
+    assert.equal(await db.collection("admins").findOne({ email: config.adminEmail }), null);
+    console.log("PASS real MongoDB/API Gmail gates, working owner/self edit and deletion, last-admin safeguards, credential sign-in/session revocation, approval, cancelled/failed/successful deletion and request rejection. Real Gmail delivery is tested separately with verify:gmail.");
   } finally {
     await act(async () => root.unmount()); globalThis.fetch = originalFetch; await browser.happyDOM.close();
     for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];

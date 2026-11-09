@@ -4,7 +4,7 @@ export function technicalAccess(admin, config) {
   // The configured owner already operated the Technical Panel before this module.
   // Other accounts must be explicitly assigned the technical role in MongoDB.
   const ownerEmail = config.technicalEmail || config.adminEmail;
-  const technical = (Array.isArray(admin.roles) && admin.roles.includes("technical")) || admin.email === ownerEmail;
+  const technical = Array.isArray(admin.roles) ? admin.roles.includes("technical") : admin.email === ownerEmail;
   const permissions = technical
     ? (admin.email === ownerEmail || !Array.isArray(admin.technicalPermissions)
       ? Object.keys(decorationPermissions)

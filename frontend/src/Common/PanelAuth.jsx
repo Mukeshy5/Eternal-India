@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api } from "./api";
 import { Icon } from "./SiteUI";
@@ -14,7 +14,9 @@ export default function PanelAuth({ technical, busy, error, onError, onLogin }) 
   const [confirmation, setConfirmation] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [working, setWorking] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(() => typeof location.state?.notice === "string" ? location.state.notice : "");
+  const notice = typeof location.state?.notice === "string" ? location.state.notice : "";
+  useEffect(() => { if (notice) setMessage(notice); }, [notice]);
   const verification = useGmailVerification({ email });
   const locked = busy || working || verification.busy;
   const title = { login: "Sign in to your workspace", register: "Create an admin account", forgot: "Forgot your password?", reset: "Choose a new password" }[mode];

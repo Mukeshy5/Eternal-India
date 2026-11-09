@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 dotenv.config({ path: fileURLToPath(new URL("../.env", import.meta.url)), quiet: true });
 
 export function readConfig(env = process.env) {
-  const port = Number(env.PORT || 5000);
+  const onRender = env.RENDER === "true" || !!env.RENDER_SERVICE_ID || !!env.RENDER_EXTERNAL_HOSTNAME;
+  const production = onRender || env.NODE_ENV === "production";
+  const port = Number(env.PORT || (onRender ? 10000 : 5000));
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("PORT must be a valid port number.");
   if (!env.SESSION_SECRET || env.SESSION_SECRET.length < 32 || env.SESSION_SECRET.startsWith("replace-")) throw new Error("Set a random SESSION_SECRET of at least 32 characters in Backend/.env.");
   if (env.AUTH_TOKEN_SECRET && env.AUTH_TOKEN_SECRET.length < 32) throw new Error("AUTH_TOKEN_SECRET must contain at least 32 characters.");
@@ -15,15 +17,16 @@ export function readConfig(env = process.env) {
   const smtpHost = (env.SMTP_HOST || (smtpUser ? "smtp.gmail.com" : "")).trim().toLowerCase();
   const smtpPort = Number(env.SMTP_PORT || (smtpHost === "smtp.gmail.com" ? 465 : 587));
   if (!Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535) throw new Error("SMTP_PORT must be a valid port number.");
-  if (smtpUser && smtpHost === "smtp.gmail.com" && !/^[^\s@]+@gmail\.com$/i.test(smtpUser)) throw new Error("SMTP_USER must be a Gmail address, not a mailto link or display name.");
+  if (smtpUser && smtpHost === "smtp.gmail.com" && !/^[^\s<>:@]+@gmail\.com$/i.test(smtpUser)) throw new Error("SMTP_USER must be a Gmail address, not a mailto link or display name.");
   const configuredFrom = (env.SMTP_FROM || "").trim();
   const smtpFrom = configuredFrom.match(/<\s*([^<>]+)\s*>$/)?.[1]?.trim() || configuredFrom;
   if (configuredFrom && !/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(smtpFrom)) throw new Error("SMTP_FROM must be an email address or a display name followed by <email-address>.");
   if (env.OTP_HASH_SECRET && env.OTP_HASH_SECRET.length < 32) throw new Error("OTP_HASH_SECRET must contain at least 32 characters.");
   return {
     port,
-    host: env.HOST || (env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1"),
-    production: env.NODE_ENV === "production",
+    host: onRender ? "0.0.0.0" : env.HOST || (production ? "0.0.0.0" : "127.0.0.1"),
+    production,
+    render: onRender,
     mongoUri,
     databaseName: env.MONGO_DB || "eternal_india",
     sessionSecret: env.SESSION_SECRET,

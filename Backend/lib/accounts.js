@@ -7,24 +7,34 @@ import { gmailAccountFilter, gmailIdentity } from "./email-identity.js";
 import { createMailer } from "./mailer.js";
 import { createEmailVerification } from "./email-verification.js";
 
-export const canManageAccounts = (account, config) => !["pending", "disabled"].includes(account.status) && (account.email === config.adminEmail || account.roles === undefined || Array.isArray(account.roles) && account.roles.includes("admin"));
+export const canManageAccounts = (account) => !["pending", "disabled"].includes(account.status) && (account.roles === undefined || Array.isArray(account.roles) && account.roles.includes("admin"));
 const emailOf = (value) => typeof value === "string" ? value.trim().toLowerCase() : "";
 const validEmail = (value) => value.length <= 200 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const validPassword = (value) => typeof value === "string" && value.length >= 8 && value.length <= 256;
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 const safeAccount = ({ _id, email, roles, status, createdAt, emailVerified, emailVerifiedAt, version }, manager, config) => {
   const configuredOwner = email === config.adminEmail || email === config.technicalEmail;
-  const managementRestriction = configuredOwner
-    ? "Owner account. Editing and deletion are unavailable here. Use Forgot password on the sign-in page to change its password."
-    : _id.equals(manager._id)
-      ? "You are signed in with this account. Sign in with another administrator account to edit or delete it."
-      : "";
-  return { _id, email, roles: roles || ["admin"], status: status || "active", createdAt, emailVerified: emailVerified === true, emailVerifiedAt, version: version || 0, editable: !managementRestriction, deletable: !managementRestriction, managementRestriction };
+  const isCurrent = !!manager?._id && _id.equals(manager._id);
+  const allowed = !!manager && canManageAccounts(manager);
+  return { _id, email, roles: roles || ["admin"], status: status || "active", createdAt, emailVerified: emailVerified === true, emailVerifiedAt, version: version || 0, editable: allowed, deletable: allowed, isCurrent, isOwner: configuredOwner, managementRestriction: "" };
 };
 const sessionFilter = (id) => ({ $or: [{ "session.adminId": id.toString() }, { session: { $regex: `"adminId"\\s*:\\s*"${id}"` } }] });
 
 export function registerAccounts({ app, management, db, requireAdmin, config, sendPasswordReset }) {
   const accounts = db.collection("admins");
+  const hasAnotherAdmin = (account) => accounts.findOne({ _id: { $ne: account._id }, status: { $nin: ["pending", "disabled"] }, $or: [{ roles: "admin" }, { roles: { $exists: false } }] }, { projection: { _id: 1 } });
+  let pendingChange = Promise.resolve();
+  const serializeChange = (handler) => async (req, res) => {
+    const previous = pendingChange;
+    let release; pendingChange = new Promise((resolve) => { release = resolve; });
+    await previous;
+    try {
+      const manager = await accounts.findOne({ _id: req.admin._id });
+      if (!manager || !canManageAccounts(manager)) return res.status(401).json({ message: "Your account changed. Please sign in again." });
+      req.admin = manager;
+      return await handler(req, res);
+    } finally { release(); }
+  };
   const mailer = createMailer(config), verification = createEmailVerification({ db, config, mailer });
   const limit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many account requests. Please try again in 15 minutes." } });
   const adminPanelOnly = (req, res, next) => req.originalUrl.startsWith("/api/technical/")
@@ -74,30 +84,32 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
     res.json({ accounts: records.map((account) => safeAccount(account, req.admin, config)) });
   });
   management.post("/accounts", ...guard, limit, (req, res) => createAccount(req, res, true));
-  management.patch("/accounts/:id", ...guard, limit, async (req, res) => {
+  management.patch("/accounts/:id", ...guard, limit, serializeChange(async (req, res) => {
     if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid account." });
     const current = await accounts.findOne({ _id: new ObjectId(req.params.id) });
     if (!current) return res.status(404).json({ message: "Account not found." });
-    if (!safeAccount(current, req.admin, config).editable) return res.status(409).json({ message: "The signed-in account and configured owner accounts cannot be edited here. Use password recovery to change their password." });
     const email = emailOf(req.body?.email), role = req.body?.role, password = req.body?.password;
-    const needsVerification = email !== current.email || current.emailVerified !== true;
+    const permissions = safeAccount(current, req.admin, config);
+    const needsVerification = email !== current.email || current.emailVerified !== true && !permissions.isCurrent && !permissions.isOwner;
     const identity = gmailIdentity(email);
     if (!validEmail(email) || needsVerification && !identity || !["admin", "technical"].includes(role) || password && !validPassword(password)) return res.status(400).json({ message: "Use a verified Gmail, a valid panel type and a password of at least 8 characters when changing it." });
     if (!Number.isInteger(req.body?.version) || req.body.version !== (current.version || 0)) return res.status(409).json({ message: "This account changed. Refresh before editing it." });
+    if (canManageAccounts(current) && role !== "admin" && !await hasAnotherAdmin(current)) return res.status(409).json({ message: "This is the last active administrator. Create or approve another Admin Panel account before changing its panel." });
     const duplicate = await accounts.findOne(identity ? gmailAccountFilter(identity, current._id) : { email, _id: { $ne: current._id } }, { projection: { _id: 1 } });
     if (duplicate) return res.status(409).json({ message: "This Gmail belongs to another account." });
     const passwordHash = password ? await hashPassword(password) : null;
     const proof = needsVerification ? await verification.claim(req, email, "account-edit", current._id.toString()) : null;
-    const changes = { email, ...(identity ? { gmailKey: identity.gmailKey } : {}), roles: role === current.roles?.[0] ? current.roles : [role], updatedAt: new Date(), updatedBy: req.admin._id, passwordChangedAt: new Date(), ...(passwordHash ? { passwordHash } : {}), ...(proof ? { emailVerified: true, emailVerifiedAt: proof.verifiedAt } : {}) };
+    const currentRoles = current.roles || ["admin", ...(current.email === (config.technicalEmail || config.adminEmail) ? ["technical"] : [])];
+    const changes = { email, ...(identity ? { gmailKey: identity.gmailKey } : {}), roles: role === currentRoles[0] ? currentRoles : [role], updatedAt: new Date(), updatedBy: req.admin._id, passwordChangedAt: new Date(), ...(passwordHash ? { passwordHash } : {}), ...(proof ? { emailVerified: true, emailVerifiedAt: proof.verifiedAt } : {}) };
     try {
       const account = await accounts.findOneAndUpdate({ _id: current._id, version: current.version === undefined ? { $exists: false } : current.version }, { $set: changes, $inc: { version: 1 }, $unset: { passwordReset: "" } }, { returnDocument: "after" });
       if (!account) { if (proof) await verification.release(proof); return res.status(409).json({ message: "This account changed while saving. Refresh and try again." }); }
       if (proof) await verification.complete(proof);
       await db.collection("admin_sessions").deleteMany(sessionFilter(current._id));
       await db.collection("admin_tokens").deleteMany({ adminId: current._id });
-      res.json({ account: safeAccount(account, req.admin, config), message: "Account updated. The account holder must sign in again." });
+      res.json({ account: safeAccount(account, req.admin, config), reauthenticate: permissions.isCurrent, message: permissions.isCurrent ? "Your account was updated. Sign in again with the updated credentials." : "Account updated. The account holder must sign in again." });
     } catch (error) { if (proof) await verification.release(proof); if (error.code === 11000) return res.status(409).json({ message: "This Gmail belongs to another account." }); throw error; }
-  });
+  }));
   management.patch("/accounts/:id/approve", ...guard, async (req, res) => {
     if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid account." });
     const pending = await accounts.findOne({ _id: new ObjectId(req.params.id), status: "pending" });
@@ -106,16 +118,17 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
     if (!account) return res.status(404).json({ message: "This account request is no longer pending." });
     res.json({ account: safeAccount(account, req.admin, config) });
   });
-  management.delete("/accounts/:id", ...guard, async (req, res) => {
+  management.delete("/accounts/:id", ...guard, serializeChange(async (req, res) => {
     if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid account." });
     const account = await accounts.findOne({ _id: new ObjectId(req.params.id) });
     if (!account) return res.status(404).json({ message: "Account not found." });
-    if (account._id.equals(req.admin._id) || account.email === config.adminEmail || account.email === config.technicalEmail) return res.status(409).json({ message: "The signed-in account and configured owner accounts cannot be deleted here." });
+    if (canManageAccounts(account) && !await hasAnotherAdmin(account)) return res.status(409).json({ message: "This is the last active administrator. Create or approve another Admin Panel account before deleting it." });
     await accounts.deleteOne({ _id: account._id });
     await db.collection("email_verifications").deleteMany({ $or: [{ accountId: account._id.toString() }, ...(account.gmailKey ? [{ gmailKey: account.gmailKey }] : [{ email: account.email }])] });
     await Promise.all([db.collection("admin_sessions").deleteMany(sessionFilter(account._id)), db.collection("admin_tokens").deleteMany({ adminId: account._id })]);
+    if (account._id.equals(req.admin._id)) return res.json({ reauthenticate: true, message: "Your account was deleted. Sign in with another account to continue." });
     res.sendStatus(204);
-  });
+  }));
   management.post("/forgot-password", limit, async (req, res) => {
     const email = emailOf(req.body?.email);
     if (!validEmail(email)) return res.status(400).json({ message: "Enter a valid account email." });

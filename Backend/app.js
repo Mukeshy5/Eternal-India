@@ -25,6 +25,7 @@ import { gmailAccountFilter, gmailIdentity } from "./lib/email-identity.js";
 export function createApp({ client, db, config, schedulerOptions, sendPasswordReset }) {
   const app = express();
   app.disable("x-powered-by");
+  if (config.render) app.set("trust proxy", 1);
   app.use(compression());
   app.use(helmet({ strictTransportSecurity: config.production ? undefined : false, contentSecurityPolicy: { directives: { mediaSrc: ["'self'", "https:"] } } }));
   app.use("/api", (req, res, next) => {

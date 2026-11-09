@@ -11,7 +11,8 @@ export default function AccountManager({ apiBase, onUnauthorized }) {
   const lock = useRef(false), editorHeading = useRef(null);
   const verification = useGmailVerification({ email, purpose: editing ? "account-edit" : "account-create", accountId: editing?._id, onUnauthorized });
   const unchangedVerified = !!editing?.emailVerified && email.trim().toLowerCase() === editing.email;
-  const verified = unchangedVerified || verification.verified;
+  const unchangedExisting = !!editing && (editing.isCurrent || editing.isOwner) && email.trim().toLowerCase() === editing.email;
+  const verified = unchangedVerified || unchangedExisting || verification.verified;
   const locked = busy || verification.busy;
   const dirty = editing ? email !== editing.email || !!password || role !== (editing.roles[0] || "admin") : !!email || !!password;
   usePanelNavigationGuard(dirty, locked, "Discard the account details you entered?");
@@ -40,6 +41,7 @@ export default function AccountManager({ apiBase, onUnauthorized }) {
         setEditing((current) => current?._id === result.account._id ? result.account : current);
       }
       setNotice(result?.message || message);
+      if (result?.reauthenticate) onUnauthorized(result.message);
     }
     catch (failure) { setError(failure.message); if (failure.status === 401) onUnauthorized(); }
     finally { lock.current = false; setBusy(false); }
@@ -49,9 +51,10 @@ export default function AccountManager({ apiBase, onUnauthorized }) {
     const pending = account.status === "pending";
     if (!window.confirm(pending ? `Reject and permanently delete the account request from ${account.email}?` : `Permanently delete the account ${account.email}? This removes its sign-in access and cannot be undone.`)) return;
     void perform(async () => {
-      await api(`${apiBase}/accounts/${account._id}`, { method: "DELETE" });
+      const result = await api(`${apiBase}/accounts/${account._id}`, { method: "DELETE" });
       setAccounts((current) => current.filter((item) => item._id !== account._id));
       if (editing?._id === account._id) clear();
+      return result;
     }, pending ? "Account request rejected and deleted." : "Account deleted.");
   }
   async function save(event) {
@@ -66,21 +69,21 @@ export default function AccountManager({ apiBase, onUnauthorized }) {
     {error && <p className="admin-error" role="alert">{error}</p>}{notice && <p className="admin-success" role="status">{notice}</p>}
     <form id="panel-account-editor" className="admin-tool-card admin-tool-form" onSubmit={save}>
       <h2 ref={editorHeading} tabIndex={-1}>{editing ? `Edit account · ${editing.email}` : "Create account"}</h2><fieldset disabled={locked} className="panel-auth-fields"><div className="panel-account-form-grid">
-        <GmailVerification id="account-gmail" name="accountEmail" email={email} onEmailChange={(value) => { setEmail(value); setError(""); }} verification={verification} existingVerified={unchangedVerified} disabled={locked} />
+        <GmailVerification id="account-gmail" name="accountEmail" email={email} onEmailChange={(value) => { setEmail(value); setError(""); }} verification={verification} existingVerified={unchangedVerified} existingAllowed={unchangedExisting} disabled={locked} />
         <label className="admin-tool-field"><span>Panel</span><select name="accountRole" value={role} onChange={(event) => setRole(event.target.value)}><option value="technical">Technical Panel</option><option value="admin">Admin Panel</option></select></label>
         <label className="admin-tool-field"><span>{editing ? "New password (optional)" : "Password"}</span><input name="accountPassword" type="password" required={!editing} minLength={8} maxLength={256} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} />{editing && <small>Leave blank to keep the existing password.</small>}</label>
       </div><div className="admin-tool-actions"><button type="submit" className="dashboard-button dashboard-button-primary" disabled={locked || !verified}>{busy ? "Saving…" : editing ? "Save account changes" : "Create login credentials"}</button>{editing && <button type="button" className="dashboard-button" disabled={locked} onClick={clear}>Cancel edit</button>}</div></fieldset>
     </form>
     <section className="admin-tool-card panel-records" aria-labelledby="panel-accounts-heading">
       <h2 id="panel-accounts-heading">Accounts & requests</h2>
-      <p className="admin-tool-empty">Edit an account’s email, panel or password, or permanently delete its access.</p>
+      <p className="admin-tool-empty">Edit an account’s email, panel or password, or permanently delete its access. Keep at least one active Admin Panel account.</p>
       {loading && <p role="status">Loading accounts…</p>}
       {!loading && !error && accounts.length === 0 && <p className="admin-tool-empty">No accounts or requests found.</p>}
       {accounts.map((account) => {
         const restriction = account.managementRestriction || ((!account.editable || !account.deletable) ? "This account is protected. Editing and deletion are unavailable here." : "");
         const restrictionId = `account-restriction-${account._id}`;
         return <article className="panel-record-row" key={account._id} aria-labelledby={`account-email-${account._id}`}>
-          <div><strong id={`account-email-${account._id}`}>{account.email}</strong><p>{account.status === "pending" ? "Awaiting approval" : `${account.roles.join(", ")} · ${account.status === "disabled" ? "Disabled" : "Active"}`}</p><p>{account.emailVerified ? "Gmail verified" : "Existing account · Gmail not verified"}</p>{restriction && <p id={restrictionId}>{restriction}</p>}</div>
+          <div><strong id={`account-email-${account._id}`}>{account.email}</strong><p>{account.status === "pending" ? "Awaiting approval" : `${account.roles.join(", ")} · ${account.status === "disabled" ? "Disabled" : "Active"}`}</p><p>{account.emailVerified ? "Gmail verified" : "Existing account · Gmail not verified"}</p>{account.isCurrent && <p>Your signed-in account · Saving or deleting it will sign you out.</p>}{restriction && <p id={restrictionId}>{restriction}</p>}</div>
           <div className="admin-tool-actions">
             {account.status === "pending" && <button type="button" className="dashboard-button dashboard-button-primary" disabled={locked || !account.emailVerified} onClick={() => perform(() => api(`${apiBase}/accounts/${account._id}/approve`, { method: "PATCH", body: "{}" }), "Account approved.")}>Approve account</button>}
             <button type="button" className="dashboard-button" disabled={locked || !account.editable} aria-describedby={restriction ? restrictionId : undefined} onClick={() => edit(account)}>Edit account</button>
