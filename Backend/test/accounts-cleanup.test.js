@@ -11,7 +11,7 @@ import { createApp } from "../app.js";
 import { cookieHeader } from "../lib/cookies.js";
 
 test("panel accounts, one-time password recovery and safe database cleanup", async (t) => {
-  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "owner@example.com", technicalEmail: "", adminPassword: "OwnerPassword9" };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "owner@example.com", technicalEmail: "", adminPassword: "OwnerPassword9" };
   const { client, db } = await connectDatabase(config); await ensureAdmin(db, config);
   const mail = [];
   const backend = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 }, sendPasswordReset: async (message) => mail.push(message) });

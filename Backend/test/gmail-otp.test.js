@@ -15,7 +15,7 @@ test("Gmail identity prevents case, dot, tag and googlemail duplicate aliases", 
 });
 
 test("real MongoDB/API OTP gates reject bypasses and preserve existing account management", async (t) => {
-  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "otp-owner@eternal-india.local", technicalEmail: "", adminPassword: "OtpOwnerPassword9", smtp: {} };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "otp-owner@eternal-india.local", technicalEmail: "", adminPassword: "OtpOwnerPassword9", smtp: {} };
   const { client, db } = await connectDatabase(config); const owner = await ensureAdmin(db, config);
   const existing = await ensureAdmin(db, { ...config, adminEmail: "existing.account@gmail.com", adminPassword: "ExistingPassword9" });
   const pending = await ensureAdmin(db, { ...config, adminEmail: "legacy.request@gmail.com" });
@@ -46,7 +46,20 @@ test("real MongoDB/API OTP gates reject bypasses and preserve existing account m
       assert.equal((await request(`/admin/accounts/${pending._id}/approve`, {}, "PATCH", true)).status, 403, "old unverified pending accounts cannot bypass verification through approval");
       const list = await (await request("/admin/accounts", undefined, "GET", true)).json();
       assert.ok(list.accounts.every((account) => !account.passwordHash && !account.passwordReset && !account.otpHash));
-      assert.equal(list.accounts.find((account) => account._id === owner._id.toString()).editable, false);
+      const protectedOwner = list.accounts.find((account) => account._id === owner._id.toString());
+      assert.equal(protectedOwner.editable, false); assert.equal(protectedOwner.deletable, false);
+      assert.ok(protectedOwner.managementRestriction.includes("Owner account"));
+      const managed = list.accounts.find((account) => account._id === existing._id.toString());
+      assert.equal(managed.editable, true); assert.equal(managed.deletable, true); assert.equal(managed.managementRestriction, "");
+      assert.equal((await request(`/admin/accounts/${owner._id}`, undefined, "DELETE", true)).status, 409);
+      const ownerCookie = cookie;
+      const managerLogin = await request("/admin/login", { email: existing.email, password: "ExistingPassword9" });
+      assert.equal(managerLogin.status, 200); cookie = cookieHeader(managerLogin);
+      const managerList = await (await request("/admin/accounts", undefined, "GET", true)).json();
+      const signedIn = managerList.accounts.find((account) => account._id === existing._id.toString());
+      assert.equal(signedIn.editable, false); assert.equal(signedIn.deletable, false); assert.ok(signedIn.managementRestriction.includes("signed in"));
+      assert.equal((await request(`/admin/accounts/${existing._id}`, undefined, "DELETE", true)).status, 409);
+      cookie = ownerCookie;
       assert.equal((await request(`/admin/accounts/${existing._id}`, undefined, "DELETE", true)).status, 204);
       assert.equal(await db.collection("admins").findOne({ _id: existing._id }), null);
     });

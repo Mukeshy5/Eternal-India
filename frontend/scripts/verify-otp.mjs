@@ -11,7 +11,7 @@ import { createApp } from "../../Backend/app.js";
 import { cookieHeader } from "./cookie-header.mjs";
 
 export async function verifyOtpGates(vite) {
-  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "otp-ui-owner@eternal-india.local", technicalEmail: "", adminPassword: "OtpUiOwnerPassword9", smtp: {} };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "otp-ui-owner@eternal-india.local", technicalEmail: "", adminPassword: "OtpUiOwnerPassword9", smtp: {} };
   const { client, db } = await connectDatabase(config); await ensureAdmin(db, config);
   const legacy = await ensureAdmin(db, { ...config, adminEmail: "existing.ui.account@gmail.com" });
   const backend = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await backend.decorationsReady;
@@ -43,6 +43,16 @@ export async function verifyOtpGates(vite) {
     const login = await globalThis.fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: config.adminEmail, password: config.adminPassword }) }); assert.equal(login.status, 200);
     await act(async () => root.render(createElement(MemoryRouter, { key: "managed", initialEntries: ["/admin/accounts"] }, createElement(Admin))));
     await waitFor(() => container.querySelectorAll(".panel-record-row").length === 2, "real managed account list");
+    const accountRow = (email) => [...container.querySelectorAll(".panel-record-row")].find((item) => item.querySelector("strong")?.textContent === email);
+    const accountButton = (email, label) => [...(accountRow(email)?.querySelectorAll("button") || [])].find((button) => button.textContent === label);
+    const ownerRow = accountRow(config.adminEmail);
+    for (const label of ["Edit account", "Delete account"]) {
+      const button = accountButton(config.adminEmail, label);
+      assert.ok(button, "protected accounts still show their management options");
+      assert.equal(button.disabled, true);
+      assert.ok(browser.document.getElementById(button.getAttribute("aria-describedby"))?.textContent.includes("Owner account"), "protected controls explain why they are unavailable");
+    }
+    assert.ok(ownerRow.textContent.includes("Forgot password"));
     await act(async () => { type('[name="accountEmail"]', "managed.ui.account@gmail.com"); type('[name="accountPassword"]', "ManagedUiPassword9"); });
     assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, true);
     await act(async () => container.querySelector(".gmail-send").click());
@@ -50,10 +60,62 @@ export async function verifyOtpGates(vite) {
     const row = [...container.querySelectorAll(".panel-record-row")].find((item) => item.textContent.includes(legacy.email));
     await act(async () => [...row.querySelectorAll("button")].find((button) => button.textContent === "Edit account").click());
     assert.equal(container.querySelector('[name="accountEmail"]').value, legacy.email);
+    assert.equal(browser.document.activeElement, container.querySelector("#panel-account-editor h2"), "editing moves keyboard focus to the account editor");
     assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, true, "legacy unverified Gmail must be verified before editing");
+    browser.confirm = () => false;
+    await act(async () => accountButton(legacy.email, "Delete account").click());
+    assert.ok(await db.collection("admins").findOne({ _id: legacy._id }), "cancelling deletion keeps the account");
+    browser.confirm = () => true;
     await act(async () => [...row.querySelectorAll("button")].find((button) => button.textContent === "Delete account").click());
     await waitFor(async () => await db.collection("admins").findOne({ _id: legacy._id }) === null && container.querySelectorAll(".panel-record-row").length === 1, "account deletion updates MongoDB and UI");
-    console.log("PASS real MongoDB/API public and managed Gmail gates, missing-delivery errors, protected account controls and permanent account deletion. Real Gmail delivery is tested separately with verify:gmail.");
+    assert.equal(container.querySelector('[name="accountEmail"]').value, "", "deleting the edited account clears the editor");
+
+    const verified = await ensureAdmin(db, { ...config, adminEmail: "verified.ui.account@gmail.com", adminPassword: "OriginalUiPassword9" });
+    const pending = await ensureAdmin(db, { ...config, adminEmail: "pending.ui.account@gmail.com" });
+    await db.collection("admins").updateOne({ _id: verified._id }, { $set: { roles: ["technical"], emailVerified: true, version: 1 } });
+    await db.collection("admins").updateOne({ _id: pending._id }, { $set: { roles: ["technical"], status: "pending", emailVerified: true, version: 1, expiresAt: new Date(Date.now() + 86400000) } });
+    const holderLogin = await originalFetch(`${base}/api/technical/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: config.origins[0] }, body: JSON.stringify({ email: verified.email, password: "OriginalUiPassword9" }) });
+    assert.equal(holderLogin.status, 200); const holderCookie = cookieHeader(holderLogin);
+    await act(async () => root.render(createElement(MemoryRouter, { key: "account-actions", initialEntries: ["/admin/accounts"] }, createElement(Admin))));
+    await waitFor(() => container.querySelectorAll(".panel-record-row").length === 3, "active and pending managed accounts");
+    await act(async () => accountButton(verified.email, "Edit account").click());
+    assert.equal(container.querySelector('[name="accountPassword"]').required, false, "password is optional when editing");
+    assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, false, "unchanged verified email can be edited immediately");
+    await act(async () => {
+      type('[name="accountPassword"]', "UpdatedUiPassword9");
+      const select = container.querySelector('[name="accountRole"]'); select.value = "admin"; select.dispatchEvent(new browser.Event("change", { bubbles: true }));
+    });
+    await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new browser.Event("submit", { bubbles: true, cancelable: true })));
+    await waitFor(() => container.querySelector(".admin-success")?.textContent.includes("Account updated"), "account edits save successfully");
+    const saved = await db.collection("admins").findOne({ _id: verified._id });
+    assert.deepEqual(saved.roles, ["admin"]); assert.equal(saved.version, 2); assert.notEqual(saved.passwordHash, verified.passwordHash);
+    assert.ok(accountRow(verified.email).textContent.includes("admin · Active"), "saved account details immediately update the list");
+    const holderSession = await originalFetch(`${base}/api/technical/me`, { headers: { Cookie: holderCookie } }); assert.equal(holderSession.status, 401, "editing credentials revokes the account holder's old session");
+    const updatedLogin = await originalFetch(`${base}/api/admin/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: config.origins[0] }, body: JSON.stringify({ email: verified.email, password: "UpdatedUiPassword9" }) }); assert.equal(updatedLogin.status, 200, "edited password and panel work at sign-in");
+
+    await act(async () => accountButton(pending.email, "Edit account").click());
+    await act(async () => accountButton(pending.email, "Approve account").click());
+    await waitFor(() => accountRow(pending.email).textContent.includes("Active"), "approval updates the account row");
+    await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new browser.Event("submit", { bubbles: true, cancelable: true })));
+    await waitFor(() => container.querySelector(".admin-success")?.textContent.includes("Account updated"), "an open editor uses the new account version after approval");
+
+    const managedFetch = globalThis.fetch;
+    globalThis.fetch = async (url, options = {}) => options.method === "DELETE" ? new Response(JSON.stringify({ message: "Account deletion is temporarily unavailable." }), { status: 503 }) : managedFetch(url, options);
+    await act(async () => accountButton(verified.email, "Delete account").click());
+    await waitFor(() => container.querySelector('[role="alert"]')?.textContent.includes("temporarily unavailable"), "failed deletion shows its error");
+    assert.ok(accountRow(verified.email)); assert.ok(await db.collection("admins").findOne({ _id: verified._id }), "failed deletion preserves the account");
+    globalThis.fetch = managedFetch;
+    await act(async () => accountButton(verified.email, "Delete account").click());
+    await waitFor(() => !accountRow(verified.email), "successful deletion removes the row");
+    assert.equal(await db.collection("admins").findOne({ _id: verified._id }), null);
+
+    await db.collection("admins").updateOne({ _id: pending._id }, { $set: { status: "pending", expiresAt: new Date(Date.now() + 86400000) } });
+    await act(async () => root.render(createElement(MemoryRouter, { key: "reject-request", initialEntries: ["/admin/accounts"] }, createElement(Admin))));
+    await waitFor(() => accountButton(pending.email, "Reject request"), "pending request actions");
+    await act(async () => accountButton(pending.email, "Reject request").click());
+    await waitFor(() => !accountRow(pending.email), "rejecting a request removes it from the list");
+    assert.equal(await db.collection("admins").findOne({ _id: pending._id }), null);
+    console.log("PASS real MongoDB/API Gmail gates, visible protected account controls, account editing/password sign-in/session revocation, approval, cancelled/failed/successful deletion and request rejection. Real Gmail delivery is tested separately with verify:gmail.");
   } finally {
     await act(async () => root.unmount()); globalThis.fetch = originalFetch; await browser.happyDOM.close();
     for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];

@@ -13,7 +13,7 @@ import { cookieHeader } from "./cookie-header.mjs";
 import { animationDefaults, decorationEffects, globalDecorationDefaults } from "../../shared/decorationCatalog.js";
 
 export async function verifyFestivals(vite) {
-  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "festival-ui@example.com", adminPassword: "UIFestivalTestPassword9", technicalEmail: "" };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "festival-ui@example.com", adminPassword: "UIFestivalTestPassword9", technicalEmail: "" };
   const { client, db } = await connectDatabase(config); await ensureAdmin(db, config);
   const backend = createApp({ client, db, config, schedulerOptions: { clock: () => new Date("2026-12-24T18:30:00Z"), intervalMs: 0 } });
   await backend.decorationsReady;

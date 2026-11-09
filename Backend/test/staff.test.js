@@ -24,7 +24,7 @@ test("staff report calendar boundaries and invalid dates", () => {
 });
 
 test("staff and attendance real MongoDB/API workflow", async (t) => {
-  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "staff-owner@example.com", technicalEmail: "", adminPassword: "StaffIntegrationTest9" };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "staff-owner@example.com", technicalEmail: "", adminPassword: "StaffIntegrationTest9" };
   const { client, db } = await connectDatabase(config);
   await ensureAdmin(db, config);
   const viewer = await ensureAdmin(db, { ...config, adminEmail: "staff-viewer@example.com" });

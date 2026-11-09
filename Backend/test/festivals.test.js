@@ -32,7 +32,7 @@ test("yearly schedules use local time, New Year windows, leap years and prioriti
 });
 
 test("real festival API, authorization, scheduling, publication, streams and persistence", async (t) => {
-  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "festival-owner@example.com", technicalEmail: "", adminPassword: "FestivalOwnerTest9" };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "festival-owner@example.com", technicalEmail: "", adminPassword: "FestivalOwnerTest9" };
   const { client, db } = await connectDatabase(config);
   await ensureAdmin(db, config);
   const ordinary = await ensureAdmin(db, { ...config, adminEmail: "normal-admin@example.com" });

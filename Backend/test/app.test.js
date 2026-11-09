@@ -16,7 +16,7 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
   assert.throws(() => readConfig({ ...process.env, MONGO_URI: "not-a-mongo-uri" }), /valid mongodb/);
   assert.equal(readConfig({ ...process.env, SMTP_FROM: "Eternal India <sender@gmail.com>" }).smtp.from, "sender@gmail.com");
   assert.throws(() => readConfig({ ...process.env, SMTP_HOST: "smtp.gmail.com", SMTP_USER: "mailto:sender@gmail.com" }), /SMTP_USER must be a Gmail address/);
-  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "test-admin@example.com", adminPassword: randomBytes(24).toString("hex") };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "test-admin@example.com", adminPassword: randomBytes(24).toString("hex") };
   const { client, db } = await connectDatabase(config);
   const admin = await ensureAdmin(db, config);
   const configuredAdmin = await ensureAdmin(db, { ...config, adminEmail: "configured-admin@example.com", adminPassword: "LocalPass9" });

@@ -19,7 +19,7 @@ test("calendar date ranges include leap years and week boundaries", () => {
 });
 
 test("calendar, weekly offs, live events, permissions and 500+ staff against MongoDB", async (t) => {
-  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "calendar-owner@example.com", technicalEmail: "", adminPassword: "CalendarIntegrationTest9" };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "calendar-owner@example.com", technicalEmail: "", adminPassword: "CalendarIntegrationTest9" };
   const { client, db } = await connectDatabase(config); const owner = await ensureAdmin(db, config);
   const viewer = await ensureAdmin(db, { ...config, adminEmail: "calendar-viewer@example.com" }); await db.collection("admins").updateOne({ _id: viewer._id }, { $set: { roles: ["technical"], staffPermissions: ["view"] } });
   const denied = await ensureAdmin(db, { ...config, adminEmail: "calendar-observer@example.com" }); await db.collection("admins").updateOne({ _id: denied._id }, { $set: { roles: ["observer"] } });

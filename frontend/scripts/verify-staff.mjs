@@ -12,7 +12,7 @@ import { ensureAdmin } from "../../Backend/lib/passwords.js";
 import { createApp } from "../../Backend/app.js";
 
 export async function verifyStaff(vite) {
-  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "staff-ui@example.com", technicalEmail: "", adminPassword: "StaffUITestPassword9" };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "staff-ui@example.com", technicalEmail: "", adminPassword: "StaffUITestPassword9" };
   const { client, db } = await connectDatabase(config); await ensureAdmin(db, config);
   const backend = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await backend.decorationsReady;
   const server = backend.app.listen(0, "127.0.0.1"); await once(server, "listening");

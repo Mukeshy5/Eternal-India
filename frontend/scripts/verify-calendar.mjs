@@ -12,7 +12,7 @@ import { browserFormData } from "./browser-form-data.mjs";
 import { cookieHeader } from "./cookie-header.mjs";
 
 export async function verifyCalendar(vite) {
-  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "calendar-ui@example.com", technicalEmail: "", adminPassword: "CalendarUITestPassword9" };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "calendar-ui@example.com", technicalEmail: "", adminPassword: "CalendarUITestPassword9" };
   const { client, db } = await connectDatabase(config); await ensureAdmin(db, config);
   const backend = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await backend.decorationsReady;
   const server = backend.app.listen(0, "127.0.0.1"); await once(server, "listening"); const base = `http://127.0.0.1:${server.address().port}`;
