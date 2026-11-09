@@ -16,6 +16,7 @@ import Admin from "./Pages/Admin";
 import TravelDetail from "./Pages/TravelDetail";
 import { PromotionsProvider } from "./Common/Promotions";
 import PublicDecorations from "./Common/festivals/PublicDecorations";
+import { panelSection, panelSections } from "./Common/panel/panelNavigation";
 import { destinations, regions, tourPackages, indiaJourneys, destinationPath, regionPath, packagePath, indiaPath, travelPageTitles } from "./Common/travelCatalog";
 
 const titles = {
@@ -35,8 +36,9 @@ export default function App() {
   const { pathname, hash, search, key } = useLocation();
   const isAdmin = /^\/(admin|technical)(?:\/|$)/.test(pathname);
   useEffect(() => {
-    document.title = `${titles[pathname] || "Page not found"} | Eternal India`;
-  }, [pathname]);
+    const base = pathname.startsWith("/technical") ? "/technical" : "/admin";
+    document.title = `${titles[pathname] || (isAdmin && panelSections[panelSection(pathname, base)]?.title) || "Page not found"} | Eternal India`;
+  }, [pathname, isAdmin]);
   useLayoutEffect(() => {
     if (hash) document.getElementById(hash.slice(1))?.scrollIntoView();
     else {

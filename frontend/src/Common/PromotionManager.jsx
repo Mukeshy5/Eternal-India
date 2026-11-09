@@ -7,6 +7,7 @@ import { PromotionDisplay } from "./Promotions";
 import { formatAmount } from "./promotionFormatting";
 import "./AdminTools.css";
 import "./PromotionManager.css";
+import { usePanelNavigationGuard } from "./panel/PanelNavigationContext";
 
 const images = Object.fromEntries([...destinations, ...regions, ...tourPackages, ...indiaJourneys].map((item) => [item.promotionId, item.image]));
 for (const journey of journeyContent) images[`journey:${journey.slug}`] = journey.image;
@@ -32,6 +33,7 @@ export default function PromotionManager({ apiBase = "/technical", onBack, onUna
   const target = promotionTargets.find((item) => item.id === selectedId);
   const dirty = JSON.stringify(payload(form)) !== JSON.stringify(payload(editable(promotions[selectedId])));
   const locked = !loaded || loading || busy || uploading;
+  usePanelNavigationGuard(dirty, busy || uploading, "Discard unsaved amount and offer changes?");
   const visible = promotionTargets.filter((item) => (!category || item.category === category) && item.title.toLowerCase().includes(search.trim().toLowerCase()));
 
   useEffect(() => {
@@ -105,7 +107,7 @@ export default function PromotionManager({ apiBase = "/technical", onBack, onUna
   }
 
   return <div className="admin-tools promotion-manager">
-    <header className="admin-tools-heading"><div><span className="dashboard-section-label">TECHNICAL WORKSPACE / WEBSITE</span><h1>Tour amounts & offers</h1><p>Manage package prices and offers on every tour card and place image.</p></div><button type="button" className="dashboard-button" disabled={busy || uploading} onClick={() => leave(onBack)}>← Back to enquiries</button></header>
+    <header className="admin-tools-heading"><div><span className="dashboard-section-label">TECHNICAL WORKSPACE / WEBSITE</span><h1>Tour amounts & offers</h1><p>Manage package prices and offers on every tour card and place image.</p></div><button type="button" className="dashboard-button" disabled={busy || uploading} onClick={onBack}>← Back to enquiries</button></header>
     {error && <p className="admin-error admin-tool-error" role="alert">{error}</p>}
     {notice && <p className="admin-success promotion-notice" role="status">{notice}</p>}
     {loading ? <p role="status" className="admin-tool-card">Loading saved tour amounts and offers…</p> : <div className="promotion-workspace">

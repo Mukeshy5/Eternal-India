@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import "./AdminDashboard.css";
 
@@ -16,7 +16,7 @@ const dateLabel = (value, time = false) => {
   return new Intl.DateTimeFormat("en-IN", { ...(time ? { hour: "numeric", minute: "2-digit" } : { day: "numeric", month: "short", year: "numeric" }), timeZone: "Asia/Kolkata" }).format(new Date(value));
 };
 
-function DashboardIcon({ name = "inbox", size = 20, className = "" }) {
+export function DashboardIcon({ name = "inbox", size = 20, className = "" }) {
   const paths = {
     inbox: <><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M3 13h5l2 3h4l2-3h5M8 8h8" /></>,
     spark: <><path d="m12 3 2.3 6.7L21 12l-6.7 2.3L12 21l-2.3-6.7L3 12l6.7-2.3L12 3Z" /></>,
@@ -94,37 +94,13 @@ function EnquiryDrawer({ entry, onClose, onUpdate, onDelete, updating, error }) 
   </dialog>;
 }
 
-export default function AdminDashboard({ technical = false, admin, data, loaded, loading, busy, updating, error, searchInput, search, status, page, lastUpdated, selected, onSearchInput, onSearch, onStatusFilter, onSelectStatus, onClearFilters, onPage, onOpen, onClose, onUpdate, onDelete, onRefresh, onLogout, onTool }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+export default function AdminDashboard({ technical = false, data, loaded, loading, updating, error, searchInput, search, status, page, lastUpdated, selected, onSearchInput, onSearch, onStatusFilter, onSelectStatus, onClearFilters, onPage, onOpen, onClose, onUpdate, onDelete, onRefresh }) {
   const viewButton = (entry) => <button className="dashboard-view dashboard-icon-button" type="button" aria-label={`View enquiry from ${entry.name}`} aria-haspopup="dialog" aria-controls="enquiry-details" onClick={() => onOpen(entry._id)}><DashboardIcon name="right" size={17} /></button>;
   const stats = data.stats;
   const count = (key) => loaded ? number(stats[key]) : "—";
-  return <div className={`dashboard-layout${sidebarCollapsed ? " dashboard-sidebar-collapsed" : ""}`}>
-    <aside className="dashboard-sidebar" aria-label={technical ? "Technical workspace" : "Admin workspace"}>
-      <div className="dashboard-brand"><Link to="/" aria-label="Eternal India home"><img src="/logo.webp" alt="Eternal India" width="183" height="58" /></Link><div className="dashboard-brand-actions"><button className="dashboard-icon-button dashboard-collapse-button" type="button" aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={() => setSidebarCollapsed((value) => !value)}><DashboardIcon name="left" size={18} /></button><div className="dashboard-mobile-actions"><Link to="/" className="dashboard-icon-button" aria-label="View website"><DashboardIcon name="globe" size={19} /></Link><button className="dashboard-icon-button" type="button" aria-label="Sign out" onClick={onLogout} disabled={busy}><DashboardIcon name="logout" size={18} /></button></div></div></div>
-      <div className="dashboard-workspace-label"><span className="dashboard-workspace-dot" />{technical ? "TECHNICAL WORKSPACE" : "ADMIN WORKSPACE"}</div>
-      <button className="dashboard-mobile-menu" type="button" aria-expanded={menuOpen} aria-controls="admin-workspace-navigation" onClick={() => setMenuOpen((value) => !value)}><span>Workspace menu <strong>{adminStatuses[status] || "All enquiries"}</strong></span><DashboardIcon name={menuOpen ? "close" : "down"} size={19} /></button>
-      <nav id="admin-workspace-navigation" className={`dashboard-status-navigation${menuOpen ? " dashboard-navigation-open" : ""}`} aria-label="Enquiry filters and tools" onClick={(event) => { if (event.target.closest("button")) { setMenuOpen(false); window.scrollTo({ top: 0, left: 0, behavior: "instant" }); } }}><span className="dashboard-nav-heading">ENQUIRIES</span>
-        {[{ key: "", label: "All enquiries", icon: "inbox" }, ...Object.entries(adminStatuses).map(([key, label]) => ({ key, label, icon: { new: "spark", pending: "clock", confirmed: "check", contacted: "chat", cancelled: "cancel", closed: "archive" }[key] }))].map((item) => <button key={item.key} type="button" aria-current={status === item.key ? "true" : undefined} onClick={() => onSelectStatus(item.key)}><DashboardIcon name={item.icon} size={18} /><span>{item.label}</span><span className="dashboard-nav-count">{count(item.key || "total")}</span></button>)}
-        <span className="dashboard-nav-heading dashboard-tools-heading">TOOLS</span>
-        {admin.staffPermissions?.includes("view") && <>
-          <button type="button" onClick={() => onTool("staff")}><DashboardIcon name="inbox" size={18} /><span>Staff Management</span></button>
-          <button type="button" onClick={() => onTool("staff-attendance")}><DashboardIcon name="calendar" size={18} /><span>Staff Attendance</span></button>
-          {admin.staffPermissions.includes("export") && <button type="button" onClick={() => onTool("staff-cards")}><DashboardIcon name="archive" size={18} /><span>Download ID Card</span></button>}
-          <button type="button" onClick={() => onTool("staff-reports")}><DashboardIcon name="clock" size={18} /><span>Attendance Reports</span></button>
-        </>}
-        {technical && <button type="button" onClick={() => onTool("promotions")}><DashboardIcon name="spark" size={18} /><span>Tour amounts & offers</span></button>}
-        {technical && <button type="button" onClick={() => onTool("festivals")}><DashboardIcon name="spark" size={18} /><span>Special Days & Festival Management</span></button>}
-        <button type="button" onClick={() => onTool("hotels")}><DashboardIcon name="pin" size={18} /><span>Add hotel</span></button>
-        <button type="button" onClick={() => onTool("vouchers")}><DashboardIcon name="calendar" size={18} /><span>Journey Voucher</span></button>
-      </nav>
-      <div className="dashboard-sidebar-bottom"><Link className="dashboard-form-link" to="/request-quote"><span className="dashboard-section-label">THE NEXT JOURNEY</span><strong>See the guest experience</strong><span>Open trip enquiry form<DashboardIcon name="diagonal" size={16} /></span></Link><div className="dashboard-sidebar-account"><span className="dashboard-account-avatar" aria-hidden="true">AD</span><div><strong>{technical ? "Technical administrator" : "Administrator"}</strong><span title={admin.email}>{admin.email}</span></div><button className="dashboard-sign-out dashboard-icon-button" type="button" aria-label="Sign out" title="Sign out" onClick={onLogout} disabled={busy}><DashboardIcon name="logout" size={18} /></button></div></div>
-    </aside>
-    <div className="dashboard-content">
-      <header className="dashboard-topbar"><div className="dashboard-breadcrumb"><DashboardIcon name="inbox" size={18} /><span>Workspace</span><DashboardIcon name="right" size={12} /><strong>{technical ? "Technical operations" : "Enquiries"}</strong></div><div className="dashboard-topbar-actions"><button className="dashboard-topbar-icon" type="button" aria-label="Notifications" title="Notifications"><DashboardIcon name="bell" size={18} /><i /></button>{admin.staffPermissions?.includes("view") && <button className="dashboard-quick-action" type="button" onClick={() => onTool("staff")}><DashboardIcon name="people" size={16} />Quick action</button>}<Link to="/">View website<DashboardIcon name="diagonal" size={15} /></Link><span className="dashboard-profile-chip"><span className="dashboard-account-avatar">AD</span><span>{technical ? "Technical admin" : "Administrator"}</span></span><button className="dashboard-button dashboard-sign-out-button" type="button" onClick={onLogout} disabled={busy}><DashboardIcon name="logout" size={16} />{busy ? "Signing out…" : "Sign out"}</button></div></header>
+  return <div className="dashboard-layout">
       <section className="dashboard-main" aria-labelledby="dashboard-heading">
-        <header className="dashboard-page-heading"><div><span className="dashboard-section-label">A LITTLE ORGANISATION. A BETTER JOURNEY.</span><h1 id="dashboard-heading">Enquiry overview<span>.</span></h1><p>Keep every conversation moving towards a memorable trip.</p></div><button type="button" className="dashboard-button dashboard-refresh" disabled={loading} onClick={onRefresh}><DashboardIcon name="refresh" size={17} className={loading ? "dashboard-spin" : ""} />{loading ? "Refreshing…" : "Refresh"}</button></header>
+        <header className="dashboard-page-heading"><div><span className="dashboard-section-label">WORKSPACE OVERVIEW</span><h1 id="dashboard-heading">Enquiry overview</h1><p>Manage guest requests, follow-ups and enquiry status.</p></div><button type="button" className="dashboard-button dashboard-refresh" disabled={loading} onClick={onRefresh}><DashboardIcon name="refresh" size={17} className={loading ? "dashboard-spin" : ""} />{loading ? "Refreshing…" : "Refresh"}</button></header>
         <div className="dashboard-stats" aria-label="Enquiry overview">{summaries.map((item) => <button key={item.key} type="button" className={`dashboard-stat dashboard-stat-${item.key}`} aria-pressed={status === (item.key === "total" ? "" : item.key)} disabled={!loaded} onClick={() => onSelectStatus(item.key === "total" ? "" : item.key)}><span className="dashboard-stat-top"><span>{item.label}</span><span className="dashboard-stat-icon"><DashboardIcon name={item.icon} size={18} /></span></span><strong>{count(item.key)}</strong><span className="dashboard-stat-hint">{item.hint}</span></button>)}</div>
         <section className="dashboard-inbox" aria-labelledby="inbox-heading">
           <div className="dashboard-inbox-heading"><div><h2 id="inbox-heading">Travel enquiries<span>{loaded ? number(data.total) : "—"}</span></h2><p>{status ? `${adminStatuses[status]} enquiries` : "All your guest requests, in one place."}</p></div><span className="dashboard-sync" role="status"><span className={loading ? "dashboard-sync-pending" : ""} />{loading ? "Fetching latest enquiries…" : lastUpdated ? `Updated ${dateLabel(lastUpdated, true)} IST` : "Not synced yet"}</span></div>
@@ -138,7 +114,6 @@ export default function AdminDashboard({ technical = false, admin, data, loaded,
         </section>
         <footer className="dashboard-footer"><span>Eternal India <span aria-hidden="true">/</span> {technical ? "Technical workspace" : "Admin workspace"}</span><span>Thoughtfully planned. Personally yours.</span></footer>
       </section>
-    </div>
     {selected && <EnquiryDrawer entry={selected} onClose={onClose} onUpdate={onUpdate} onDelete={onDelete} updating={updating} error={error} />}
   </div>;
 }

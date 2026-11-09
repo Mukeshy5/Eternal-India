@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { act, createElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { Window } from "happy-dom";
+import { browserFormData } from "./browser-form-data.mjs";
 
 export async function verifyAdminInteractions(server, technical = false) {
   const basePath = technical ? "/technical" : "/admin";
   const testWindow = new Window({ url: `http://localhost${basePath}/login` });
   const previous = new Map();
-  for (const [key, value] of Object.entries({ window: testWindow, document: testWindow.document, navigator: testWindow.navigator, HTMLElement: testWindow.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) {
+  for (const [key, value] of Object.entries({ window: testWindow, document: testWindow.document, navigator: testWindow.navigator, HTMLElement: testWindow.HTMLElement, FormData: browserFormData(testWindow), IS_REACT_ACT_ENVIRONMENT: true })) {
     previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   }
@@ -37,6 +38,7 @@ export async function verifyAdminInteractions(server, technical = false) {
   const container = testWindow.document.createElement("div");
   testWindow.document.body.append(container);
   const root = createRoot(container);
+  async function waitFor(check) { for (let i = 0; i < 100; i++) { let found; await act(async () => { found = check(); if (!found) await new Promise((resolve) => setTimeout(resolve, 20)); }); if (found) return; } assert.fail(container.textContent.slice(-1600)); }
   const type = (input, value) => {
     Object.getOwnPropertyDescriptor(testWindow.HTMLInputElement.prototype, "value").set.call(input, value);
     input.dispatchEvent(new testWindow.Event("input", { bubbles: true }));
@@ -51,7 +53,7 @@ export async function verifyAdminInteractions(server, technical = false) {
     assert.ok(container.querySelector('[role="alert"]').textContent.includes("incorrect"));
     await act(async () => type(container.querySelector("#admin-password"), "correct-password"));
     await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
-    assert.ok(container.querySelector(".dashboard-table").textContent.includes(entry.name), "successful login shows saved enquiries");
+    await waitFor(() => container.querySelector(".dashboard-table")?.textContent.includes(entry.name));
     const menu = container.querySelector(".dashboard-mobile-menu");
     await act(async () => menu.click());
     assert.equal(menu.getAttribute("aria-expanded"), "true");

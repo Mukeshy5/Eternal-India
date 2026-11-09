@@ -34,10 +34,13 @@ Delete removes a member from current staff and attendance lists by setting `dele
 
 The attendance screen loads all active staff from MongoDB, left joined with that date's saved attendance. Unmarked is separate from Absent. Inactive/deleted staff cannot receive new attendance, but authorized users can correct existing historical attendance through reports.
 
-Each staff card can be marked Active or Inactive. Inactive staff remain available in Staff Management but are excluded from the attendance list. Each attendance row has only a Present / Absent / Leave selector. The selected date and one Submit attendance button are shown below the list; all staff choices are saved together. Unmarked rows cannot be submitted. Clicking a staff member opens their monthly attendance history with a calendar view.
+Each staff card can be marked Active or Inactive. Inactive staff remain available in Staff Management but are excluded from the attendance list. The top of Staff Management and Staff Attendance contains a large monthly matrix with a sticky employee column, horizontal date scrolling, staff photos, department/search filters, previous/next/today controls and daily/weekly/monthly views. Click an employee for their selected-month profile or a date cell to view/correct its saved attendance, times, leave category and remarks. Future dates are view-only.
+
+The daily batch form remains below the matrix. Its selector supports Present, Absent, Leave, Half Day and Weekly Off. The selected date and one Submit attendance button appear below the list. All visible rows require a status. Daily lists and the calendar load 50 active staff per page; Staff Management loads 24 cards. The calendar retrieves attendance only for the staff and dates on the current page, excludes binary photos from JSON and lazy loads protected photo URLs. Both panels receive MongoDB revision events within about three seconds; 30-second polling and focus refresh provide a fallback.
 
 - One record per staff/date is enforced by a compound unique index. POST duplicates return 409; PATCH updates the existing record with an optimistic version check.
-- New attendance submissions use `present`, `absent` or `leave` and save no check-in, check-out or working-hour values. Leave and unmarked dates are excluded from attendance percentage. No work schedule or holiday calendar is inferred.
+- Supported statuses are `present`, `absent`, `leave`, `half_day` and `weekly_off`. Present/Half Day can include check-in/check-out; checkout must follow check-in on the same date. Absent, Leave and Weekly Off cannot carry working times. Working hours are calculated on the server. Attendance percentage is `(present + half_day × 0.5) / (present + absent + half_day) × 100`; Leave, Weekly Off and missing records are excluded. The profile shows recorded Weekly Offs separately from calendar Sunday counts. Weekly holiday settings shade dates without fabricating attendance, absences or working hours.
+- Batch updates preserve times for unchanged statuses and require the saved version before correcting existing records. Concurrent/stale changes return 409 and must be refreshed. The unique staff/date index also protects concurrent inserts. Up to 500 entries fit in one validated bulk request; normal JSON requests retain the smaller body limit.
 - Daily, Monday–Sunday weekly, monthly and custom inclusive date ranges are available. Custom ranges support up to 366 days. History is paginated at 50 rows, staff lists at 24. Totals cover the full filter, not only the current page. PDF/Excel downloads include all matching rows (up to 50,000; narrow the filter for larger exports). Historical reports include inactive and deleted staff.
 
 ## REST endpoints
@@ -55,7 +58,10 @@ All paths are mounted under both `/api/admin` and `/api/technical` and use the e
 | `GET /staff/:id/card-preview` | Protected responsive SVG preview; requires view permission |
 | `GET /staff/:id/card?format=pdf\|png` | Exact-size PDF (default) or 600 DPI PNG; requires export permission |
 | `GET /staff-attendance?date=&search=&page=` | Active staff and daily counts |
-| `POST /staff-attendance/bulk` | Save Present / Absent / Leave for all active staff on one date |
+| `GET /staff-calendar?month=&date=&view=&search=&department=&page=` | Active-staff matrix, 50 staff per page, saved records and weekly-off metadata |
+| `PATCH /staff-calendar-settings` | Save weekly holiday weekdays as `{ weeklyHolidays: [0] }`; 0 is Sunday |
+| `GET /staff-events` | Authenticated SSE revision notifications, with reconnect and session checks |
+| `POST /staff-attendance/bulk` | Save `{ date, attendance: [{ staffId, status, version }] }`; up to 500 unique active staff |
 | `POST /staff-attendance` | Create a unique staff/date record |
 | `PATCH /staff-attendance/:id` | Correct status/times using `version` |
 | `GET /staff/:id/attendance` | Profile, totals, daily/monthly breakdown and history |
@@ -65,4 +71,4 @@ Report filters: `period=daily|weekly|monthly&date=YYYY-MM-DD`, `month=YYYY-MM`, 
 
 ## Verification
 
-`npm run test:backend` includes real MongoDB/HTTP tests for authorization, photo persistence, duplicate contacts, concurrent attendance submissions, conflicts, date/time validation, report calculations, card dimensions, PDF/Excel parsing, inactive/deleted history and persistence across application instances. `npm run verify` exercises both panels and the live API with an isolated MongoDB test database, including simulated camera hardware and real downloadable files. Test databases are separate from production data and removed on completion. Physical camera access still depends on the visitor's device and browser permission.
+`npm run test:backend` includes real MongoDB/HTTP tests for authorization, photo persistence, duplicate contacts, concurrent attendance submissions, conflicts, date/time validation, report calculations, card dimensions, PDF/Excel parsing, inactive/deleted history and persistence across application instances. Calendar coverage includes 502 employees, pagination, literal searches, departments, weekly holiday metadata, all five statuses, bulk versions, preservation of working hours and actual SSE notifications between the panels. `npm run verify` exercises both panels and the live API with isolated MongoDB test databases, including calendar interactions, session recovery, browser history, simulated camera hardware and real downloadable files. Test databases are separate from production data and removed on completion. Physical camera access still depends on the visitor's device and browser permission.

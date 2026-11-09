@@ -29,9 +29,7 @@ export async function api(path, options = {}) {
   if (response.status === 204) return null;
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    const message = response.status === 404
-      ? "This feature is not available on the running server. Restart the backend and try again."
-      : data?.message || "The server is unavailable. Please try again shortly.";
+    const message = data?.message || (response.status === 404 ? "This item could not be found. Refresh the workspace and try again." : "The server is unavailable. Please try again shortly.");
     throw new ApiError(message, response.status, data?.errors);
   }
   if (!data) throw new ApiError("The server returned an unexpected response. Please try again.", response.status);

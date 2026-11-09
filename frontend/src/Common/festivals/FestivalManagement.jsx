@@ -5,6 +5,7 @@ import { DecorationSettings, FestivalEditor, ScheduleEditor } from "./FestivalFo
 import FestivalPreview from "./FestivalPreview";
 import "../AdminTools.css";
 import "./FestivalManagement.css";
+import { usePanelNavigation, usePanelNavigationGuard } from "../panel/PanelNavigationContext";
 
 const sections = [
   ["dashboard", "Decoration Dashboard", "dashboard", "01"], ["effects", "Effects Library", "effects", "02"],
@@ -23,6 +24,8 @@ export default function FestivalManagement({ admin, onBack, onUnauthorized, onLo
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const navigation = usePanelNavigation();
+  usePanelNavigationGuard(false, busy);
   const [loading, setLoading] = useState(true);
   const [refresh, setRefresh] = useState(0);
   const [previewDraft, setPreviewDraft] = useState(null);
@@ -69,7 +72,7 @@ export default function FestivalManagement({ admin, onBack, onUnauthorized, onLo
     } catch (failure) { if (mounted.current && !controller.signal.aborted) { setError(failure.message); if (failure.status === 401) onUnauthorized(); } return false; }
     finally { actionLock.current = false; if (mounted.current) { setBusy(false); reload(); } }
   }
-  const choose = (value) => { setSection(value); setError(""); setNotice(""); window.scrollTo({ top: 0, behavior: "instant" }); };
+  const choose = (value) => { if (navigation && !navigation.confirmNavigation()) return; setSection(value); setError(""); setNotice(""); window.scrollTo({ top: 0, behavior: "instant" }); };
   const preview = (festival) => { setPreviewDraft(festival); choose("preview"); };
   const master = (enabled) => perform("/decoration-settings", { method: "PUT", body: JSON.stringify({ ...data.settings, enabled }) }, enabled ? "Decoration system enabled." : "Master OFF applied. All public decorations have stopped.");
   const sectionTitle = sections.find((entry) => entry[0] === section)?.[1];

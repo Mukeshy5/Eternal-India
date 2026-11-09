@@ -8,7 +8,7 @@ try {
   const config = readConfig();
   connection = await connectDatabase(config);
   await ensureAdmin(connection.db, config);
-  const { app, decorationScheduler, decorationsReady } = createApp({ ...connection, config });
+  const { app, drainSessions, decorationScheduler, decorationsReady } = createApp({ ...connection, config });
   await decorationsReady;
   const server = app.listen(config.port, config.host, () => console.log(`Eternal India API: http://localhost:${config.port}\nAdmin panel: http://localhost:5173/admin/login\nTechnical panel: http://localhost:5173/technical/login`));
   let closing = false;
@@ -33,7 +33,7 @@ try {
     if (stopping) return;
     stopping = true;
     await decorationScheduler.stop();
-    server.close(async () => { await closeDatabase(); process.exit(0); });
+    server.close(async () => { await drainSessions(); await closeDatabase(); process.exit(0); });
     setTimeout(() => process.exit(1), 5000).unref();
   };
   process.on("SIGINT", stop);

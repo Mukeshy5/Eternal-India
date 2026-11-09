@@ -15,6 +15,8 @@ import { registerFestivalRoutes } from "./festivals/routes.js";
 import { technicalAccess } from "./festivals/permissions.js";
 import { registerStaffRoutes } from "./staff/routes.js";
 import { staffAccess } from "./staff/permissions.js";
+import { managementAccess } from "./lib/panel-access.js";
+import { sessionLifecycle } from "./lib/session-lifecycle.js";
 
 export function createApp({ client, db, config, schedulerOptions }) {
   const app = express();
@@ -45,9 +47,11 @@ export function createApp({ client, db, config, schedulerOptions }) {
     if (["POST", "PUT", "PATCH"].includes(req.method) && !imageUpload && !req.is("application/json")) return res.status(415).json({ message: "Use JSON to submit this request." });
     next();
   });
+  app.use(["/api/admin/staff-attendance/bulk", "/api/technical/staff-attendance/bulk"], express.json({ limit: "128kb" }));
   app.use(express.json({ limit: "16kb" }));
 
   const store = MongoStore.create({ client, dbName: config.databaseName, collectionName: "admin_sessions", ttl: 8 * 60 * 60 });
+  const drainSessions = sessionLifecycle(store);
   store.on("error", () => console.error("Admin session storage is unavailable."));
   const cookie = { httpOnly: true, secure: config.production, sameSite: config.production ? "none" : "strict", path: "/api", maxAge: 8 * 60 * 60 * 1000 };
   const management = express.Router();
@@ -60,6 +64,7 @@ export function createApp({ client, db, config, schedulerOptions }) {
     if (!ObjectId.isValid(req.session?.adminId || "")) return res.status(401).json({ message: "Please sign in to continue." });
     const admin = await db.collection("admins").findOne({ _id: new ObjectId(req.session.adminId) });
     if (!admin || (admin.passwordChangedAt && new Date(req.session.signedInAt) <= admin.passwordChangedAt)) return res.status(401).json({ message: "Please sign in again." });
+    if (!managementAccess(admin, config)) return res.status(403).json({ message: "This account is not authorized for the management panels." });
     if (req.originalUrl.startsWith("/api/technical/") && !technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
     req.admin = admin;
     next();
@@ -95,6 +100,7 @@ export function createApp({ client, db, config, schedulerOptions }) {
     if (!email || !password || password.length > 256) return res.status(401).json({ message: "Email or password is incorrect." });
     const admin = await db.collection("admins").findOne({ email });
     if (!admin || !await verifyPassword(password, admin.passwordHash)) return res.status(401).json({ message: "Email or password is incorrect." });
+    if (!managementAccess(admin, config)) return res.status(403).json({ message: "This account is not authorized for the management panels." });
     if (req.originalUrl.startsWith("/api/technical/") && !technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
     req.session.regenerate((error) => {
       if (error) return next(error);
@@ -161,9 +167,9 @@ export function createApp({ client, db, config, schedulerOptions }) {
     const hotel = parseHotel(req.body);
     if (!hotel) return res.status(400).json({ message: "Enter a valid hotel name, category, GST and amount." });
     const updatedAt = new Date();
-    const result = await db.collection("hotels").updateOne({ _id: new ObjectId(req.params.id) }, { $set: { ...hotel, updatedAt } });
-    if (!result.matchedCount) return res.status(404).json({ message: "Hotel not found." });
-    res.json({ message: "Hotel updated." });
+    const saved = await db.collection("hotels").findOneAndUpdate({ _id: new ObjectId(req.params.id) }, { $set: { ...hotel, updatedAt } }, { returnDocument: "after", projection: { name: 1, starRating: 1, gst: 1, amount: 1, createdAt: 1, updatedAt: 1 } });
+    if (!saved) return res.status(404).json({ message: "Hotel not found." });
+    res.json({ message: "Hotel updated.", hotel: saved });
   });
   management.delete("/hotels/:id", requireAdmin, async (req, res) => {
     if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid hotel." });
@@ -257,11 +263,12 @@ export function createApp({ client, db, config, schedulerOptions }) {
     }));
     app.get("/{*path}", (_req, res) => res.sendFile(`${frontend}/index.html`));
   }
-  app.use((error, _req, res, _next) => {
+  app.use((error, _req, res, next) => {
+    if (res.headersSent) return next(error);
     if (error.type === "entity.parse.failed") return res.status(400).json({ message: "Invalid JSON request." });
-    if (error.type === "entity.too.large") return res.status(413).json({ message: "This enquiry is too large." });
+    if (error.type === "entity.too.large") return res.status(413).json({ message: "This request is too large." });
     console.error("Request failed:", error.name);
     res.status(503).json({ message: "We couldn't save your request. Please try again shortly." });
   });
-  return { app, store, decorationScheduler: festivals.scheduler, decorationsReady: festivals.ready };
+  return { app, store, drainSessions, decorationScheduler: festivals.scheduler, decorationsReady: festivals.ready };
 }

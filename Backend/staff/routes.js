@@ -7,6 +7,7 @@ import { reportRange, summary, validDate, validateAttendance, validateStaff } fr
 import { attendanceExcel, attendancePdf, cardPdf } from "./exports.js";
 import { cardPng, cardSvg, validateStaffPhoto } from "./card.js";
 import { attendancePolicy, indiaDate } from "../../shared/staff.js";
+import { calendarDates, registerStaffCalendar } from "./calendar.js";
 
 const projection = { photo: 0 };
 const id = (value) => typeof value === "string" && /^[a-f\d]{24}$/i.test(value) ? new ObjectId(value) : null;
@@ -25,6 +26,8 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
   const router = Router();
   const guard = (permission = "view") => staffGuard(requireAdmin, config, permission);
   const staff = db.collection("staff"), attendance = db.collection("staff_attendance");
+  const changed = () => db.collection("staff_runtime").updateOne({ _id: "revision" }, { $inc: { value: 1 }, $set: { updatedAt: new Date() } }, { upsert: true });
+  registerStaffCalendar({ router, db, guard, searchFilter, config });
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 9, fieldSize: 1000 } }).single("photo");
   const photoUpload = (req, res, next) => {
     if (!req.is("multipart/form-data")) return next();
@@ -62,9 +65,11 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     res.json({ staff: records, total, page, pages: Math.max(1, Math.ceil(total / limit)), stats: { total: counts.reduce((a, b) => a + b.count, 0), active: counts.find((c) => c._id === "active")?.count || 0, inactive: counts.find((c) => c._id === "inactive")?.count || 0 } });
   });
   router.patch("/staff-calendar-settings", ...guard("attendance"), async (req, res) => {
-    const weeklyHolidays = Array.isArray(req.body?.weeklyHolidays) ? [...new Set(req.body.weeklyHolidays.map(Number))].filter((day) => Number.isInteger(day) && day >= 0 && day <= 6).sort() : null;
+    const values = req.body?.weeklyHolidays;
+    const weeklyHolidays = Array.isArray(values) && values.length <= 7 && values.every((day) => Number.isInteger(day) && day >= 0 && day <= 6) ? [...new Set(values)].sort() : null;
     if (!weeklyHolidays) return res.status(400).json({ message: "Choose valid weekly holidays." });
     await db.collection("staff_settings").updateOne({ _id: "attendance" }, { $set: { weeklyHolidays, updatedAt: new Date(), updatedBy: req.admin._id } }, { upsert: true });
+    await changed();
     res.json({ weeklyHolidays });
   });
   router.post("/staff", ...guard("create"), photoUpload, async (req, res) => {
@@ -72,6 +77,7 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     const now = new Date();
     const record = { ...fields, employeeId: `EI-${randomBytes(6).toString("hex").toUpperCase()}`, version: 1, deletedAt: null, createdAt: now, updatedAt: now, createdBy: req.admin._id, updatedBy: req.admin._id };
     await staff.insertOne(record);
+    await changed();
     const { photo: _photo, ...result } = record;
     res.status(201).json({ staff: result });
   });
@@ -103,19 +109,21 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     const fields = await prepareStaff(req, res, current); if (!fields) return;
     const record = await staff.findOneAndUpdate({ _id: current._id, version: current.version, deletedAt: null }, { $set: { ...fields, updatedAt: new Date(), updatedBy: req.admin._id }, $inc: { version: 1 } }, { returnDocument: "after", projection });
     if (!record) return res.status(409).json({ message: "This staff record changed. Refresh before editing." });
+    await changed();
     res.json({ staff: record });
   });
   router.delete("/staff/:id", ...guard("delete"), async (req, res) => {
     if (!id(req.params.id) || !Number.isInteger(req.body?.version)) return res.status(400).json({ message: "Choose a staff record and its current version." });
     const result = await staff.updateOne({ _id: id(req.params.id), version: req.body.version, deletedAt: null }, { $set: { status: "inactive", deletedAt: new Date(), updatedAt: new Date(), updatedBy: req.admin._id }, $inc: { version: 1 } });
     if (!result.modifiedCount) return res.status(409).json({ message: "This staff record changed or was deleted. Refresh and try again." });
+    await changed();
     res.sendStatus(204);
   });
 
   router.get("/staff-attendance", ...guard(), async (req, res) => {
     const date = req.query.date ?? indiaDate();
     if (!validDate(date)) return res.status(400).json({ message: "Choose a valid date." });
-    const page = pageOf(req.query), limit = 500;
+    const page = pageOf(req.query), limit = 50;
     const filter = { status: "active", deletedAt: null, ...searchFilter(req.query.search) };
     const activeLookup = [{ $lookup: { from: "staff", localField: "staffId", foreignField: "_id", pipeline: [{ $project: { status: 1, deletedAt: 1 } }], as: "person" } }, { $match: { "person.status": "active", "person.deletedAt": null } }];
     const [records, total, counts, totalStaff] = await Promise.all([
@@ -133,19 +141,34 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     const unique = new Map();
     for (const entry of entries) {
       const staffId = id(entry?.staffId);
-      if (!staffId || !["present", "absent", "leave", "half_day"].includes(entry?.status) || unique.has(staffId.toString())) return res.status(400).json({ message: "Choose Present, Absent, Leave or Half Day once for every staff member." });
-      unique.set(staffId.toString(), { staffId, status: entry.status });
+      if (!staffId || !["present", "absent", "leave", "half_day", "weekly_off"].includes(entry?.status) || unique.has(staffId.toString())) return res.status(400).json({ message: "Choose an attendance status once for each staff member." });
+      unique.set(staffId.toString(), { staffId, status: entry.status, version: entry.version });
     }
     const active = await staff.find({ _id: { $in: [...unique.values()].map((entry) => entry.staffId) }, status: "active", deletedAt: null }, { projection: { _id: 1 } }).toArray();
     if (active.length !== unique.size) return res.status(409).json({ message: "Refresh the staff list and mark attendance again." });
-    const now = new Date();
-    await attendance.bulkWrite([...unique.values()].map(({ staffId, status }) => ({
-      updateOne: {
-        filter: { staffId, date },
-        update: { $set: { status, checkIn: "", checkOut: "", workingMinutes: 0, leaveType: "", remarks: "", updatedAt: now, updatedBy: req.admin._id }, $setOnInsert: { staffId, date, createdAt: now, createdBy: req.admin._id, version: 1 } },
-        upsert: true,
-      },
-    })));
+    const existing = await attendance.find({ staffId: { $in: active.map((person) => person._id) }, date }).toArray();
+    const saved = new Map(existing.map((record) => [record.staffId.toString(), record]));
+    for (const entry of unique.values()) {
+      const previous = saved.get(entry.staffId.toString());
+      if (previous && entry.status !== previous.status && entry.version !== previous.version) return res.status(409).json({ message: "Attendance changed in another session. Refresh before submitting." });
+    }
+    const now = new Date(), operations = []; let updates = 0;
+    for (const { staffId, status } of unique.values()) {
+      const previous = saved.get(staffId.toString());
+      if (previous?.status === status) continue;
+      if (previous) {
+        updates++;
+        const noHours = ["absent", "leave", "weekly_off"].includes(status);
+        operations.push({ updateOne: { filter: { _id: previous._id, version: previous.version }, update: { $set: { status, ...(noHours ? { checkIn: "", checkOut: "", workingMinutes: 0 } : {}), ...(status !== "leave" ? { leaveType: "" } : {}), updatedAt: now, updatedBy: req.admin._id }, $inc: { version: 1 } } } });
+      } else operations.push({ insertOne: { document: { staffId, date, status, checkIn: "", checkOut: "", workingMinutes: 0, leaveType: "", remarks: "", version: 1, createdAt: now, updatedAt: now, createdBy: req.admin._id, updatedBy: req.admin._id } } });
+    }
+    if (operations.length) {
+      let result;
+      try { result = await attendance.bulkWrite(operations); }
+      catch (error) { await changed(); throw error; }
+      await changed();
+      if (result.matchedCount !== updates) return res.status(409).json({ message: "Some records changed while saving. Refresh the list before retrying." });
+    }
     res.json({ message: "Attendance saved.", date, count: unique.size });
   });
   router.post("/staff-attendance", ...guard("attendance"), async (req, res) => {
@@ -155,7 +178,7 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     if (!await staff.findOne({ _id: staffId, deletedAt: null, status: "active" }, { projection: { _id: 1 } })) return res.status(409).json({ message: "Attendance can only be marked for active staff." });
     const now = new Date();
     const record = { ...fields, staffId, version: 1, createdAt: now, updatedAt: now, createdBy: req.admin._id, updatedBy: req.admin._id };
-    await attendance.insertOne(record); res.status(201).json({ attendance: record });
+    await attendance.insertOne(record); await changed(); res.status(201).json({ attendance: record });
   });
   router.patch("/staff-attendance/:id", ...guard("attendance"), async (req, res) => {
     const current = id(req.params.id) && await attendance.findOne({ _id: id(req.params.id) });
@@ -167,6 +190,7 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     if (Object.keys(errors).length) return validationError(res, errors);
     const record = await attendance.findOneAndUpdate({ _id: current._id, version: current.version }, { $set: { ...fields, updatedAt: new Date(), updatedBy: req.admin._id }, $inc: { version: 1 } }, { returnDocument: "after" });
     if (!record) return res.status(409).json({ message: "Attendance changed in another session. Refresh before saving." });
+    await changed();
     res.json({ attendance: record });
   });
 
@@ -182,7 +206,7 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
       monthly: [{ $group: { _id: { date: { $substrBytes: ["$date", 0, 7] }, status: "$status" }, count: { $sum: 1 }, minutes: { $sum: "$workingMinutes" } } }, { $sort: { "_id.date": -1 } }],
     } }]).toArray();
     const total = totals[0]?.count || 0, page = pageOf(req.query), limit = 50;
-    const result = { ...range, total, page, pages: Math.max(1, Math.ceil(total / limit)), summary: summary(counts), policy: attendancePolicy, scope: typeof req.query.search === "string" ? `Search: ${req.query.search.slice(0, 100)}` : "All staff" };
+    const result = { ...range, total, page, pages: Math.max(1, Math.ceil(total / limit)), summary: { ...summary(counts), totalSundays: calendarDates(range.from, range.to).filter((day) => day.isSunday).length }, policy: attendancePolicy, scope: typeof req.query.search === "string" && req.query.search.trim() ? `Search: ${req.query.search.slice(0, 100)}` : "All staff" };
     if (staffId) { result.staff = await staff.findOne({ _id: staffId }, { projection }); if (!result.staff) return res.status(404).json({ message: "Staff not found." }); result.scope = `${result.staff.employeeId} ${result.staff.name}`; }
     if (req.query.format && total > 50000) return res.status(400).json({ message: "This export exceeds 50,000 rows. Select a shorter period or a staff member." });
     const rows = await attendance.aggregate([...pipeline, { $sort: { date: -1, staffId: 1 } }, ...(req.query.format ? [{ $limit: 50000 }] : [{ $skip: (page - 1) * limit }, { $limit: limit }]), { $project: { _id: 1, staffId: 1, date: 1, status: 1, checkIn: 1, checkOut: 1, workingMinutes: 1, leaveType: 1, remarks: 1, version: 1, employeeId: "$staff.employeeId", name: "$staff.name", department: "$staff.department" } }]).toArray();
@@ -191,7 +215,7 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
       return download(res, excel ? await attendanceExcel(rows, result) : await attendancePdf(rows, result), excel ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/pdf", `attendance-${range.from}-${range.to}.${req.query.format}`);
     }
     const buckets = (groups) => [...new Set(groups.map((g) => g._id.date))].map((date) => ({ date, ...summary(groups.filter((g) => g._id.date === date).map((g) => ({ ...g, _id: g._id.status }))) }));
-    const calendar = !staffId && req.query.month
+    const calendar = !staffId && req.query.month && req.query.includeCalendar === "true"
       ? await (async () => {
         const [people, monthRecords] = await Promise.all([
           staff.find({ status: "active", deletedAt: null, ...searchFilter(req.query.search) }, { projection: { _id: 1, name: 1, employeeId: 1, department: 1, designation: 1 } }).sort({ name: 1, _id: 1 }).toArray(),

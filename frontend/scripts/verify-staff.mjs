@@ -4,6 +4,7 @@ import { once } from "node:events";
 import { act, createElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { Window } from "happy-dom";
+import { browserFormData } from "./browser-form-data.mjs";
 import { readConfig } from "../../Backend/config/env.js";
 import { connectDatabase } from "../../Backend/config/database.js";
 import { ensureAdmin } from "../../Backend/lib/passwords.js";
@@ -17,7 +18,8 @@ export async function verifyStaff(vite) {
   const base = `http://127.0.0.1:${server.address().port}`;
   const testWindow = new Window({ url: "http://localhost/technical/staff" });
   const previous = new Map(), originalFetch = globalThis.fetch, nativeCreateURL = URL.createObjectURL, nativeRevokeURL = URL.revokeObjectURL;
-  for (const [key, value] of Object.entries({ window: testWindow, document: testWindow.document, navigator: testWindow.navigator, HTMLElement: testWindow.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) { previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value }); }
+  for (const [key, value] of Object.entries({ window: testWindow, document: testWindow.document, navigator: testWindow.navigator, HTMLElement: testWindow.HTMLElement, FormData: browserFormData(testWindow), IS_REACT_ACT_ENVIRONMENT: true })) { previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value }); }
+  testWindow.EventSource = undefined;
   let cookie = "", stopped = 0; const downloads = [];
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAABAAAAAUCAIAAAALACogAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAHUlEQVQokWO48+g1SYhhVMOj0VC6M5o0Xg/a/AAAqQdTblFbfKMAAAAASUVORK5CYII=", "base64");
   Object.defineProperty(testWindow.navigator, "mediaDevices", { configurable: true, value: { getUserMedia: async () => ({ getTracks: () => [{ stop: () => stopped++ }] }) } });
@@ -41,7 +43,7 @@ export async function verifyStaff(vite) {
   const type = (selector, value) => { const input = container.querySelector(selector); assert.ok(input, selector); Object.getOwnPropertyDescriptor(testWindow.HTMLInputElement.prototype, "value").set.call(input, value); input.dispatchEvent(new testWindow.Event("input", { bubbles: true })); input.dispatchEvent(new testWindow.Event("change", { bubbles: true })); };
   const select = (selector, value) => { const input = container.querySelector(selector); assert.ok(input, selector); input.value = value; input.dispatchEvent(new testWindow.Event("change", { bubbles: true })); };
   async function click(label, scope = container) { const target = [...scope.querySelectorAll("button")].find((button) => button.textContent.trim() === label); assert.ok(target, label); assert.equal(target.disabled, false); await act(async () => target.click()); }
-  async function section(label) { const target = [...container.querySelectorAll(".staff-navigation button")].find((button) => button.textContent.endsWith(label)); assert.ok(target, label); await act(async () => target.click()); await waitFor(() => !container.querySelector('[role="status"]')?.textContent.includes("Loading"), label); }
+  async function section(label) { const target = [...container.querySelectorAll(".panel-navigation button")].find((button) => button.textContent.endsWith(label)); assert.ok(target, label); await act(async () => target.click()); await waitFor(() => !container.querySelector('[role="status"]')?.textContent.includes("Loading"), label); }
   const submit = async (selector) => act(async () => container.querySelector(selector).dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
   try {
     const login = await globalThis.fetch("/api/technical/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: config.adminEmail, password: config.adminPassword }) }); assert.equal(login.status, 200);
@@ -66,23 +68,19 @@ export async function verifyStaff(vite) {
     await section("Download ID Card"); await waitFor(() => container.querySelector(".staff-identity-card"), "staff card"); await click("Download PDF"); await waitFor(() => downloads.some((blob) => blob.type === "application/pdf"), "card PDF download");
     const beforePng = downloads.length; await click("Download PNG"); await waitFor(() => downloads.length > beforePng && downloads.at(-1).type === "image/png", "high quality card PNG download");
     assert.ok([...container.querySelectorAll("button")].some((button) => button.textContent === "Print ID Card"));
-    await section("Staff Attendance"); await act(async () => type('.staff-filter-card input[type=date]', "2026-01-01")); await waitFor(() => container.querySelector(".staff-attendance-table button") && container.textContent.includes("Unmarked"), "active staff attendance from MongoDB");
+    await section("Staff Attendance");
+    await waitFor(() => container.querySelector('.staff-attendance-submit input[type=date]'), "daily batch form");
+    await act(async () => type('.staff-attendance-submit input[type=date]', "2026-01-01"));
+    await waitFor(() => container.querySelector(".staff-attendance-table select"), "active staff daily attendance");
     const statusSelector = '.staff-attendance-table select';
-    assert.deepEqual([...container.querySelector(statusSelector).options].map((option) => option.textContent), ["Select attendance", "Present", "Absent", "Half Day", "Leave"]);
-    await act(async () => select(statusSelector, "present"));
-    await act(async () => { type('.staff-attendance-table input[aria-label^="Check-in"]', "09:00"); type('.staff-attendance-table input[aria-label^="Check-out"]', "17:00"); }); await click("Save attendance");
-    await waitFor(async () => await db.collection("staff_attendance").countDocuments() === 1 && container.textContent.includes("8.00"), "real attendance save");
-    for (const next of ["absent", "leave", "half_day", "present"]) {
-      await waitFor(() => !container.querySelector(statusSelector).disabled, "attendance row ready");
-      await act(async () => select(statusSelector, next));
-      const checkIn = '.staff-attendance-table input[aria-label^="Check-in"]', checkOut = '.staff-attendance-table input[aria-label^="Check-out"]';
-      if (["absent", "leave"].includes(next)) { assert.equal(container.querySelector(checkIn).disabled, true); assert.equal(container.querySelector(checkIn).value, ""); assert.equal(container.querySelector(checkOut).value, ""); }
-      else await act(async () => { type(checkIn, "09:00"); type(checkOut, next === "half_day" ? "13:00" : "17:00"); });
-      await click("Save attendance");
-      await waitFor(async () => (await db.collection("staff_attendance").findOne())?.status === next && !container.querySelector(statusSelector).disabled, `inline ${next} saved`);
-      const saved = await db.collection("staff_attendance").findOne(); assert.equal(saved.workingMinutes, ["absent", "leave"].includes(next) ? 0 : next === "half_day" ? 240 : 480); assert.equal(await db.collection("staff_attendance").countDocuments(), 1);
-      const label = { present: "Present", absent: "Absent", leave: "On Leave", half_day: "Half Day" }[next];
-      await waitFor(() => [...container.querySelectorAll(".staff-stats > div")].some((item) => item.querySelector("span")?.textContent === label && item.querySelector("strong")?.textContent === "1"), `${label} dashboard count`);
+    assert.deepEqual([...container.querySelector(statusSelector).options].map((option) => option.value), ["", "present", "absent", "leave", "half_day", "weekly_off"]);
+    for (const next of ["present", "absent", "leave", "half_day", "weekly_off", "present"]) {
+      await waitFor(() => !container.querySelector(statusSelector).disabled, "attendance form ready");
+      await act(async () => select(statusSelector, next)); await click("Submit attendance");
+      await waitFor(async () => (await db.collection("staff_attendance").findOne())?.status === next && !container.querySelector(statusSelector).disabled, next + " persisted");
+      assert.equal(await db.collection("staff_attendance").countDocuments(), 1);
+      const label = { present: "Present", absent: "Absent", leave: "On Leave", half_day: "Half Days", weekly_off: "Weekly Offs" }[next];
+      await waitFor(() => [...container.querySelectorAll(".staff-stats > div")].some((item) => item.querySelector("span")?.textContent === label && item.querySelector("strong")?.textContent === "1"), label + " dashboard count");
     }
     await click("UI Staff Member", container.querySelector(".staff-attendance-table"));
     await waitFor(() => container.querySelector(".staff-profile"), "individual profile"); await act(async () => type('input[type=month]', "2026-01"));
@@ -93,7 +91,7 @@ export async function verifyStaff(vite) {
     await waitFor(() => container.querySelector(".staff-person"), "same staff in Admin panel"); assert.ok(container.textContent.includes(person.employeeId));
     await click("Edit", container.querySelector(".staff-person")); await act(async () => type('.staff-editor [name=designation]', "Senior tour manager")); await submit(".staff-editor");
     await waitFor(async () => (await db.collection("staff").findOne({ _id: person._id }))?.designation === "Senior tour manager" && !container.querySelector(".staff-editor"), "Admin staff update persisted");
-    await click("← Back to enquiries"); await waitFor(() => container.querySelector(".dashboard-sidebar"), "existing dashboard preserved");
+    await click("← Back to enquiries"); await waitFor(() => container.querySelector(".dashboard-table"), "existing dashboard preserved");
     for (const label of ["Staff Management", "Staff Attendance", "Download ID Card", "Attendance Reports"]) assert.ok(container.textContent.includes(label));
     await act(async () => root.render(null));
     const viewer = await ensureAdmin(db, { ...config, adminEmail: "staff-ui-viewer@example.com" });
@@ -103,12 +101,12 @@ export async function verifyStaff(vite) {
     await act(async () => root.render(createElement(MemoryRouter, { key: "viewer", initialEntries: ["/technical/staff"] }, createElement(Admin, { technical: true }))));
     await waitFor(() => container.querySelector(".staff-person"), "read-only staff view");
     assert.equal([...container.querySelectorAll("button")].some((button) => ["+ Add staff", "Edit", "Delete", "Download PDF", "Download PNG", "Print ID Card"].includes(button.textContent.trim())), false);
-    assert.equal(container.querySelector(".staff-navigation").textContent.includes("Download ID Card"), false);
+    assert.equal(container.querySelector(".panel-navigation").textContent.includes("Download ID Card"), false);
     await section("Staff Attendance"); await waitFor(() => container.querySelector(".staff-attendance-table"), "read-only attendance"); assert.equal(container.querySelector(".staff-attendance-select"), null);
     console.log("PASS both panels, direct staff route, live-camera capture/cleanup, MongoDB staff creation/edit, generated card PDF, active attendance, individual month filters, Excel export and existing dashboard navigation");
   } finally {
     await act(async () => root.unmount()); globalThis.fetch = originalFetch; URL.createObjectURL = nativeCreateURL; URL.revokeObjectURL = nativeRevokeURL;
     for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
-    await testWindow.happyDOM.close(); await backend.decorationScheduler.stop(); await new Promise((resolve) => server.close(resolve)); await db.dropDatabase(); await client.close();
+    await testWindow.happyDOM.close(); await backend.decorationScheduler.stop(); await new Promise((resolve) => server.close(resolve)); await backend.drainSessions(); await db.dropDatabase(); await client.close();
   }
 }

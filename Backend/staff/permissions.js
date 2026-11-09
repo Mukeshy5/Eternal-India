@@ -2,7 +2,7 @@ import { staffPermissions } from "../../shared/staff.js";
 
 export function staffAccess(admin, config) {
   if (admin.email === config.adminEmail || admin.email === config.technicalEmail) return Object.keys(staffPermissions);
-  const roles = Array.isArray(admin.roles) ? admin.roles : ["admin"];
+  const roles = admin.roles === undefined ? ["admin"] : Array.isArray(admin.roles) ? admin.roles : [];
   if (!roles.some((role) => ["admin", "technical"].includes(role))) return [];
   return Array.isArray(admin.staffPermissions)
     ? admin.staffPermissions.filter((key) => Object.hasOwn(staffPermissions, key))

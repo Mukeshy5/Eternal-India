@@ -36,7 +36,7 @@ export function validateAttendance(body) {
   if (leaveType.length > 80) errors.leaveType = "Use up to 80 characters.";
   if (remarks.length > 300) errors.remarks = "Use up to 300 characters.";
   for (const [key, value] of [["checkIn", checkIn], ["checkOut", checkOut]]) if (typeof value !== "string" || (value !== "" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(value))) errors[key] = "Use a valid 24-hour time.";
-  if (["absent", "leave"].includes(status) && (checkIn || checkOut)) errors.checkIn = "Absent and Leave cannot include working times.";
+  if (["absent", "leave", "weekly_off"].includes(status) && (checkIn || checkOut)) errors.checkIn = "Absent, Leave and Weekly Off cannot include working times.";
   if (status !== "leave" && leaveType) errors.leaveType = "Leave type is only used with Leave status.";
   if (checkOut && !checkIn) errors.checkIn = "Enter check-in before check-out.";
   if (checkIn && checkOut && checkOut <= checkIn) errors.checkOut = "Check-out must be later than check-in on the same day.";
@@ -67,10 +67,10 @@ export function reportRange(query) {
 }
 
 export function summary(groups) {
-  const result = { present: 0, absent: 0, half_day: 0, leave: 0, totalWorkingMinutes: 0 };
-  for (const group of groups) if (["present", "absent", "half_day", "leave"].includes(group._id)) { result[group._id] = group.count; result.totalWorkingMinutes += group.minutes || 0; }
+  const result = { present: 0, absent: 0, half_day: 0, leave: 0, weekly_off: 0, totalWorkingMinutes: 0 };
+  for (const group of groups) if (Object.hasOwn(attendanceStatuses, group._id)) { result[group._id] = group.count; result.totalWorkingMinutes += group.minutes || 0; }
   result.totalWorkingDays = result.present + result.absent + result.half_day;
-  result.totalRecordedDays = result.totalWorkingDays + result.leave;
+  result.totalRecordedDays = result.totalWorkingDays + result.leave + result.weekly_off;
   result.attendancePercentage = result.totalWorkingDays ? Math.round((result.present + result.half_day * 0.5) / result.totalWorkingDays * 10000) / 100 : 0;
   result.totalWorkingHours = Math.round(result.totalWorkingMinutes / 60 * 100) / 100;
   return result;

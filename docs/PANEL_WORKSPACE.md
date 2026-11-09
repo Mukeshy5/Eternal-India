@@ -1,0 +1,11 @@
+# Admin and Technical workspaces
+
+Both panels use one persistent software-style shell: grouped navy navigation, account details, collapsible desktop sidebar, responsive mobile drawer, breadcrumb header and consistent forms, tables and dashboard cards. The original public website and each tool's backend are retained.
+
+Routes are `/admin` (enquiries), `/admin/hotels`, `/admin/vouchers`, `/admin/staff`, `/admin/staff-attendance`, `/admin/staff-cards` and `/admin/staff-reports`. Technical users have equivalent `/technical/*` routes plus `/technical/promotions` and `/technical/festivals`. Search, status and page for enquiries are URL parameters. Reload and browser Back preserve the selected section. Unknown/unauthorized sections display recovery screens. Sign-in returns to a validated destination inside the same panel.
+
+Sessions use the existing HttpOnly MongoDB-backed cookie. Refresh and pagehide do not log out; only explicit sign-out destroys the shared session. Each protected API checks current account roles. Expired requests in tools return to sign-in. Concurrent session touches after logout do not recreate the deleted session; real session-store errors still propagate, and shutdown waits for pending touches.
+
+Panel links and section controls warn before discarding edited staff, attendance, hotel, voucher, promotion, festival or schedule forms. Busy mutations prevent section changes; browser unload warns while changes are pending. Browser history navigation follows normal router behavior. Hotel saves update the list from the mutation response, preventing duplicate resubmissions caused by a failed follow-up read. Mutation locks, abort cleanup, section error boundaries and visibility-aware polling limit accidental duplicate actions and stale state updates.
+
+Validation: run `npm --prefix Backend test`, `npm --prefix frontend run verify`, and `npm --prefix frontend run build`. Verification uses isolated MongoDB databases and includes both panel logins, enquiry actions, promotions, vouchers/print, festivals, staff/cards, the attendance calendar, direct routes, refresh, browser Back, unsaved navigation cancellation and recovery after session expiry. Restart the backend after server changes; Vite updates frontend sources automatically during development.

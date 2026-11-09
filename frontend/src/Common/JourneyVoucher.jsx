@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "./api";
+import { usePanelNavigationGuard } from "./panel/PanelNavigationContext";
 import { formatKm, journeyRoute } from "./journeyRoute";
 import voucherAsset from "../assets/Journey Voucher/Journey Voucher (2).png";
 import mapAsset from "../assets/Journey Voucher/Journey map.png";
@@ -24,7 +25,7 @@ const hasJourneySchedule = (stop) => stop.meals?.length || stop.foodNotes || sto
 function Field({ label, children, wide = false }) {
   return <label className={`admin-tool-field${wide ? " admin-tool-field-wide" : ""}`}><span>{label}</span>{children}</label>;
 }
-export default function JourneyVoucher({ apiBase = "/admin", technical = false, onBack, onError, error }) {
+export default function JourneyVoucher({ apiBase = "/admin", technical = false, onBack, onError, onUnauthorized, error }) {
   const [billing, setBilling] = useState({ name: "", visitingCardNo: "" });
   const [journey, setJourney] = useState({ from: "", fromAddress: "" });
   const [stops, setStops] = useState([{ ...blankStop, key: 0 }]);
@@ -36,13 +37,18 @@ export default function JourneyVoucher({ apiBase = "/admin", technical = false, 
   const [busy, setBusy] = useState(false);
   const [printing, setPrinting] = useState(false);
   const printDocument = useRef(null);
+  const saveLock = useRef(false), saveController = useRef(null);
+  useEffect(() => () => saveController.current?.abort(), []);
+  const initialDraft = useRef(JSON.stringify({ billing, journey, stops, message }));
+  usePanelNavigationGuard(!voucher && JSON.stringify({ billing, journey, stops, message }) !== initialDraft.current, busy || printing, "Discard the unsaved journey voucher?");
   useEffect(() => {
     const controller = new AbortController();
-    const loadHotels = () => api(`${apiBase}/hotels`, { signal: controller.signal }).then(({ hotels: result }) => setHotels(result)).catch((failure) => { if (!controller.signal.aborted) onError(failure.message); }).finally(() => { if (!controller.signal.aborted) setLoadingHotels(false); });
+    let inFlight = false;
+    const loadHotels = async () => { if (inFlight) return; inFlight = true; try { const { hotels: result } = await api(`${apiBase}/hotels`, { signal: controller.signal }); if (!controller.signal.aborted) setHotels(result); } catch (failure) { if (!controller.signal.aborted) { onError(failure.message); if (failure.status === 401) onUnauthorized?.(); } } finally { inFlight = false; if (!controller.signal.aborted) setLoadingHotels(false); } };
     loadHotels();
     window.addEventListener("focus", loadHotels);
     return () => { controller.abort(); window.removeEventListener("focus", loadHotels); };
-  }, [onError, apiBase]);
+  }, [onError, apiBase, onUnauthorized]);
   const draft = useMemo(() => ({ billing, journey, stops: stops.map((stop) => ({ ...stop, hotel: hotels.find((hotel) => hotel._id === stop.hotelId) })), message }), [billing, journey, stops, hotels, message]);
   const route = useMemo(() => journeyRoute(journey.from, journey.fromAddress, stops), [journey, stops]);
   const changed = () => { setVoucher(null); onError(""); };
@@ -60,13 +66,14 @@ export default function JourneyVoucher({ apiBase = "/admin", technical = false, 
   }
   async function save(event) {
     event.preventDefault();
-    if (busy || !event.currentTarget.reportValidity()) return;
-    setBusy(true); onError("");
+    if (saveLock.current || !event.currentTarget.reportValidity()) return;
+    saveLock.current = true; setBusy(true); onError("");
+    const controller = new AbortController(); saveController.current = controller;
     try {
-      const result = await api(`${apiBase}/vouchers`, { method: "POST", body: JSON.stringify({ billing, journey, stops: stops.map(({ key: _key, ...stop }) => stop), message }) });
-      setVoucher(result.voucher);
-    } catch (failure) { onError(failure.message); }
-    finally { setBusy(false); }
+      const result = await api(`${apiBase}/vouchers`, { method: "POST", body: JSON.stringify({ billing, journey, stops: stops.map(({ key: _key, ...stop }) => stop), message }), signal: controller.signal });
+      if (!controller.signal.aborted) setVoucher(result.voucher);
+    } catch (failure) { if (!controller.signal.aborted) { onError(failure.message); if (failure.status === 401) onUnauthorized?.(); } }
+    finally { saveLock.current = false; if (!controller.signal.aborted) setBusy(false); }
   }
   async function print() {
     if (printing || !voucher || !printDocument.current) return;

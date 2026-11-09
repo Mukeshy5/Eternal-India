@@ -36,7 +36,7 @@ export function attendancePdf(rows, report) {
       doc.fillColor("#273b32").font("Helvetica-Bold").fontSize(18).text("Eternal India | Attendance", 30, 28);
       doc.font("Staff").fontSize(9).text(`${report.from} to ${report.to} | Asia/Kolkata | ${safeText(report.scope || "All staff")}`, 30, 53, { width: 780, height: 22, ellipsis: true });
       const s = report.summary;
-      doc.fontSize(8).text(`Present ${s.present}   Absent ${s.absent}   Half Day ${s.half_day}   Leave ${s.leave}   Working hours ${s.totalWorkingHours}   Attendance ${s.attendancePercentage}%`, 30, 79);
+      doc.fontSize(8).text(`Present ${s.present}   Absent ${s.absent}   Half Day ${s.half_day}   Leave ${s.leave}   Weekly Off ${s.weekly_off || 0}   Working hours ${s.totalWorkingHours}   Attendance ${s.attendancePercentage}%`, 30, 79);
       doc.fontSize(7).text(safeText(attendancePolicy), 30, 95, { width: 780, height: 28 });
       cellRow(["Employee ID", "Staff name", "Date", "Status", "Check-in", "Check-out", "Hours", "Department"], 132, true);
     };
