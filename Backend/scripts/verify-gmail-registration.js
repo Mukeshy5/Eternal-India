@@ -12,12 +12,12 @@ import { createApp } from "../app.js";
 import { cookieHeader } from "../lib/cookies.js";
 
 const source = readConfig(), recipient = gmailIdentity(process.env.OTP_TEST_EMAIL);
-if (!createMailer(source).gmailConfigured || !recipient) {
-  console.error("Real Gmail verification cannot start. Set SMTP_USER, SMTP_PASSWORD (Google App Password), SMTP_HOST=smtp.gmail.com and OTP_TEST_EMAIL in Backend/.env. No email was sent and no account was created.");
+if (!createMailer(source).otpConfigured || !recipient) {
+  console.error("Real inbox verification cannot start. Configure Resend HTTPS (RESEND_API_KEY and EMAIL_FROM), or Gmail SMTP on a compatible host, plus OTP_TEST_EMAIL. No email was sent and no account was created.");
   process.exitCode = 1;
 } else {
   await createMailer(source).verify();
-  const config = { ...source, databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "gmail-test-owner@eternal-india.local", technicalEmail: "", adminPassword: randomBytes(24).toString("hex") };
+  const config = { ...source, databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "gmail-test-owner@eternal-india.local", technicalEmail: "", adminPassword: randomBytes(24).toString("hex") };
   const { client, db } = await connectDatabase(config); await ensureAdmin(db, config);
   const backend = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await backend.decorationsReady;
   const server = backend.app.listen(0, "127.0.0.1"); await once(server, "listening");

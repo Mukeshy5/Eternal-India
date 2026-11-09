@@ -18,7 +18,7 @@ test("the deployed server opens Render's public port with copied localhost setti
   try {
     child = spawn(process.execPath, ["server.js"], {
       cwd: fileURLToPath(new URL("../", import.meta.url)), windowsHide: true,
-      env: { ...process.env, MONGO_DB: databaseName, RENDER: "true", NODE_ENV: "development", HOST: "127.0.0.1", PORT: String(port), ADMIN_EMAIL: "render-startup@example.com", ADMIN_PASSWORD: "RenderStartupPassword9", FRONTEND_ORIGIN: "https://frontend.example.com", SMTP_HOST: "", SMTP_USER: "", SMTP_PASSWORD: "", SMTP_FROM: "", GMAIL_USER: "", GMAIL_APP_PASSWORD: "" },
+      env: { ...process.env, MONGO_DB: databaseName, RENDER: "true", NODE_ENV: "development", HOST: "127.0.0.1", PORT: String(port), ADMIN_EMAIL: "render-startup@example.com", ADMIN_PASSWORD: "RenderStartupPassword9", FRONTEND_ORIGIN: "https://frontend.example.com", SMTP_HOST: "", SMTP_USER: "", SMTP_PASSWORD: "", SMTP_FROM: "", GMAIL_USER: "", GMAIL_APP_PASSWORD: "", EMAIL_PROVIDER: "smtp", RESEND_API_KEY: "", EMAIL_FROM: "" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     child.stdout.on("data", (data) => { output += data; });

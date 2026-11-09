@@ -26,3 +26,12 @@ test("Render allows the deployed Vercel frontend even with copied development or
   assert.deepEqual(readConfig(base).origins, ["http://localhost:5173"]);
   assert.deepEqual(readConfig({ ...base, NODE_ENV: "production" }).origins, ["https://eternal-india-phi.vercel.app"]);
 });
+test("HTTPS delivery takes precedence only when configured and SMTP remains explicitly selectable", () => {
+  assert.equal(readConfig(base).email.provider, "smtp");
+  const resend = readConfig({ ...base, RESEND_API_KEY: "fixture-key", EMAIL_FROM: "Eternal India <otp@example.com>" });
+  assert.equal(resend.email.provider, "resend"); assert.equal(resend.email.from, "otp@example.com");
+  assert.equal(readConfig({ ...base, RESEND_API_KEY: "fixture-key", EMAIL_PROVIDER: "smtp" }).email.provider, "smtp");
+  assert.equal(readConfig({ ...base, EMAIL_PROVIDER: "resend" }).email.provider, "resend");
+  assert.throws(() => readConfig({ ...base, EMAIL_PROVIDER: "invalid" }), /EMAIL_PROVIDER/);
+  assert.throws(() => readConfig({ ...base, EMAIL_FROM: "not-an-address" }), /EMAIL_FROM/);
+});

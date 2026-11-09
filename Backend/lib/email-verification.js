@@ -35,7 +35,7 @@ export function createEmailVerification({ db, config, mailer }) {
   const release = (keys, reservation) => Promise.all(keys.map((_id) => limits.updateOne({ _id, reservation, count: { $gt: 0 } }, { $inc: { count: -1 }, $set: { nextSendAt: new Date(0) }, $unset: { reservation: "" } })));
   async function send(req, res) {
     context(req);
-    if (!mailer.gmailConfigured) throw failure(503, "Gmail verification email is not available yet. Please contact the site administrator.", { code: "EMAIL_NOT_CONFIGURED" });
+    if (!mailer.otpConfigured) throw failure(503, "Gmail verification email is not available yet. Please contact the site administrator.", { code: "EMAIL_NOT_CONFIGURED" });
     if (!req.session.otpBinding) { req.session.otpBinding = randomBytes(32).toString("hex"); await new Promise((resolve, reject) => req.session.save((error) => error ? reject(error) : resolve())); }
     const ctx = context(req);
     const target = ctx.accountId ? await db.collection("admins").findOne({ _id: new ObjectId(ctx.accountId) }) : null;
@@ -62,10 +62,10 @@ export function createEmailVerification({ db, config, mailer }) {
       await records.deleteOne({ _id: ctx.contextId, challengeId }); await release(slots, reservation);
       if (error.status) throw error;
       // Pass through specific SMTP errors (auth, connection, rejection) with actionable messages.
-      const smtpCodes = ["SMTP_AUTH_FAILED", "SMTP_CONNECTION_FAILED", "SMTP_REJECTED", "EMAIL_NOT_CONFIGURED", "SMTP_ERROR"];
-      if (smtpCodes.includes(error.code)) {
-        console.error(`Gmail SMTP delivery failed: ${error.code}`);
-        throw failure(503, error.message, { code: error.code });
+      const deliveryCodes = ["SMTP_AUTH_FAILED", "SMTP_CONNECTION_FAILED", "SMTP_REJECTED", "EMAIL_NOT_CONFIGURED", "SMTP_ERROR", "EMAIL_CONNECTION_FAILED", "EMAIL_RATE_LIMITED", "EMAIL_PROVIDER_REJECTED", "EMAIL_DELIVERY_FAILED"];
+      if (deliveryCodes.includes(error.code)) {
+        console.error(`Verification email delivery failed: ${error.code}`);
+        throw failure(503, error.message, { code: error.code, ...(error.retryAfter ? { retryAfter: error.retryAfter } : {}) });
       }
       console.error(`Gmail OTP delivery failed: ${error.code || error.name}`);
       throw failure(503, "The verification email could not be sent. Please try again later.", { code: "EMAIL_DELIVERY_FAILED" });

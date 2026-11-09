@@ -11,7 +11,7 @@ import { createApp } from "../../Backend/app.js";
 import { cookieHeader } from "./cookie-header.mjs";
 
 export async function verifyOtpGates(vite) {
-  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "otp-ui-owner@eternal-india.local", technicalEmail: "", adminPassword: "OtpUiOwnerPassword9", smtp: {} };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "otp-ui-owner@eternal-india.local", technicalEmail: "", adminPassword: "OtpUiOwnerPassword9", smtp: {}, email: { provider: "smtp" } };
   const { client, db } = await connectDatabase(config); await ensureInitialAdmin(db, config);
   const legacy = await ensureAdmin(db, { ...config, adminEmail: "existing.ui.account@gmail.com" });
   const backend = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await backend.decorationsReady;

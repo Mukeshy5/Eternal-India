@@ -54,7 +54,10 @@ async function start() {
     // SMTP can be unavailable on a hosting plan. Check it after opening HTTP so
     // a slow or blocked mail connection never delays Render's health/port scan.
     const startupMailer = createMailer(config);
-    if (startupMailer.gmailConfigured) {
+    if (startupMailer.provider === "resend") {
+      if (startupMailer.configured) console.log("Resend HTTPS email configured. Provider acceptance is checked on each send; real inbox delivery must be tested separately.");
+      else console.error("Resend HTTPS email is not configured. Set RESEND_API_KEY and EMAIL_FROM (a sender on a verified domain) in the backend environment.");
+    } else if (startupMailer.gmailConfigured) {
       void startupMailer.verify().then(() => console.log("Gmail SMTP verified successfully. OTP emails are enabled.")).catch((error) => {
         console.error(`Gmail SMTP startup verification failed: ${error.code}. ${error.message}`);
       });

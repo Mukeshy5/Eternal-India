@@ -15,7 +15,7 @@ test("Gmail identity prevents case, dot, tag and googlemail duplicate aliases", 
 });
 
 test("real MongoDB/API OTP gates reject bypasses and preserve existing account management", async (t) => {
-  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "otp-owner@eternal-india.local", technicalEmail: "", adminPassword: "OtpOwnerPassword9", smtp: {} };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "otp-owner@eternal-india.local", technicalEmail: "", adminPassword: "OtpOwnerPassword9", smtp: {}, email: { provider: "smtp" } };
   const { client, db } = await connectDatabase(config); const owner = await ensureAdmin(db, config);
   const existing = await ensureAdmin(db, { ...config, adminEmail: "existing.account@gmail.com", adminPassword: "ExistingPassword9" });
   const pending = await ensureAdmin(db, { ...config, adminEmail: "legacy.request@gmail.com" });

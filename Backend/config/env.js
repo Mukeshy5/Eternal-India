@@ -25,6 +25,13 @@ export function readConfig(env = process.env) {
   const configuredFrom = (env.SMTP_FROM || "").trim();
   const smtpFrom = configuredFrom.match(/<\s*([^<>]+)\s*>$/)?.[1]?.trim() || configuredFrom;
   if (configuredFrom && !/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(smtpFrom)) throw new Error("SMTP_FROM must be an email address or a display name followed by <email-address>.");
+  const requestedEmailProvider = (env.EMAIL_PROVIDER || "auto").trim().toLowerCase();
+  if (!["auto", "smtp", "resend"].includes(requestedEmailProvider)) throw new Error("EMAIL_PROVIDER must be auto, resend or smtp.");
+  const resendApiKey = (env.RESEND_API_KEY || "").trim();
+  const emailProvider = requestedEmailProvider === "auto" ? (resendApiKey ? "resend" : "smtp") : requestedEmailProvider;
+  const emailFromValue = (env.EMAIL_FROM || "").trim();
+  const emailFrom = emailFromValue.match(/<\s*([^<>]+)\s*>$/)?.[1]?.trim() || emailFromValue;
+  if (emailFromValue && !/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(emailFrom)) throw new Error("EMAIL_FROM must be an email address or a display name followed by <email-address>.");
   if (env.OTP_HASH_SECRET && env.OTP_HASH_SECRET.length < 32) throw new Error("OTP_HASH_SECRET must contain at least 32 characters.");
   return {
     port,
@@ -41,6 +48,7 @@ export function readConfig(env = process.env) {
     technicalEmail: (env.TECHNICAL_EMAIL || "").trim().toLowerCase(),
     companyName: env.COMPANY_NAME || "Eternal India",
     otpSecret: env.OTP_HASH_SECRET || env.SESSION_SECRET,
+    email: { provider: emailProvider, apiKey: resendApiKey, from: emailFrom },
     smtp: { host: smtpHost, port: smtpPort, secure: env.SMTP_SECURE ? env.SMTP_SECURE === "true" : smtpPort === 465, user: smtpUser, password: smtpHost === "smtp.gmail.com" ? (env.SMTP_PASSWORD || env.GMAIL_APP_PASSWORD || "").replace(/\s/g, "") : env.SMTP_PASSWORD || "", from: smtpFrom || smtpUser || env.ADMIN_EMAIL },
   };
 }
