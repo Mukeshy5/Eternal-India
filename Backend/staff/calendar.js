@@ -16,7 +16,7 @@ export function calendarRange(query) {
   return range && { ...range, view, dates: calendarDates(range.from, range.to) };
 }
 
-export function registerStaffCalendar({ router, db, guard, searchFilter, config }) {
+export function registerStaffCalendar({ router, db, guard, searchFilter, config, events }) {
   router.get("/staff-calendar", ...guard(), async (req, res) => {
     const range = calendarRange(req.query);
     if (!range) return res.status(400).json({ message: "Choose a valid calendar month, date and view." });
@@ -39,18 +39,23 @@ export function registerStaffCalendar({ router, db, guard, searchFilter, config 
   router.get("/staff-events", ...guard(), async (req, res) => {
     res.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-store", Connection: "keep-alive", "X-Accel-Buffering": "no" }); res.flushHeaders();
     let last = -1, running = false, closed = false;
+    const send = (value) => {
+      if (closed || value <= last) return;
+      last = value; res.write(`event: change\ndata: ${JSON.stringify({ revision: value })}\n\n`); res.flush?.();
+    };
     async function check() {
       if (running || closed) return; running = true;
       try {
         const [revision, account] = await Promise.all([db.collection("staff_runtime").findOne({ _id: "revision" }), db.collection("admins").findOne({ _id: req.admin._id })]);
         if (!account || !staffAccess(account, config).includes("view") || (account.passwordChangedAt && new Date(req.session.signedInAt) <= account.passwordChangedAt)) { res.end(); return; }
         const value = revision?.value || 0;
-        if (value !== last) { last = value; res.write(`event: change\ndata: ${JSON.stringify({ revision: value })}\n\n`); }
+        if (value > last) send(value);
         else res.write(": heartbeat\n\n");
         res.flush?.();
       } catch { res.end(); } finally { running = false; }
     }
     const timer = setInterval(check, 3000), expiry = setTimeout(() => res.end(), 120000); timer.unref(); expiry.unref();
-    req.on("close", () => { closed = true; clearInterval(timer); clearTimeout(expiry); }); void check();
+    events?.on("change", send);
+    req.on("close", () => { closed = true; clearInterval(timer); clearTimeout(expiry); events?.off("change", send); }); void check();
   });
 }

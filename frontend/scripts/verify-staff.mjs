@@ -78,15 +78,25 @@ export async function verifyStaff(vite) {
       await waitFor(() => !container.querySelector(statusSelector).disabled, "attendance form ready");
       await act(async () => select(statusSelector, next)); await click("Submit attendance");
       await waitFor(async () => (await db.collection("staff_attendance").findOne())?.status === next && !container.querySelector(statusSelector).disabled, next + " persisted");
+      await waitFor(() => container.querySelector(".staff-attendance-submit button").disabled && container.querySelector(".staff-attendance-success")?.textContent.includes("submitted successfully"), "submission disables the button and shows success");
       assert.equal(await db.collection("staff_attendance").countDocuments(), 1);
       const label = { present: "Present", absent: "Absent", leave: "On Leave", half_day: "Half Days", weekly_off: "Weekly Offs" }[next];
       await waitFor(() => [...container.querySelectorAll(".staff-stats > div")].some((item) => item.querySelector("span")?.textContent === label && item.querySelector("strong")?.textContent === "1"), label + " dashboard count");
     }
+    const submittedRevision = (await db.collection("staff_runtime").findOne({ _id: "revision" })).value;
+    await act(async () => container.querySelector(".staff-attendance-submit button").click());
+    assert.equal((await db.collection("staff_runtime").findOne({ _id: "revision" })).value, submittedRevision, "clicking the disabled submit button does not write again");
+    await act(async () => type('.staff-attendance-submit input[type=date]', "2026-01-02"));
+    await waitFor(() => container.querySelector(statusSelector)?.value === "" && !container.querySelector(".staff-attendance-submit button").disabled, "a new date does not reuse saved choices");
+    await act(async () => type('.staff-attendance-submit input[type=date]', "2026-01-01"));
+    await waitFor(() => container.querySelector(statusSelector)?.value === "present" && container.querySelector(".staff-attendance-submit button").disabled, "saved attendance stays disabled when revisiting its date");
     await click("UI Staff Member", container.querySelector(".staff-attendance-table"));
     await waitFor(() => container.querySelector(".staff-profile"), "individual profile"); await act(async () => type('input[type=month]', "2026-01"));
     await waitFor(() => container.querySelector(".staff-history tbody tr"), "month-filtered history"); assert.ok(container.textContent.includes("100%"));
     await click("Export Excel"); await waitFor(() => downloads.some((blob) => blob.type.includes("spreadsheetml")), "Excel download");
     await section("Attendance Reports"); await act(async () => type('input[type=month]', "2026-01")); await waitFor(() => container.querySelector(".staff-history tbody tr"), "monthly report");
+    await click("Delete this month", container.querySelector(".attendance-period-delete"));
+    await waitFor(async () => await db.collection("staff_attendance").countDocuments() === 0 && !container.querySelector(".staff-history tbody tr") && container.textContent.includes("1 attendance records permanently deleted"), "report deletion removes monthly attendance and refreshes totals");
     await act(async () => root.render(createElement(MemoryRouter, { key: "admin", initialEntries: ["/admin/staff"] }, createElement(Admin))));
     await waitFor(() => container.querySelector(".staff-person"), "same staff in Admin panel"); assert.ok(container.textContent.includes(person.employeeId));
     await click("Edit", container.querySelector(".staff-person")); await act(async () => type('.staff-editor [name=designation]', "Senior tour manager")); await submit(".staff-editor");
@@ -103,6 +113,7 @@ export async function verifyStaff(vite) {
     assert.equal([...container.querySelectorAll("button")].some((button) => ["+ Add staff", "Edit", "Delete", "Download PDF", "Download PNG", "Print ID Card"].includes(button.textContent.trim())), false);
     assert.equal(container.querySelector(".panel-navigation").textContent.includes("Download ID Card"), false);
     await section("Staff Attendance"); await waitFor(() => container.querySelector(".staff-attendance-table"), "read-only attendance"); assert.equal(container.querySelector(".staff-attendance-select"), null);
+    assert.equal(container.querySelector(".attendance-period-delete"), null, "read-only users cannot delete attendance periods");
     console.log("PASS both panels, direct staff route, live-camera capture/cleanup, MongoDB staff creation/edit, generated card PDF, active attendance, individual month filters, Excel export and existing dashboard navigation");
   } finally {
     await act(async () => root.unmount()); globalThis.fetch = originalFetch; URL.createObjectURL = nativeCreateURL; URL.revokeObjectURL = nativeRevokeURL;

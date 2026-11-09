@@ -76,6 +76,18 @@ export async function verifyCalendar(vite) {
     await clickAria("Calendar Alice, 2026-01-05: Present");
     await click("Delete attendance record", container.querySelector(".attendance-calendar-dialog"));
     await waitFor(async () => !container.querySelector(".attendance-calendar-dialog") && await db.collection("staff_attendance").countDocuments({ date: "2026-01-05" }) === 0 && container.querySelector('button[aria-label="Calendar Alice, 2026-01-05: Not marked"]'), "attendance permanently deleted and cell unmarked");
+    await click("Weekly", container.querySelector(".attendance-view-switch"));
+    await waitFor(() => container.querySelectorAll(".attendance-matrix thead th").length === 8 && container.querySelector(".attendance-period-delete").textContent.includes("2025-12-29 to 2026-01-04"), "weekly deletion shows exact boundaries");
+    testWindow.confirm = () => false;
+    await click("Delete this week", container.querySelector(".attendance-period-delete"));
+    assert.equal(await db.collection("staff_attendance").countDocuments(), 4, "cancelling weekly deletion preserves all records");
+    testWindow.confirm = () => true;
+    await click("Delete this week", container.querySelector(".attendance-period-delete"));
+    await waitFor(async () => await db.collection("staff_attendance").countDocuments() === 3 && container.querySelector('button[aria-label="Calendar Alice, 2026-01-04: Not marked, Sunday"]'), "weekly deletion updates MongoDB and calendar cells");
+    await click("Monthly", container.querySelector(".attendance-view-switch"));
+    await waitFor(() => container.querySelectorAll(".attendance-matrix thead th").length === 32, "month before deleting remaining attendance");
+    await click("Delete this month", container.querySelector(".attendance-period-delete"));
+    await waitFor(async () => await db.collection("staff_attendance").countDocuments() === 0 && container.querySelectorAll(".attendance-cell.attendance-color-missing").length === 62 && container.querySelector(".attendance-calendar .admin-success")?.textContent.includes("3 attendance records"), "monthly deletion updates database, success message and every cell");
     await click("Add hotel", container.querySelector(".panel-navigation")); await waitFor(() => container.querySelector(".admin-tool-form"), "persistent operations navigation");
     assert.equal(container.querySelector("#test-panel-route").textContent, "/technical/hotels");
     testWindow.dispatchEvent(new testWindow.Event("pagehide")); await act(async () => assert.equal((await globalThis.fetch("/api/technical/me")).status, 200, "refresh/navigation does not destroy the shared session"));

@@ -2,6 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import { ObjectId } from "mongodb";
 import { randomBytes } from "node:crypto";
+import { EventEmitter } from "node:events";
 import { staffGuard } from "./permissions.js";
 import { reportRange, summary, validDate, validateAttendance, validateStaff } from "./validation.js";
 import { attendanceExcel, attendancePdf, cardPdf } from "./exports.js";
@@ -26,8 +27,13 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
   const router = Router();
   const guard = (permission = "view") => staffGuard(requireAdmin, config, permission);
   const staff = db.collection("staff"), attendance = db.collection("staff_attendance");
-  const changed = () => db.collection("staff_runtime").updateOne({ _id: "revision" }, { $inc: { value: 1 }, $set: { updatedAt: new Date() } }, { upsert: true });
-  registerStaffCalendar({ router, db, guard, searchFilter, config });
+  const events = new EventEmitter(); events.setMaxListeners(0);
+  const changed = async () => {
+    const revision = await db.collection("staff_runtime").findOneAndUpdate({ _id: "revision" }, { $inc: { value: 1 }, $set: { updatedAt: new Date() } }, { upsert: true, returnDocument: "after" });
+    events.emit("change", revision.value);
+    return revision.value;
+  };
+  registerStaffCalendar({ router, db, guard, searchFilter, config, events });
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 9, fieldSize: 1000 } }).single("photo");
   const photoUpload = (req, res, next) => {
     if (!req.is("multipart/form-data")) return next();
@@ -143,6 +149,7 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     for (const entry of entries) {
       const staffId = id(entry?.staffId);
       if (!staffId || !["present", "absent", "leave", "half_day", "weekly_off"].includes(entry?.status) || unique.has(staffId.toString())) return res.status(400).json({ message: "Choose an attendance status once for each staff member." });
+      if (entry.version !== undefined && (!Number.isInteger(entry.version) || entry.version < 0)) return res.status(400).json({ message: "Use the current saved attendance version." });
       unique.set(staffId.toString(), { staffId, status: entry.status, version: entry.version });
     }
     const active = await staff.find({ _id: { $in: [...unique.values()].map((entry) => entry.staffId) }, status: "active", deletedAt: null }, { projection: { _id: 1 } }).toArray();
@@ -151,6 +158,7 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     const saved = new Map(existing.map((record) => [record.staffId.toString(), record]));
     for (const entry of unique.values()) {
       const previous = saved.get(entry.staffId.toString());
+      if (!previous && (entry.version || 0) !== 0) return res.status(409).json({ message: "Attendance was deleted in another session. Refresh before submitting." });
       if (previous && entry.status !== previous.status && entry.version !== previous.version) return res.status(409).json({ message: "Attendance changed in another session. Refresh before submitting." });
     }
     const now = new Date(), operations = []; let updates = 0;
@@ -170,7 +178,8 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
       await changed();
       if (result.matchedCount !== updates) return res.status(409).json({ message: "Some records changed while saving. Refresh the list before retrying." });
     }
-    res.json({ message: "Attendance saved.", date, count: unique.size });
+    const records = await attendance.find({ staffId: { $in: active.map((person) => person._id) }, date }, { projection: { createdBy: 0, updatedBy: 0 } }).toArray();
+    res.json({ message: "Attendance submitted successfully.", date, count: unique.size, attendance: records });
   });
   router.post("/staff-attendance", ...guard("attendance"), async (req, res) => {
     const { fields, errors } = validateAttendance(req.body);
@@ -195,6 +204,19 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     res.json({ attendance: record });
   });
 
+  router.delete("/staff-attendance/range", ...guard("delete"), async (req, res) => {
+    const body = req.body;
+    if (!validDate(body?.from) || !validDate(body?.to)) return res.status(400).json({ message: "Choose the start and end dates to delete attendance." });
+    const range = reportRange({ from: body.from, to: body.to });
+    if (!range || !["all", "filtered", "staff"].includes(body.scope)) return res.status(400).json({ message: "Choose a valid attendance period of up to 366 days and a staff scope." });
+    if ((body.search !== undefined && (typeof body.search !== "string" || body.search.length > 100)) || (body.department !== undefined && (typeof body.department !== "string" || body.department.length > 80)) || (body.activeOnly !== undefined && typeof body.activeOnly !== "boolean")) return res.status(400).json({ message: "Choose valid staff filters." });
+    if (body.scope === "staff" && !id(body.staffId) || body.scope !== "staff" && body.staffId !== undefined || body.scope === "filtered" && !body.search?.trim() && !body.department?.trim() || body.scope === "all" && (body.search?.trim() || body.department?.trim())) return res.status(400).json({ message: "The selected staff scope does not match the filters. Refresh and try again." });
+    const filter = { deletedAt: null, ...(body.scope === "staff" ? { _id: id(body.staffId) } : {}), ...(body.activeOnly ? { status: "active" } : {}), ...searchFilter(body.search), ...(body.department ? { department: body.department } : {}) };
+    const people = await staff.find(filter, { projection: { _id: 1 } }).toArray();
+    const result = await attendance.deleteMany({ staffId: { $in: people.map((person) => person._id) }, date: { $gte: range.from, $lte: range.to } });
+    const revision = result.deletedCount ? await changed() : (await db.collection("staff_runtime").findOne({ _id: "revision" }))?.value || 0;
+    res.json({ message: `${result.deletedCount} attendance records permanently deleted.`, deletedCount: result.deletedCount, ...range, revision });
+  });
   router.delete("/staff-attendance/:id", ...guard("attendance"), async (req, res) => {
     if (!id(req.params.id) || !Number.isInteger(req.body?.version)) return res.status(400).json({ message: "Choose an attendance record and its current version." });
     const result = await attendance.deleteOne({ _id: id(req.params.id), version: req.body.version });

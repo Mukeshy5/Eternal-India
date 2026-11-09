@@ -43,6 +43,8 @@ Both panels support email password recovery. Configure `SMTP_HOST`, `SMTP_PORT`,
 
 Deleting staff permanently removes their profile, photo and attendance records. Individual attendance records can be deleted from the calendar details. Deleting an offer removes its `tour_promotions` document and any image no other offer uses. Removing or replacing an offer image also deletes the unused image. `offer_images` contains uploaded image bytes, content type, upload time and uploader identity; it does not contain login passwords.
 
+**Submit attendance** disables after a successful save and displays a success message next to the button. Changing a saved status enables submission again. The saved state survives refresh and is separate for each date and page. Attendance calendars and reports have **Delete this week/month** actions for their selected dates and staff filters, including matching records on other pages. These actions require delete permission, remove MongoDB records permanently and immediately notify connected panels; date boundaries and staff scope are shown before confirmation.
+
 Deleting a festival also deletes its schedules, related activity and unused banner. **Activity History** in Festival Management allows authorised settings managers to delete individual records or clear history. Activity uses compact summaries and expires after 30 days. Unattached image uploads expire after 24 hours; saved images have no upload expiry.
 
 Startup cleanup removes records already marked deleted, orphan attendance, activity for deleted festivals, unused images older than 24 hours, and expired reset tokens. It preserves active/inactive staff, saved vouchers and referenced images. To inspect or run the same cleanup manually:

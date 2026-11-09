@@ -15,7 +15,7 @@ export function StaffStats({ stats }) {
 export function ReportFilters({ filters, onChange, individual }) {
   const change = (key, value) => onChange({ ...filters, [key]: value });
   return <div className="staff-filters">{!individual && <Field label="Report period"><select value={filters.period} onChange={(event) => change("period", event.target.value)}><option value="daily">Daily</option><option value="weekly">Weekly (Monday–Sunday)</option><option value="monthly">Monthly</option><option value="custom">Date range</option></select></Field>}
-    {individual && <Field label="Filter by"><select value={filters.period} onChange={(event) => change("period", event.target.value)}><option value="monthly">Month</option><option value="custom">Date range</option></select></Field>}
+    {individual && <Field label="Filter by"><select value={filters.period} onChange={(event) => change("period", event.target.value)}><option value="monthly">Month</option><option value="weekly">Week (Monday-Sunday)</option><option value="custom">Date range</option></select></Field>}
     {filters.period === "monthly" ? <Field label="Month"><input type="month" required value={filters.month} onChange={(event) => change("month", event.target.value)} /></Field> : filters.period === "custom" ? <><Field label="From date"><input type="date" required value={filters.from} onChange={(event) => change("from", event.target.value)} /></Field><Field label="To date"><input type="date" required value={filters.to} onChange={(event) => change("to", event.target.value)} /></Field></> : <Field label={filters.period === "weekly" ? "Date within week" : "Date"}><input type="date" required value={filters.date} onChange={(event) => change("date", event.target.value)} /></Field>}
   </div>;
 }
@@ -58,9 +58,9 @@ function TeamAttendanceCalendar({ calendar, month }) {
     </div></div>
   </section>;
 }
-export function AttendanceReport({ data, individual, canExport, onExport, busy, onProfile, onEdit, canEdit, onPage }) {
+export function AttendanceReport({ data, individual, canExport, onExport, busy, onProfile, onEdit, canEdit, onPage, periodDelete }) {
   return <><StaffStats stats={data.summary} /><section className="admin-tool-card"><div className="staff-section-heading"><div><h2>{individual ? "Attendance history" : "Attendance report"}</h2><p className="staff-note">{data.from} to {data.to} · {data.total} marked records</p></div>{canExport && <div className="staff-actions"><button className="dashboard-button" disabled={busy} onClick={() => onExport("pdf")}>Export PDF</button><button className="dashboard-button" disabled={busy} onClick={() => onExport("xlsx")}>Export Excel</button></div>}</div>
-    <p className="staff-note">{attendancePolicy}</p><div className="admin-tool-table-wrap"><table className="admin-tool-table staff-history">
+    {periodDelete}<p className="staff-note">{attendancePolicy}</p><div className="admin-tool-table-wrap"><table className="admin-tool-table staff-history">
       <thead><tr>{!individual && <th>Staff</th>}<th>Date</th><th>Status</th><th>Check-in</th><th>Check-out</th><th>Working hours</th>{canEdit && <th>Action</th>}</tr></thead>
       <tbody>{data.records.map((row) => <tr key={row._id}>{!individual && <td><button onClick={() => onProfile(row.staffId)}>{row.name}</button><small>{row.employeeId}</small></td>}<td>{row.date}</td><td><span className={`staff-badge staff-badge-${row.status}`}>{statusLabel(row.status)}</span></td><td>{row.checkIn || "—"}</td><td>{row.checkOut || "—"}</td><td>{((row.workingMinutes || 0) / 60).toFixed(2)}</td>{canEdit && <td><button disabled={busy} onClick={() => onEdit(row)}>Edit attendance</button></td>}</tr>)}</tbody>
     </table></div>{!data.records.length && <p className="admin-tool-empty">No attendance has been marked for this period.</p>}<Pager data={data} onPage={onPage} busy={busy} />

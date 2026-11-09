@@ -84,7 +84,36 @@ test("calendar, weekly offs, live events, permissions and 500+ staff against Mon
         let changed = false;
         while (!changed) { text += decoder.decode((await reader.read()).value); changed = [...text.matchAll(/data: (\{[^\n]+\})/g)].some((match) => JSON.parse(match[1]).revision > before); }
         assert.equal(changed, true);
+        const afterMark = Math.max(...[...text.matchAll(/data: (\{[^\n]+\})/g)].map((match) => JSON.parse(match[1]).revision));
+        const deletion = await request("/admin/staff-attendance/range", { method: "DELETE", body: { from: "2026-01-08", to: "2026-01-08", scope: "staff", staffId: people[0]._id.toString() } });
+        const deleted = await deletion.json(); assert.equal(deletion.status, 200); assert.equal(deleted.deletedCount, 1);
+        let deletionPushed = false;
+        while (!deletionPushed) { text += decoder.decode((await reader.read()).value); deletionPushed = [...text.matchAll(/data: (\{[^\n]+\})/g)].some((match) => JSON.parse(match[1]).revision > afterMark); }
+        assert.equal(deletionPushed, true); assert.ok(deleted.revision > afterMark);
+        assert.equal(await db.collection("staff_attendance").countDocuments({ staffId: people[0]._id, date: "2026-01-08" }), 0);
       } finally { clearTimeout(timeout); controller.abort(); await reader?.cancel().catch(() => {}); }
+    });
+    await t.test("weekly and monthly deletion respect staff, filters, date boundaries and every page", async () => {
+      const dates = ["2026-03-01", "2026-03-02", "2026-03-08", "2026-03-09", "2026-04-01"];
+      const record = (staffId, date) => ({ staffId, date, status: "absent", checkIn: "", checkOut: "", workingMinutes: 0, version: 1, createdAt: now, updatedAt: now });
+      await db.collection("staff_attendance").insertMany([...dates.map((date) => record(people[0]._id, date)), record(people[1]._id, "2026-03-02"), record(people[2]._id, "2026-03-02")]);
+      const week = { from: "2026-03-02", to: "2026-03-08", scope: "staff", staffId: people[0]._id.toString() };
+      assert.equal((await request("/admin/staff-attendance/range", { method: "DELETE", body: week, sessionCookie: "" })).status, 401);
+      assert.equal((await request("/technical/staff-attendance/range", { method: "DELETE", body: week, sessionCookie: viewerCookie })).status, 403);
+      for (const body of [{}, { ...week, from: "bad" }, { ...week, to: "2026-03-01" }, { ...week, to: "2028-01-01" }, { ...week, staffId: { $ne: null } }, { ...week, search: { $ne: null } }, { from: week.from, to: week.to, scope: "filtered" }, { from: week.from, to: week.to, scope: "all", search: "Calendar" }]) assert.equal((await request("/admin/staff-attendance/range", { method: "DELETE", body })).status, 400);
+      const deletion = await request("/technical/staff-attendance/range", { method: "DELETE", body: week }); assert.equal(deletion.status, 200); assert.equal((await deletion.json()).deletedCount, 2);
+      assert.equal(await db.collection("staff_attendance").countDocuments({ staffId: people[0]._id, date: { $in: ["2026-03-01", "2026-03-09", "2026-04-01"] } }), 3);
+      assert.equal(await db.collection("staff_attendance").countDocuments({ staffId: people[1]._id, date: "2026-03-02" }), 1);
+      assert.equal((await request("/admin/staff-attendance/bulk", { method: "POST", body: { date: "2026-03-02", attendance: [{ staffId: people[0]._id.toString(), status: "present", version: 1 }] } })).status, 409, "a stale panel cannot recreate deleted attendance");
+      const fresh = await request("/admin/staff-attendance/bulk", { method: "POST", body: { date: "2026-03-02", attendance: [{ staffId: people[0]._id.toString(), status: "present", version: 0 }] } });
+      assert.equal(fresh.status, 200); assert.equal((await fresh.json()).attendance[0].status, "present");
+      const month = await request("/admin/staff-attendance/range", { method: "DELETE", body: { from: "2026-03-01", to: "2026-03-31", scope: "filtered", department: "Operations", activeOnly: true } });
+      assert.equal(month.status, 200); assert.equal((await month.json()).deletedCount, 4);
+      const report = await (await request("/technical/staff-reports?month=2026-03")).json(); assert.equal(report.total, 1); assert.equal(report.records[0].staffId, people[1]._id.toString());
+      const entireMonth = await request("/technical/staff-attendance/range", { method: "DELETE", body: { from: "2026-02-01", to: "2026-02-28", scope: "all" } });
+      assert.equal(entireMonth.status, 200); assert.equal((await entireMonth.json()).deletedCount, 500, "bulk deletion includes records beyond the first page");
+      assert.equal(await db.collection("staff_attendance").countDocuments({ date: "2026-04-01" }), 1, "other months are preserved");
+      const calendar = await (await request("/admin/staff-calendar?month=2026-02")).json(); assert.equal(calendar.summary.totalRecordedDays, 0);
     });
   } finally { await backend.decorationScheduler.stop(); await new Promise((resolve) => server.close(resolve)); await db.dropDatabase(); await client.close(); }
 });

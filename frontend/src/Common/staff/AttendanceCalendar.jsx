@@ -4,17 +4,19 @@ import { attendanceStatuses, indiaDate } from "../../../../shared/staff.js";
 import { AttendanceEditor, StaffPhoto } from "./StaffForms";
 import { Pager } from "./StaffReports";
 import { usePanelNavigationGuard } from "../panel/PanelNavigationContext";
+import AttendancePeriodDelete from "./AttendancePeriodDelete";
 import "./calendar.css";
 
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const symbols = { present: "P", absent: "A", leave: "L", half_day: "½", weekly_off: "WO" };
 const periodLabel = (date, view) => new Intl.DateTimeFormat("en-IN", { timeZone: "UTC", ...(view === "monthly" ? { month: "long", year: "numeric" } : { day: "numeric", month: "short", year: "numeric" }) }).format(new Date(`${date}T00:00:00Z`));
 
-export default function AttendanceCalendar({ apiBase, canEdit, onProfile, onUnauthorized, refreshToken, onChanged, live }) {
+export default function AttendanceCalendar({ apiBase, canEdit, canDelete, onProfile, onUnauthorized, refreshToken, onChanged, live }) {
   const [anchor, setAnchor] = useState(indiaDate()), [view, setView] = useState("monthly"), [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState(""), [search, setSearch] = useState(""), [department, setDepartment] = useState("");
   const [response, setResponse] = useState(null), [error, setError] = useState(""), [selected, setSelected] = useState(null);
   const [busy, setBusy] = useState(false), [errors, setErrors] = useState({});
+  const [notice, setNotice] = useState(null);
   const dialog = useRef(null), trigger = useRef(null), lock = useRef(false), action = useRef(null), alive = useRef(true);
   usePanelNavigationGuard(false, busy);
   const query = new URLSearchParams({ month: anchor.slice(0, 7), date: anchor, view, search, department, page: String(page) });
@@ -83,13 +85,25 @@ export default function AttendanceCalendar({ apiBase, canEdit, onProfile, onUnau
     catch (failure) { if (alive.current && !controller.signal.aborted) { setError(failure.message); if (failure.status === 401) onUnauthorized(); } }
     finally { lock.current = false; if (alive.current) setBusy(false); }
   }
+  async function removePeriod() {
+    if (lock.current || !data) return;
+    lock.current = true; setBusy(true); setError(""); setNotice(null);
+    const controller = new AbortController(); action.current = controller;
+    try {
+      const result = await api(`${apiBase}/staff-attendance/range`, { method: "DELETE", body: JSON.stringify({ from: data.from, to: data.to, activeOnly: true, scope: search || department ? "filtered" : "all", search, department }), signal: controller.signal });
+      if (alive.current) { setSelected(null); setNotice({ key, message: result.message }); onChanged(); }
+    } catch (failure) { if (alive.current && !controller.signal.aborted) { setError(failure.message); if (failure.status === 401) onUnauthorized(); } }
+    finally { lock.current = false; if (alive.current) setBusy(false); }
+  }
   return <section className="attendance-calendar staff-attendance-calendar-top" aria-label="Advanced attendance calendar">
     <header className="attendance-calendar-heading"><div><span className="dashboard-section-label">TEAM ATTENDANCE</span><h2>Attendance calendar</h2><p>Every employee. Every day. Attendance from saved staff records.</p></div><span className={`attendance-live ${live ? "is-connected" : ""}`}><i />{live ? "Live updates" : "Auto refresh"}</span></header>
     <div className="attendance-calendar-toolbar"><div className="attendance-period"><button type="button" className="dashboard-button" aria-label={view === "monthly" ? "Previous Month" : "Previous period"} onClick={() => move(-1)}>‹</button><strong>{periodLabel(anchor, view)}</strong><button type="button" className="dashboard-button" aria-label={view === "monthly" ? "Next Month" : "Next period"} onClick={() => move(1)}>›</button><button type="button" className="dashboard-button" onClick={() => { setAnchor(indiaDate()); setPage(1); }}>Today</button></div><div className="attendance-view-switch" aria-label="Calendar view">{["daily", "weekly", "monthly"].map((value) => <button type="button" key={value} aria-pressed={view === value} onClick={() => { setView(value); setPage(1); }}>{value[0].toUpperCase() + value.slice(1)}</button>)}</div></div>
     <div className="attendance-calendar-filters"><label>Search staff<input type="search" placeholder="Name or employee ID" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} /></label><label>Department<select value={department} onChange={(event) => { setDepartment(event.target.value); setPage(1); }}><option value="">All departments</option>{(data?.departments || (department ? [department] : [])).map((value) => <option key={value}>{value}</option>)}</select></label><label>{view === "monthly" ? "Selected month" : "Selected date"}<input type={view === "monthly" ? "month" : "date"} min={view === "monthly" ? "2000-01" : "2000-01-01"} max={view === "monthly" ? "2100-12" : "2100-12-31"} value={view === "monthly" ? anchor.slice(0, 7) : anchor} onChange={(event) => { if (event.target.value) { setAnchor(view === "monthly" ? `${event.target.value}-01` : event.target.value); setPage(1); } }} /></label></div>
     {error && !selected && <p className="admin-error" role="alert">{error}</p>}
+    {notice?.key === key && <p className="admin-success" role="status">{notice.message}</p>}
     <div className="attendance-legend">{[["present", "Present"], ["absent", "Absent"], ["leave", "Leave"], ["half_day", "Half Day"], ["weekly_off", "Sunday / Weekly Off"], ["missing", "Not marked"]].map(([key, label]) => <span key={key}><i className={`attendance-color-${key}`}>{key === "missing" ? "×" : ""}</i>{label}</span>)}</div>
     {loading ? <p className="attendance-calendar-empty" role="status">Loading attendance calendar…</p> : !data ? <p className="attendance-calendar-empty">Calendar unavailable. Use Refresh to retry.</p> : <>
+      {canDelete && <AttendancePeriodDelete from={data.from} to={data.to} period={view} scope={`all active staff${department ? ` in ${department}` : ""}${search ? ` matching "${search}"` : ""}`} disabled={busy || !data.total} onDelete={removePeriod} />}
       <div className="attendance-calendar-grid" tabIndex="0" aria-label="Scrollable employee attendance dates"><table style={{ "--calendar-days": data.dates.length }} className={`attendance-matrix attendance-matrix-${view}`}><caption className="admin-sr-only">Active staff attendance, {data.from} to {data.to}. Cross means attendance has not been marked.</caption><colgroup><col className="attendance-person-column" />{data.dates.map((day) => <col key={day.date} />)}</colgroup><thead><tr><th scope="col" className="attendance-person-cell">Employee <small>{data.total} active staff</small></th>{data.dates.map((day) => <th scope="col" key={day.date} className={`${day.isSunday || day.isWeeklyOff ? "attendance-day-off" : ""} ${day.date === data.today ? "attendance-day-today" : ""}`}><span>{dayNames[day.weekday]}</span><strong>{Number(day.date.slice(8))}</strong>{view !== "monthly" && <small>{day.date.slice(5, 7)}</small>}</th>)}</tr></thead><tbody>{data.staff.map((person) => <tr key={person._id}><th scope="row" className="attendance-person-cell"><button type="button" className="attendance-person" onClick={() => onProfile(person._id, anchor.slice(0, 7))}><StaffPhoto staff={person} apiBase={apiBase} /><span><strong>{person.name}</strong><small>{person.employeeId}</small><em>{person.department}</em></span></button></th>{data.dates.map((day) => { const record = person.attendance[day.date], status = record?.status || "missing"; return <td key={day.date} className={`${day.isSunday || day.isWeeklyOff ? "attendance-day-off" : ""} ${day.date === data.today ? "attendance-day-today" : ""}`}><button type="button" className={`attendance-cell attendance-color-${status} ${day.date > data.today ? "attendance-cell-future" : ""}`} aria-label={`${person.name}, ${day.date}: ${attendanceStatuses[status] || "Not marked"}${day.isSunday ? ", Sunday" : ""}`} title={`${attendanceStatuses[status] || "Attendance not marked"} · ${day.date}${record?.checkIn ? ` · ${record.checkIn}–${record.checkOut || "open"}` : ""}`} onClick={(event) => open(person, day.date, event.currentTarget)}>{symbols[status] || "×"}{view === "daily" && <span>{attendanceStatuses[status] || "Not marked"}</span>}</button></td>; })}</tr>)}</tbody></table>{!data.staff.length && <p className="attendance-calendar-empty">No active staff match these filters.</p>}</div>
       <footer className="attendance-calendar-bottom"><span>{data.from} to {data.to} · {data.sundayCount} Sundays · {data.staff.length} staff on this page</span><Pager data={data} onPage={setPage} busy={busy} /></footer><p className="attendance-calendar-note">Sunday/weekly holiday shading does not mark attendance automatically. A cross means no saved record. Future dates are view-only.</p>
       {canEdit && <details className="attendance-holiday-settings"><summary>Weekly holiday settings</summary><div>{dayNames.map((label, day) => <label key={day}><input type="checkbox" checked={data.weeklyHolidays.includes(day)} disabled={busy} onChange={(event) => setHoliday(day, event.target.checked)} />{label}</label>)}</div></details>}

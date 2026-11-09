@@ -175,3 +175,6 @@
   .staff-attendance-table td:first-child, .staff-attendance-table td:last-child { grid-column: 1 / -1; }
   .staff-attendance-table :is(input,select) { min-width: 0; }
 }
+.attendance-period-delete { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin:20px 0; padding:18px; border:1px solid #ead6dc; border-radius:8px; background:#fff9fa; }
+.attendance-period-delete strong { font-size:13px; color:#633249; }
+.attendance-period-delete p { margin-top:6px; color:#7e6570; font-size:11px; line-height:1.7; }
