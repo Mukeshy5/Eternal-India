@@ -6,6 +6,7 @@ import { readConfig } from "../config/env.js";
 import { connectDatabase } from "../config/database.js";
 import { ensureAdmin } from "../lib/passwords.js";
 import { createApp } from "../app.js";
+import { cookieHeader } from "../lib/cookies.js";
 import { animationDefaults, decorationEffects, globalDecorationDefaults } from "../../shared/decorationCatalog.js";
 import { validateSchedule, zonedDate } from "../festivals/validation.js";
 import { currentOccurrence, nextOccurrence, schedulesConflict } from "../festivals/scheduling.js";
@@ -45,7 +46,7 @@ test("real festival API, authorization, scheduling, publication, streams and per
   let cookie, ordinaryCookie, editorCookie;
   let festival, schedule;
   const request = (path, { method = "GET", body, sessionCookie = cookie } = {}) => fetch(`${base}/api${path}`, { method, headers: { Origin: "http://localhost:5173", "Content-Type": "application/json", ...(sessionCookie ? { Cookie: sessionCookie } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
-  const login = async (email, panel = "admin") => { const reply = await request(`/${panel}/login`, { method: "POST", body: { email, password: config.adminPassword }, sessionCookie: "" }); assert.equal(reply.status, 200); return reply.headers.get("set-cookie").split(";")[0]; };
+  const login = async (email, panel = "admin") => { const reply = await request(`/${panel}/login`, { method: "POST", body: { email, password: config.adminPassword }, sessionCookie: "" }); assert.equal(reply.status, 200); return cookieHeader(reply); };
   const festivalBody = { ...animationDefaults, name: "Christmas test", category: "International Celebrations", description: "An integration-test celebration", selectedEffects: ["christmas", "sparkles"], enabled: true, priority: 20, bannerImage: "", greetingMessage: "Season’s greetings" };
   const scheduleBody = () => ({ festivalId: festival._id, startDate: "2026-12-25", endDate: "2026-12-26", startTime: "00:00", endTime: "00:00", timezone: "Asia/Kolkata", recurringYearly: false, enabled: true, priority: 10 });
   const active = async () => (await (await request("/public/festival-decorations/active", { sessionCookie: "" })).json()).decorations;

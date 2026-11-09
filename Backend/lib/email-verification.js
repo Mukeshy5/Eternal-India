@@ -56,7 +56,13 @@ export function createEmailVerification({ db, config, mailer }) {
     } catch (error) {
       await records.deleteOne({ _id: ctx.contextId, challengeId }); await release(slots, reservation);
       if (error.status) throw error;
-      console.error("Gmail OTP delivery failed:", error.code || error.name);
+      // Pass through specific SMTP errors (auth, connection, rejection) with actionable messages.
+      const smtpCodes = ["SMTP_AUTH_FAILED", "SMTP_CONNECTION_FAILED", "SMTP_REJECTED", "EMAIL_NOT_CONFIGURED", "SMTP_ERROR"];
+      if (smtpCodes.includes(error.code)) {
+        console.error(`Gmail SMTP delivery failed: ${error.code}`);
+        throw failure(503, error.message, { code: error.code });
+      }
+      console.error(`Gmail OTP delivery failed: ${error.code || error.name}`);
       throw failure(503, "The verification email could not be sent. Please try again later.", { code: "EMAIL_DELIVERY_FAILED" });
     }
     res.json({ message: "OTP sent to your Gmail. Check your inbox and spam folder.", challengeId, expiresAt, resendAvailableAt: record.resendAvailableAt, serverTime: new Date(), expiresIn: Math.max(0, Math.floor((expiresAt - new Date()) / 1000)), retryAfter: Math.max(0, Math.ceil((record.resendAvailableAt - new Date()) / 1000)) });

@@ -8,6 +8,7 @@ import { readConfig } from "../../Backend/config/env.js";
 import { connectDatabase } from "../../Backend/config/database.js";
 import { ensureAdmin } from "../../Backend/lib/passwords.js";
 import { createApp } from "../../Backend/app.js";
+import { cookieHeader } from "./cookie-header.mjs";
 
 export async function verifyOtpGates(vite) {
   const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "otp-ui-owner@eternal-india.local", technicalEmail: "", adminPassword: "OtpUiOwnerPassword9", smtp: {} };
@@ -22,7 +23,7 @@ export async function verifyOtpGates(vite) {
   globalThis.fetch = async (url, options = {}) => {
     if (typeof url !== "string" || !url.startsWith("/api/")) return originalFetch(url, options);
     const response = await originalFetch(base + url, { ...options, headers: { ...options.headers, Origin: config.origins[0], ...(cookie ? { Cookie: cookie } : {}) } });
-    if (response.headers.get("set-cookie")) cookie = response.headers.get("set-cookie").split(";")[0]; return response;
+    if (response.headers.get("set-cookie")) cookie = cookieHeader(response, cookie); return response;
   };
   browser.confirm = () => true;
   const { createRoot } = await import("react-dom/client"), container = browser.document.createElement("div"); browser.document.body.append(container); const root = createRoot(container);

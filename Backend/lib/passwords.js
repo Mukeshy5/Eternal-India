@@ -38,7 +38,7 @@ export async function ensureAdmin(db, config, reset = false) {
   if (existing) {
     await db.collection("admins").updateOne({ _id: existing._id }, { $set: { passwordHash, passwordChangedAt: new Date() } });
     // Removing every session invalidates any session created with the old password.
-    await db.collection("admin_sessions").deleteMany({});
+    await Promise.all([db.collection("admin_sessions").deleteMany({}), db.collection("admin_tokens").deleteMany({})]);
     return { ...existing, passwordHash };
   }
   const admin = { email: config.adminEmail, passwordHash, createdAt: new Date() };

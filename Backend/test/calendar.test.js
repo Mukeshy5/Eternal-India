@@ -9,6 +9,7 @@ import { connectDatabase } from "../config/database.js";
 import { ensureAdmin } from "../lib/passwords.js";
 import { createApp } from "../app.js";
 import { calendarRange } from "../staff/calendar.js";
+import { cookieHeader } from "../lib/cookies.js";
 
 test("calendar date ranges include leap years and week boundaries", () => {
   assert.equal(calendarRange({ view: "monthly", month: "2024-02", date: "2024-02-20" }).dates.length, 29);
@@ -29,7 +30,7 @@ test("calendar, weekly offs, live events, permissions and 500+ staff against Mon
   const server = backend.app.listen(0, "127.0.0.1"); await once(server, "listening"); const base = `http://127.0.0.1:${server.address().port}/api`;
   let cookie = "", viewerCookie = "";
   const request = (path, { method = "GET", body, sessionCookie = cookie, signal } = {}) => fetch(base + path, { method, signal, headers: { "Content-Type": "application/json", Origin: "http://localhost:5173", ...(sessionCookie ? { Cookie: sessionCookie } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
-  const login = async (email, panel = "admin") => { const result = await request(`/${panel}/login`, { method: "POST", body: { email, password: config.adminPassword }, sessionCookie: "" }); assert.equal(result.status, 200); return result.headers.get("set-cookie").split(";")[0]; };
+  const login = async (email, panel = "admin") => { const result = await request(`/${panel}/login`, { method: "POST", body: { email, password: config.adminPassword }, sessionCookie: "" }); assert.equal(result.status, 200); return cookieHeader(result); };
   const mark = (date, status, times = {}) => request("/admin/staff-attendance", { method: "POST", body: { staffId: people[0]._id.toString(), date, status, ...times } });
   try {
     await t.test("protects calendars, writes and management roles", async () => {

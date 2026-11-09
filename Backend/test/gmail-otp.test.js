@@ -7,6 +7,7 @@ import { connectDatabase } from "../config/database.js";
 import { ensureAdmin } from "../lib/passwords.js";
 import { gmailIdentity } from "../lib/email-identity.js";
 import { createApp } from "../app.js";
+import { cookieHeader } from "../lib/cookies.js";
 
 test("Gmail identity prevents case, dot, tag and googlemail duplicate aliases", () => {
   for (const email of ["First.Last@gmail.com", "firstlast+travel@gmail.com", "first.last@googlemail.com"]) assert.equal(gmailIdentity(email).gmailKey, "firstlast@gmail.com");
@@ -37,7 +38,7 @@ test("real MongoDB/API OTP gates reject bypasses and preserve existing account m
     });
     await t.test("duplicate Gmail aliases and unsafe account edits are rejected", async () => {
       assert.equal((await request("/auth/register", { email: "existingaccount+new@googlemail.com", password: "RegistrationPassword9" })).status, 409);
-      const login = await request("/admin/login", { email: config.adminEmail, password: config.adminPassword }); assert.equal(login.status, 200); cookie = login.headers.get("set-cookie").split(";")[0];
+      const login = await request("/admin/login", { email: config.adminEmail, password: config.adminPassword }); assert.equal(login.status, 200); cookie = cookieHeader(login);
       assert.equal((await request("/admin/accounts", { email: "managed.registration@gmail.com", password: "RegistrationPassword9", role: "technical" }, "POST", true)).status, 403);
       assert.equal((await request(`/admin/accounts/${existing._id}`, { email: "changed.account@gmail.com", role: "technical", version: 0 }, "PATCH", true)).status, 403);
       assert.equal((await db.collection("admins").findOne({ _id: existing._id })).email, existing.email);

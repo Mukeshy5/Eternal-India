@@ -84,6 +84,7 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
       if (!account) { if (proof) await verification.release(proof); return res.status(409).json({ message: "This account changed while saving. Refresh and try again." }); }
       if (proof) await verification.complete(proof);
       await db.collection("admin_sessions").deleteMany(sessionFilter(current._id));
+      await db.collection("admin_tokens").deleteMany({ adminId: current._id });
       res.json({ account: safeAccount(account, req.admin, config), message: "Account updated. The account holder must sign in again." });
     } catch (error) { if (proof) await verification.release(proof); if (error.code === 11000) return res.status(409).json({ message: "This Gmail belongs to another account." }); throw error; }
   });
@@ -102,7 +103,7 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
     if (account._id.equals(req.admin._id) || account.email === config.adminEmail || account.email === config.technicalEmail) return res.status(409).json({ message: "The signed-in account and configured owner accounts cannot be deleted here." });
     await accounts.deleteOne({ _id: account._id });
     await db.collection("email_verifications").deleteMany({ $or: [{ accountId: account._id.toString() }, ...(account.gmailKey ? [{ gmailKey: account.gmailKey }] : [{ email: account.email }])] });
-    await db.collection("admin_sessions").deleteMany(sessionFilter(account._id));
+    await Promise.all([db.collection("admin_sessions").deleteMany(sessionFilter(account._id)), db.collection("admin_tokens").deleteMany({ adminId: account._id })]);
     res.sendStatus(204);
   });
   management.post("/forgot-password", limit, async (req, res) => {
@@ -132,7 +133,7 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
     const now = new Date();
     const result = await accounts.findOneAndUpdate({ "passwordReset.hash": digest(token), "passwordReset.expiresAt": { $gt: now }, status: { $nin: ["pending", "disabled"] } }, { $set: { passwordHash: await hashPassword(password), passwordChangedAt: now }, $unset: { passwordReset: "" } }, { returnDocument: "after", projection: { _id: 1 } });
     if (!result) return res.status(400).json({ message: "This reset link has expired or was already used. Request a new link." });
-    await db.collection("admin_sessions").deleteMany(sessionFilter(result._id));
+    await Promise.all([db.collection("admin_sessions").deleteMany(sessionFilter(result._id)), db.collection("admin_tokens").deleteMany({ adminId: result._id })]);
     res.json({ message: "Password updated. Sign in with your new password." });
   });
 }

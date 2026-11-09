@@ -9,6 +9,7 @@ import { readConfig } from "../../Backend/config/env.js";
 import { connectDatabase } from "../../Backend/config/database.js";
 import { ensureAdmin } from "../../Backend/lib/passwords.js";
 import { createApp } from "../../Backend/app.js";
+import { cookieHeader } from "./cookie-header.mjs";
 import { animationDefaults, decorationEffects, globalDecorationDefaults } from "../../shared/decorationCatalog.js";
 
 export async function verifyFestivals(vite) {
@@ -30,7 +31,7 @@ export async function verifyFestivals(vite) {
   globalThis.fetch = async (url, options = {}) => {
     if (typeof url !== "string" || !url.startsWith("/api/")) return originalFetch(url, options);
     const reply = await originalFetch(base + url, { ...options, headers: { ...options.headers, Origin: "http://localhost:5173", ...(cookie ? { Cookie: cookie } : {}) } });
-    if (reply.headers.get("set-cookie")) cookie = reply.headers.get("set-cookie").split(";")[0];
+    if (reply.headers.get("set-cookie")) cookie = cookieHeader(reply, cookie);
     if (url === "/api/public/festival-decorations/active") activeResponses++;
     return reply;
   };

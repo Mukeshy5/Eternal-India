@@ -9,6 +9,7 @@ import { ensureAdmin } from "../lib/passwords.js";
 import { gmailIdentity } from "../lib/email-identity.js";
 import { createMailer } from "../lib/mailer.js";
 import { createApp } from "../app.js";
+import { cookieHeader } from "../lib/cookies.js";
 
 const source = readConfig(), recipient = gmailIdentity(process.env.OTP_TEST_EMAIL);
 if (!createMailer(source).gmailConfigured || !recipient) {
@@ -24,7 +25,7 @@ if (!createMailer(source).gmailConfigured || !recipient) {
   const publicJar = {}, ownerJar = {};
   async function request(path, body, jar = publicJar, method = "POST") {
     const response = await fetch(base + path, { method, headers: { "Content-Type": "application/json", Origin: config.origins[0], ...(jar.cookie ? { Cookie: jar.cookie } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(35000) });
-    if (response.headers.get("set-cookie")) jar.cookie = response.headers.get("set-cookie").split(";")[0];
+    if (response.headers.get("set-cookie")) jar.cookie = cookieHeader(response, jar.cookie);
     return { status: response.status, data: response.status === 204 ? null : await response.json() };
   }
   async function waitForResend(sent) {

@@ -7,12 +7,15 @@ import { readConfig } from "../config/env.js";
 import { connectDatabase } from "../config/database.js";
 import { ensureAdmin, hashPassword, verifyPassword } from "../lib/passwords.js";
 import { createApp } from "../app.js";
+import { cookieHeader } from "../lib/cookies.js";
 import { promotionTargets } from "../../shared/travelCatalog.js";
 
 const scrypt = promisify(scryptCallback);
 
 test("MongoDB enquiry and administrator workflow", async (t) => {
   assert.throws(() => readConfig({ ...process.env, MONGO_URI: "not-a-mongo-uri" }), /valid mongodb/);
+  assert.equal(readConfig({ ...process.env, SMTP_FROM: "Eternal India <sender@gmail.com>" }).smtp.from, "sender@gmail.com");
+  assert.throws(() => readConfig({ ...process.env, SMTP_HOST: "smtp.gmail.com", SMTP_USER: "mailto:sender@gmail.com" }), /SMTP_USER must be a Gmail address/);
   const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "test-admin@example.com", adminPassword: randomBytes(24).toString("hex") };
   const { client, db } = await connectDatabase(config);
   const admin = await ensureAdmin(db, config);
@@ -56,16 +59,21 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       assert.equal((await request("/enquiries", { method: "POST", body: { ...enquiry, destination: "Kerala" } })).status, 409, "same id cannot overwrite a saved enquiry");
       assert.equal((await request("/enquiries")).status, 404, "public clients cannot list enquiries");
     });
-    await t.test("authenticates with a hashed password and HttpOnly session", async () => {
+    await t.test("authenticates with a hashed password, MongoDB JWT and HttpOnly cookies", async () => {
       assert.notEqual(admin.passwordHash, config.adminPassword);
       assert.ok(await verifyPassword(config.adminPassword, admin.passwordHash));
       assert.equal((await request("/admin/login", { method: "POST", body: { email: config.adminEmail, password: "incorrect" } })).status, 401);
       const login = await request("/admin/login", { method: "POST", body: { email: config.adminEmail, password: config.adminPassword } });
       assert.equal(login.status, 200);
-      const header = login.headers.get("set-cookie");
-      assert.match(header, /HttpOnly/i);
-      assert.match(header, /SameSite=Strict/i);
-      cookie = header.split(";")[0];
+      const headers = login.headers.getSetCookie();
+      assert.equal(headers.length, 2, "login issues a Mongo session cookie and a JWT cookie");
+      assert.ok(headers.every((header) => /HttpOnly/i.test(header) && /SameSite=Strict/i.test(header)));
+      cookie = cookieHeader(login);
+      assert.equal(await db.collection("admin_tokens").countDocuments({ adminId: admin._id }), 1);
+      const sessionOnly = cookie.split("; ").find((value) => value.startsWith("eternal_india.sid="));
+      const tampered = cookie.replace(/eternal_india\.auth=([^;]+)/, "eternal_india.auth=invalid");
+      assert.equal((await request("/admin/me", { sessionCookie: sessionOnly })).status, 401, "a Mongo session alone cannot authenticate protected routes");
+      assert.equal((await request("/admin/me", { sessionCookie: tampered })).status, 401, "invalid JWTs cannot authenticate protected routes");
       assert.equal((await login.json()).admin.email, config.adminEmail);
       assert.equal((await request("/admin/me")).status, 200);
       assert.equal((await request("/admin/history")).status, 200);
@@ -77,7 +85,7 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       const inserted = await db.collection("admins").insertOne({ email, passwordHash: legacy, createdAt: new Date() });
       const login = await request("/admin/login", { method: "POST", body: { email, password } });
       assert.equal(login.status, 200);
-      cookie = login.headers.get("set-cookie").split(";")[0];
+      cookie = cookieHeader(login);
       const upgraded = await db.collection("admins").findOne({ _id: inserted.insertedId });
       assert.match(upgraded.passwordHash, /^bcrypt-sha256\$\$2[aby]\$12\$/);
       assert.ok(await verifyPassword(password, upgraded.passwordHash));
@@ -134,7 +142,7 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       assert.equal((await request("/technical/enquiries", { sessionCookie: "" })).status, 401);
       const login = await request("/technical/login", { method: "POST", body: { email: config.adminEmail, password: config.adminPassword } });
       assert.equal(login.status, 200);
-      cookie = login.headers.get("set-cookie").split(";")[0];
+      cookie = cookieHeader(login);
       for (const path of ["me", "enquiries", "history", "hotels", "vouchers"]) assert.equal((await request(`/technical/${path}`)).status, 200, `technical ${path} is available`);
       const hotelData = { name: "Technical Stay", starRating: "3-Star (Mid-Scale / First Class)", gst: 12, amount: 3000 };
       const hotelReply = await request("/technical/hotels", { method: "POST", body: hotelData });
@@ -209,11 +217,12 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
     await t.test("rotates login sessions and invalidates them on logout", async () => {
       const oldCookie = cookie;
       const login = await request("/admin/login", { method: "POST", body: { email: config.adminEmail, password: config.adminPassword } });
-      cookie = login.headers.get("set-cookie").split(";")[0];
+      cookie = cookieHeader(login);
       assert.notEqual(cookie, oldCookie);
       assert.equal((await request("/admin/me", { sessionCookie: oldCookie })).status, 401);
       assert.equal((await request("/admin/logout", { method: "POST", body: {} })).status, 204);
       assert.equal((await request("/admin/enquiries")).status, 401);
+      assert.equal(await db.collection("admin_tokens").countDocuments({ adminId: admin._id }), 0, "logout revokes the active token");
     });
     await t.test("limits repeated failed logins", async () => {
       let last;

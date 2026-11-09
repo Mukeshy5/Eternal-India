@@ -1,8 +1,10 @@
 import express from "express";
 import compression from "compression";
+import cookieParser from "cookie-parser";
 import session from "express-session";
 import MongoStore from "connect-mongo";
 import helmet from "helmet";
+import jwt from "jsonwebtoken";
 import { rateLimit } from "express-rate-limit";
 import { ObjectId } from "mongodb";
 import { createHash, randomBytes } from "node:crypto";
@@ -56,16 +58,25 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   const drainSessions = sessionLifecycle(store);
   store.on("error", () => console.error("Admin session storage is unavailable."));
   const cookie = { httpOnly: true, secure: config.production, sameSite: config.production ? "none" : "strict", path: "/api", maxAge: 8 * 60 * 60 * 1000 };
+  const tokenCookieName = "eternal_india.auth";
   const management = express.Router();
+  app.use(cookieParser());
   app.use(["/api/admin", "/api/technical", "/api/auth"], session({ name: "eternal_india.sid", secret: config.sessionSecret, store, resave: false, saveUninitialized: false, rolling: true, cookie }));
 
   const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
   const enquiryLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many enquiries. Please try again shortly." } });
   const publicAdmin = (admin) => { const access = technicalAccess(admin, config); return { id: admin._id.toString(), email: admin.email, roles: access.roles, canManageAccounts: canManageAccounts(admin, config), technicalPermissions: access.permissions, staffPermissions: staffAccess(admin, config) }; };
+  const verifyToken = (token) => {
+    try { return jwt.verify(token, config.authTokenSecret, { algorithms: ["HS256"], issuer: "eternal-india", audience: "eternal-india-panels" }); }
+    catch { return null; }
+  };
   async function requireAdmin(req, res, next) {
-    if (!ObjectId.isValid(req.session?.adminId || "")) return res.status(401).json({ message: "Please sign in to continue." });
-    const admin = await db.collection("admins").findOne({ _id: new ObjectId(req.session.adminId) });
-    if (!admin || ["pending", "disabled"].includes(admin.status) || (admin.passwordChangedAt && (!req.session.signedInAt || new Date(req.session.signedInAt) <= admin.passwordChangedAt))) return res.status(401).json({ message: "Please sign in again." });
+    const claims = verifyToken(req.cookies?.[tokenCookieName] || "");
+    if (!claims || typeof claims.sub !== "string" || !ObjectId.isValid(claims.sub) || typeof claims.jti !== "string") return res.status(401).json({ message: "Please sign in to continue." });
+    const token = await db.collection("admin_tokens").findOne({ _id: claims.jti, adminId: new ObjectId(claims.sub), expiresAt: { $gt: new Date() } });
+    if (!token) return res.status(401).json({ message: "Please sign in again." });
+    const admin = await db.collection("admins").findOne({ _id: new ObjectId(claims.sub) });
+    if (!admin || ["pending", "disabled"].includes(admin.status) || (admin.passwordChangedAt && token.createdAt <= admin.passwordChangedAt)) return res.status(401).json({ message: "Please sign in again." });
     if (!managementAccess(admin, config)) return res.status(403).json({ message: "This account is not authorized for the management panels." });
     if (req.originalUrl.startsWith("/api/technical/") && !technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
     req.admin = admin;
@@ -112,18 +123,30 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     if (["pending", "disabled"].includes(admin.status)) return res.status(403).json({ message: "Your account is awaiting administrator approval or has been disabled." });
     if (!managementAccess(admin, config)) return res.status(403).json({ message: "This account is not authorized for the management panels." });
     if (req.originalUrl.startsWith("/api/technical/") && !technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
+    const previousClaims = verifyToken(req.cookies?.[tokenCookieName] || "");
+    if (previousClaims?.jti) await db.collection("admin_tokens").deleteOne({ _id: previousClaims.jti });
+    const now = new Date(), issuedAt = Math.floor(now.getTime() / 1000), expiresAt = new Date(now.getTime() + 8 * 60 * 60 * 1000), tokenId = randomBytes(24).toString("hex");
+    const authToken = jwt.sign({}, config.authTokenSecret, { algorithm: "HS256", subject: admin._id.toString(), jwtid: tokenId, issuer: "eternal-india", audience: "eternal-india-panels", expiresIn: "8h" });
+    await db.collection("admin_tokens").insertOne({ _id: tokenId, adminId: admin._id, createdAt: now, expiresAt });
     req.session.regenerate((error) => {
-      if (error) return next(error);
+      if (error) { void db.collection("admin_tokens").deleteOne({ _id: tokenId }); return next(error); }
       req.session.adminId = admin._id.toString();
-      req.session.signedInAt = new Date().toISOString();
-      req.session.save((saveError) => saveError ? next(saveError) : res.json({ admin: publicAdmin(admin) }));
+      req.session.signedInAt = new Date(issuedAt * 1000).toISOString();
+      req.session.save((saveError) => {
+        if (saveError) { void db.collection("admin_tokens").deleteOne({ _id: tokenId }); return next(saveError); }
+        res.cookie(tokenCookieName, authToken, cookie);
+        res.json({ admin: publicAdmin(admin) });
+      });
     });
   });
   management.get("/me", requireAdmin, (req, res) => res.json({ admin: publicAdmin(req.admin) }));
-  management.post("/logout", (req, res, next) => {
+  management.post("/logout", async (req, res, next) => {
+    const claims = verifyToken(req.cookies?.[tokenCookieName] || "");
+    if (claims?.jti) await db.collection("admin_tokens").deleteOne({ _id: claims.jti });
     req.session.destroy((error) => {
       if (error) return next(error);
       res.clearCookie("eternal_india.sid", { path: "/api", httpOnly: true, sameSite: config.production ? "none" : "strict", secure: config.production });
+      res.clearCookie(tokenCookieName, { path: "/api", httpOnly: true, sameSite: config.production ? "none" : "strict", secure: config.production });
       res.sendStatus(204);
     });
   });

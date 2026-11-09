@@ -11,6 +11,7 @@ import { connectDatabase } from "../config/database.js";
 import { ensureAdmin } from "../lib/passwords.js";
 import { createApp } from "../app.js";
 import { reportRange, validDate } from "../staff/validation.js";
+import { cookieHeader } from "../lib/cookies.js";
 
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAABAAAAAUCAIAAAALACogAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAHUlEQVQokWO48+g1SYhhVMOj0VC6M5o0Xg/a/AAAqQdTblFbfKMAAAAASUVORK5CYII=", "base64");
 const fields = { name: "Staff Integration Test", email: "staff@example.com", phone: "9876543210", department: "Operations", designation: "Travel coordinator", status: "active" };
@@ -35,7 +36,7 @@ test("staff and attendance real MongoDB/API workflow", async (t) => {
   const base = `http://127.0.0.1:${server.address().port}/api`;
   let cookie = "", viewerCookie, ordinaryCookie, person, record;
   const request = (path, { method = "GET", body, form, sessionCookie = cookie } = {}) => fetch(base + path, { method, headers: { Origin: "http://localhost:5173", ...(form ? {} : { "Content-Type": "application/json" }), ...(sessionCookie ? { Cookie: sessionCookie } : {}) }, ...(form ? { body: form } : body !== undefined ? { body: JSON.stringify(body) } : {}) });
-  const login = async (email, panel = "admin") => { const result = await request(`/${panel}/login`, { method: "POST", body: { email, password: config.adminPassword }, sessionCookie: "" }); assert.equal(result.status, 200); return result.headers.get("set-cookie").split(";")[0]; };
+  const login = async (email, panel = "admin") => { const result = await request(`/${panel}/login`, { method: "POST", body: { email, password: config.adminPassword }, sessionCookie: "" }); assert.equal(result.status, 200); return cookieHeader(result); };
   const form = (patch = {}) => { const body = new FormData(); for (const [key, value] of Object.entries({ ...fields, ...patch })) body.append(key, String(value)); body.append("photo", new Blob([png], { type: "image/png" }), "photo.png"); return body; };
   try {
     await t.test("authentication, role and permission enforcement in both namespaces", async () => {

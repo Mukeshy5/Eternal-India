@@ -8,6 +8,7 @@ import { connectDatabase } from "../config/database.js";
 import { ensureAdmin, verifyPassword } from "../lib/passwords.js";
 import { cleanupDatabase } from "../lib/database-cleanup.js";
 import { createApp } from "../app.js";
+import { cookieHeader } from "../lib/cookies.js";
 
 test("panel accounts, one-time password recovery and safe database cleanup", async (t) => {
   const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "owner@example.com", technicalEmail: "", adminPassword: "OwnerPassword9" };
@@ -25,7 +26,7 @@ test("panel accounts, one-time password recovery and safe database cleanup", asy
       assert.equal((await request("/admin/register", "POST", { email: "new.admin@gmail.com", password: "NewAdminPassword9", emailVerified: true, roles: ["admin", "technical"], status: "active" }, "")).status, 403);
       assert.equal(await db.collection("admins").countDocuments({ email: "new.admin@gmail.com" }), 0, "an unverified request never creates an account");
       const login = await request("/admin/login", "POST", { email: config.adminEmail, password: config.adminPassword }, "");
-      cookie = login.headers.get("set-cookie").split(";")[0];
+      cookie = cookieHeader(login);
       assert.equal((await login.json()).admin.canManageAccounts, true);
       const create = await request("/admin/accounts", "POST", { email: "engineer.fixture@gmail.com", password: "EngineerPassword9", role: "technical" }); assert.equal(create.status, 403, "admin-created credentials also require Gmail verification");
       // Seed an existing account to regression-test login/password recovery, independently of new registration.
@@ -33,7 +34,7 @@ test("panel accounts, one-time password recovery and safe database cleanup", asy
       await db.collection("admins").updateOne({ _id: fixture._id }, { $set: { roles: ["technical"] } });
       technical = { ...fixture, _id: fixture._id.toString() };
       const technicalLogin = await request("/technical/login", "POST", { email: technical.email, password: "EngineerPassword9" }, ""); assert.equal(technicalLogin.status, 200);
-      techCookie = technicalLogin.headers.get("set-cookie").split(";")[0];
+      techCookie = cookieHeader(technicalLogin);
       assert.equal((await technicalLogin.json()).admin.canManageAccounts, false);
       assert.equal((await request("/technical/accounts", "POST", { email: "bad@example.com", password: "AnyPassword9", role: "admin" }, techCookie)).status, 403);
       await db.collection("admins").updateOne({ _id: fixture._id }, { $set: { roles: ["admin", "technical"] } });
