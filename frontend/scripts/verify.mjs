@@ -28,6 +28,7 @@ const knownRoutes = new Set([
   "/about",
   "/contact",
   "/tours",
+  "/buddhist-tours-in-india",
   "/request-quote",
   "/online-payment",
   "/admin",
@@ -106,6 +107,11 @@ try {
   for (const region of regions) {
     const html = pages.get(regionPath(region));
     for (const item of destinations.filter((entry) => entry.region === region.slug)) assert.ok(html.includes(`href="${destinationPath(item)}"`));
+  }
+  const buddhistTours = pages.get("/buddhist-tours-in-india");
+  for (const value of ["Siddhartha Gautama's early life", "The four sights & the search for a way through suffering", "Awakening beneath the Bodhi tree", "The first teaching & the beginning of the Sangha", "Patronage & Buddhism's wider reach", "Parinirvana", "Bodh Gaya", "Kushinagar"]) {
+    const escapedValue = value.replaceAll("&", "&amp;").replaceAll("'", "&#x27;");
+    assert.ok(buddhistTours.includes(escapedValue), `Buddhist tours: missing ${value}`);
   }
   console.log("PASS 4 package pages, 17 state pages, 6 India journeys, 5 regions, responsive image targets/budgets, enquiry links, and invalid routes");
   const payment = pages.get("/online-payment");

@@ -151,8 +151,8 @@ export default function Navbar() {
                 </div>
               </div>
             </div>
-            <NavLink to="/tours" onClick={close}>
-              Our journeys
+            <NavLink to="/buddhist-tours-in-india" onClick={close}>
+              Buddhist Tours
             </NavLink>
             <NavLink to="/contact" onClick={close}>
               Contact us

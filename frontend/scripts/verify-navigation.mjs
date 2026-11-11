@@ -24,6 +24,7 @@ export async function verifyNavigation(server) {
     const indiaMenu = container.querySelector('[aria-controls="india-navigation"]');
     const indiaPanel = container.querySelector("#india-navigation");
     const indiaGroup = container.querySelector(".nav-group-india");
+    const buddhistToursLink = container.querySelector('nav > a[href="/buddhist-tours-in-india"]');
     const packagePanel = container.querySelector("#package-navigation");
     const destinationPanel = container.querySelector("#destination-navigation");
     const packageGroup = container.querySelector(".nav-group-packages");
@@ -31,6 +32,8 @@ export async function verifyNavigation(server) {
     assert.equal(packagePanel.hidden, true);
     assert.equal(destinationPanel.hidden, true);
     assert.equal(indiaPanel.hidden, true);
+    assert.ok(buddhistToursLink, "navbar links to Buddhist tours");
+    assert.equal(container.querySelector('nav > a[href="/tours"]'), null, "Our journeys is removed from the navbar");
 
     await act(async () => packages.click());
     assert.equal(packagePanel.hidden, false);
