@@ -17,7 +17,7 @@ import { registerFestivalRoutes } from "./festivals/routes.js";
 import { technicalAccess } from "./festivals/permissions.js";
 import { registerStaffRoutes } from "./staff/routes.js";
 import { staffAccess } from "./staff/permissions.js";
-import { managementAccess } from "./lib/panel-access.js";
+import { adminPanelAccess } from "./lib/panel-access.js";
 import { sessionLifecycle } from "./lib/session-lifecycle.js";
 import { canManageAccounts, registerAccounts } from "./lib/accounts.js";
 import { gmailAccountFilter, gmailIdentity } from "./lib/email-identity.js";
@@ -78,8 +78,11 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     if (!token) return res.status(401).json({ message: "Please sign in again." });
     const admin = await db.collection("admins").findOne({ _id: new ObjectId(claims.sub) });
     if (!admin || ["pending", "disabled"].includes(admin.status) || (admin.passwordChangedAt && token.createdAt <= admin.passwordChangedAt)) return res.status(401).json({ message: "Please sign in again." });
-    if (!managementAccess(admin, config)) return res.status(403).json({ message: "This account is not authorized for the management panels." });
-    if (req.originalUrl.startsWith("/api/technical/") && !technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
+    if (req.originalUrl.startsWith("/api/technical/")) {
+      if (!technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
+    } else if (!adminPanelAccess(admin, config)) {
+      return res.status(403).json({ message: "This account is not authorized for the Admin Panel." });
+    }
     req.admin = admin;
     next();
   }
@@ -122,8 +125,11 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
       admin.passwordHash = passwordHash;
     }
     if (["pending", "disabled"].includes(admin.status)) return res.status(403).json({ message: "Your account is awaiting administrator approval or has been disabled." });
-    if (!managementAccess(admin, config)) return res.status(403).json({ message: "This account is not authorized for the management panels." });
-    if (req.originalUrl.startsWith("/api/technical/") && !technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
+    if (req.originalUrl.startsWith("/api/technical/")) {
+      if (!technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
+    } else if (!adminPanelAccess(admin, config)) {
+      return res.status(403).json({ message: "This account is not authorized for the Admin Panel." });
+    }
     const previousClaims = verifyToken(req.cookies?.[tokenCookieName] || "");
     if (previousClaims?.jti) await db.collection("admin_tokens").deleteOne({ _id: previousClaims.jti });
     const now = new Date(), issuedAt = Math.floor(now.getTime() / 1000), expiresAt = new Date(now.getTime() + 8 * 60 * 60 * 1000), tokenId = randomBytes(24).toString("hex");

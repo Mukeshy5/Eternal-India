@@ -65,9 +65,11 @@ test("panel accounts, one-time password recovery and safe database cleanup", asy
       const fixture = await ensureAdmin(db, { ...config, adminEmail: "engineer.fixture@gmail.com", adminPassword: "EngineerPassword9" });
       await db.collection("admins").updateOne({ _id: fixture._id }, { $set: { roles: ["technical"] } });
       technical = { ...fixture, _id: fixture._id.toString() };
+      assert.equal((await request("/admin/login", "POST", { email: technical.email, password: "EngineerPassword9" }, "")).status, 403, "a Technical-only account cannot sign in to the Admin Panel");
       const technicalLogin = await request("/technical/login", "POST", { email: technical.email, password: "EngineerPassword9" }, ""); assert.equal(technicalLogin.status, 200);
       techCookie = cookieHeader(technicalLogin);
       assert.equal((await technicalLogin.json()).admin.canManageAccounts, false);
+      assert.equal((await request("/admin/accounts", "GET", undefined, techCookie)).status, 403, "a Technical session cannot access Admin Panel APIs");
       assert.equal((await request("/technical/accounts", "POST", { email: "bad@example.com", password: "AnyPassword9", role: "admin" }, techCookie)).status, 403);
       await db.collection("admins").updateOne({ _id: fixture._id }, { $set: { roles: ["admin", "technical"] } });
       assert.equal((await request("/technical/accounts", "GET", undefined, techCookie)).status, 403, "even an account with both roles cannot administer accounts through the Technical Panel");

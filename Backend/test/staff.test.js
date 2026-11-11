@@ -44,12 +44,11 @@ test("staff and attendance real MongoDB/API workflow", async (t) => {
       cookie = await login(config.adminEmail);
       viewerCookie = await login(viewer.email, "technical"); ordinaryCookie = await login(ordinary.email);
       assert.equal((await request("/technical/staff", { sessionCookie: ordinaryCookie })).status, 403);
-      for (const panel of ["admin", "technical"]) {
-        assert.equal((await request(`/${panel}/staff`, { sessionCookie: viewerCookie })).status, 200);
-        assert.equal((await request(`/${panel}/staff`, { method: "POST", form: form(), sessionCookie: viewerCookie })).status, 403);
-        assert.equal((await request(`/${panel}/staff-attendance`, { method: "POST", body: {}, sessionCookie: viewerCookie })).status, 403);
-        assert.equal((await request(`/${panel}/staff-reports?format=xlsx`, { sessionCookie: viewerCookie })).status, 403);
-      }
+      assert.equal((await request("/admin/staff", { sessionCookie: viewerCookie })).status, 403, "Technical-only sessions cannot enter the Admin Panel API namespace");
+      assert.equal((await request("/technical/staff", { sessionCookie: viewerCookie })).status, 200);
+      assert.equal((await request("/technical/staff", { method: "POST", form: form(), sessionCookie: viewerCookie })).status, 403);
+      assert.equal((await request("/technical/staff-attendance", { method: "POST", body: {}, sessionCookie: viewerCookie })).status, 403);
+      assert.equal((await request("/technical/staff-reports?format=xlsx", { sessionCookie: viewerCookie })).status, 403);
     });
     await t.test("staff CRUD, live-photo upload, normalization, duplicate protection and shared lists", async () => {
       assert.equal((await request("/admin/staff", { method: "POST", body: fields })).status, 400, "photo is required");
@@ -78,12 +77,12 @@ test("staff and attendance real MongoDB/API workflow", async (t) => {
       for (const panel of ["admin", "technical"]) for (const method of ["PATCH", "DELETE"]) assert.equal((await request(`/${panel}/staff/${person._id}`, { method, body: { version: person.version }, sessionCookie: viewerCookie })).status, 403);
     });
     await t.test("premium card preview, high-resolution PNG and a decodable employee barcode use current MongoDB details", async () => {
-      const preview = await request(`/admin/staff/${person._id}/card-preview`, { sessionCookie: viewerCookie });
+      const preview = await request(`/technical/staff/${person._id}/card-preview`, { sessionCookie: viewerCookie });
       assert.equal(preview.status, 200); assert.match(preview.headers.get("content-type"), /image\/svg\+xml/);
       const svg = await preview.text();
       for (const value of [person.name, person.employeeId, person.designation, person.department, person.phone, person.email]) assert.ok(svg.includes(value));
       const updated = await request(`/technical/staff/${person._id}`, { method: "PATCH", body: { version: person.version, designation: "Senior journey coordinator" } }); assert.equal(updated.status, 200); person = (await updated.json()).staff;
-      const refreshed = await (await request(`/admin/staff/${person._id}/card-preview`)).text(); assert.ok(refreshed.includes(person.designation)); assert.notEqual(refreshed, svg);
+      const refreshed = await (await request(`/technical/staff/${person._id}/card-preview`, { sessionCookie: viewerCookie })).text(); assert.ok(refreshed.includes(person.designation)); assert.notEqual(refreshed, svg);
       assert.ok(svg.includes('clip-path="url(#employee-photo)"')); assert.ok(svg.includes("data:image/png;base64,"));
       const result = await request(`/technical/staff/${person._id}/card?format=png`); assert.equal(result.status, 200); assert.match(result.headers.get("content-disposition"), /\.png/);
       const png = Buffer.from(await result.arrayBuffer()), metadata = await sharp(png).metadata();

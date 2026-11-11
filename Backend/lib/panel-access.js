@@ -1,5 +1,4 @@
-export function managementAccess(account, config) {
-  if ([config.adminEmail, config.technicalEmail].filter(Boolean).includes(account.email)) return true;
-  const roles = account.roles === undefined ? ["admin"] : Array.isArray(account.roles) ? account.roles : [];
-  return roles.some((role) => role === "admin" || role === "technical");
+export function adminPanelAccess(account, config) {
+  if (Array.isArray(account.roles)) return account.roles.includes("admin");
+  return !config.technicalEmail || config.technicalEmail === config.adminEmail || account.email !== config.technicalEmail;
 }
