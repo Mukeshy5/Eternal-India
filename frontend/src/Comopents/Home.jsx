@@ -97,7 +97,7 @@ export default function Home() {
           </span>
         </div>
       </section>
-      <section className="section container">
+      <section className="section container available-places-section">
         <div className="section-heading">
           <div>
             <Eyebrow>Available places</Eyebrow>

@@ -558,9 +558,12 @@ main:focus {
 }
 .footer-grid {
   display: grid;
-  grid-template-columns: 1.4fr 0.8fr 0.75fr 1.15fr;
+  grid-template-columns: 1.4fr 1fr 0.8fr 1fr 1.25fr;
   gap: 45px;
   padding-bottom: 43px;
+}
+.footer-grid > div {
+  min-width: 0;
 }
 .footer-brand img {
   background: transparent;
@@ -597,6 +600,7 @@ main:focus {
   font-size: 11px;
   margin-bottom: 14px;
   color: #c9d1c5;
+  overflow-wrap: anywhere;
 }
 .footer-grid a:hover {
   color: white;
@@ -835,8 +839,14 @@ main:focus {
 }
 .journey-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 29px;
+}
+.available-places-section .journey-card {
+  min-height: 420px;
+}
+.available-places-section .journey-image {
+  height: 230px;
 }
 .journey-card,
 .region-card {
@@ -1412,6 +1422,15 @@ main:focus {
   .journey-image {
     height: 250px;
   }
+  .journey-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .available-places-section .journey-card {
+    min-height: 390px;
+  }
+  .available-places-section .journey-image {
+    height: 200px;
+  }
   .journey-card,
   .region-card {
     min-height: 470px;
@@ -1430,6 +1449,10 @@ main:focus {
   }
   .journey-editorial > article {
     gap: 40px;
+  }
+  .footer-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 32px;
   }
 }
 @media (max-width: 800px) {
@@ -1611,8 +1634,8 @@ main:focus {
     width: 40px;
   }
   .footer-grid {
-    grid-template-columns: 1.2fr 1fr;
-    gap: 35px 45px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 30px 28px;
   }
   .footer-brand p {
     font-size: 11px;
@@ -1897,8 +1920,8 @@ main:focus {
     padding-top: 37px;
   }
   .footer-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 30px 25px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 28px 20px;
     padding-bottom: 30px;
   }
   .footer-brand {
@@ -1912,6 +1935,8 @@ main:focus {
   }
   .footer-grid .footer-contact > a {
     font-size: 12px;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
   .footer-bottom {
     flex-direction: column;
@@ -1979,6 +2004,12 @@ main:focus {
   .journey-grid {
     grid-template-columns: 1fr;
     gap: 24px;
+  }
+  .available-places-section .journey-card {
+    min-height: 360px;
+  }
+  .available-places-section .journey-image {
+    height: 190px;
   }
   .region-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -135,8 +135,8 @@ try {
   assert.ok(!payment.includes('class="actual-payment-qr"'), "payment QR is not rendered before requesting it");
   assert.ok(!pages.get("/").includes("Ready for your next chapter?") && !pages.get("/").includes("payment-banner"), "removed payment promotion is absent from home");
   assert.ok(pages.get("/privacy-policy").includes("Our Privacy Policy"), "privacy policy route renders");
-  assert.ok(pages.get("/privacy-policy").includes("Only commitments and communications exchanged by email will apply."));
-  for (const value of ["Terms &amp; Conditions", "Payment policy", "Cancellation policy", "No refund is provided for no-shows."]) assert.ok(pages.get("/terms-and-conditions").includes(value), `terms page includes ${value}`);
+  for (const value of ["Payment policy", "NEFT/ RTGS", "Remarks", "Rohtang pass", "Only the commitment’s/ communication exchanged through mail will be applicable.", "Cancellation policy", "There will be no refunds for no-shows."]) assert.ok(pages.get("/privacy-policy").includes(value), `privacy policy includes ${value}`);
+  for (const value of ["Terms &amp; Conditions", "Using this website", "Reservations", "Current account number: 921020029366590", "Children policy", "Hotels policy", "Refunds", "Air ticket cancellation and layover policy", "Railway ticket cancellation", "Complaints", "Other conditions", "Within one week of departure: 100%."]) assert.ok(pages.get("/terms-and-conditions").toLowerCase().includes(value.toLowerCase()), `terms page includes ${value}`);
   for (const [route, html] of pages) {
     const floatingChat = html.match(/<a\b[^>]*class="whatsapp-float"[^>]*>/)?.[0];
     const lineChat = html.match(/<a\b[^>]*class="line-float"[^>]*>/)?.[0];
