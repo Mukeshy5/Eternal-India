@@ -134,7 +134,11 @@ try {
   assert.ok(!pages.get("/").includes("Ready for your next chapter?") && !pages.get("/").includes("payment-banner"), "removed payment promotion is absent from home");
   for (const [route, html] of pages) {
     const floatingChat = html.match(/<a\b[^>]*class="whatsapp-float"[^>]*>/)?.[0];
-    if (!/^\/(admin|technical)(?:\/|$)/.test(route)) assert.ok(floatingChat?.includes('href="https://wa.me/919319140846"') && floatingChat.includes('target="_blank"'), `${route}: direct WhatsApp shortcut`);
+    const lineChat = html.match(/<a\b[^>]*class="line-float"[^>]*>/)?.[0];
+    if (!/^\/(admin|technical)(?:\/|$)/.test(route)) {
+      assert.ok(floatingChat?.includes('href="https://wa.me/919319140846"') && floatingChat.includes('target="_blank"'), `${route}: direct WhatsApp shortcut`);
+      assert.ok(lineChat?.includes('href="https://line.me/ti/p/V2uvq8z3q0"') && lineChat.includes('target="_blank"'), `${route}: direct LINE shortcut`);
+    }
   }
   assert.ok(existsSync(resolve("src/assets/paymentpng/payment-QR.png")), "requested QR image exists");
   const start = 1_000_000;
@@ -148,7 +152,7 @@ try {
   assert.equal(formatQrTime(600), "10:00");
   assert.equal(formatQrTime(59), "00:59");
   assert.equal(formatQrTime(0), "00:00");
-  console.log("PASS payment details, contact links, floating WhatsApp shortcut, home banner removal, and QR expiry boundaries");
+  console.log("PASS payment details, contact links, floating LINE and WhatsApp shortcuts, home banner removal, and QR expiry boundaries");
   for (const email of [
     "varanasi@eternal-india.com",
     "bodhgaya@eternal-india.com",

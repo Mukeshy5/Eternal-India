@@ -42,7 +42,7 @@ test("the deployed server opens Render's public port with copied localhost setti
     assert.ok(cookies.some((cookie) => cookie.startsWith("eternal_india.auth=")));
     assert.ok(cookies.some((cookie) => cookie.startsWith("eternal_india.sid=")), "Render HTTPS forwarding supports secure OTP session cookies");
     for (const cookie of cookies) { assert.match(cookie, /Secure/); assert.match(cookie, /SameSite=None/); }
-    assert.ok(output.includes("SMTP is not configured"), "missing email setup does not prevent a healthy deployment");
+    assert.ok(output.includes("Email delivery is not configured"), "missing email setup does not prevent a healthy deployment");
   } finally {
     if (child && child.exitCode === null) { const exited = once(child, "exit"); child.kill("SIGTERM"); await exited; }
     if (!db.databaseName.startsWith("eternal_india_test_")) throw Error("Refusing to delete a non-test database.");
