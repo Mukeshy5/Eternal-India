@@ -29,7 +29,12 @@ test("HTTPS OTP delivery preserves verification gates and releases failed-delive
   };
   try {
     const email = "https.otp.recipient@gmail.com", password = "HttpsOtpRecipientPassword9";
-    assert.equal((await request("/auth/register", { email, password })).status, 403);
+    const registration = await request("/technical/register", { email: "https.no.otp@gmail.com", password });
+    assert.equal(registration.status, 201, "Technical Panel registration succeeds without invoking SMTP");
+    const registered = await db.collection("admins").findOne({ email: "https.no.otp@gmail.com" });
+    assert.deepEqual(registered.roles, ["technical"]); assert.equal(registered.emailVerified, false);
+    assert.equal(await db.collection("email_verifications").countDocuments({ email: registered.email }), 0);
+    assert.equal((await request("/technical/login", { email: registered.email, password })).status, 200);
     const failed = await request("/auth/send-otp", { email });
     assert.equal(failed.status, 503); assert.equal(failed.data.code, "EMAIL_DELIVERY_FAILED");
     assert.ok(!JSON.stringify(failed.data).includes("fixture-private-key"));
@@ -44,14 +49,12 @@ test("HTTPS OTP delivery preserves verification gates and releases failed-delive
     const stored = await db.collection("email_verifications").findOne({ email });
     assert.equal(stored.state, "sent"); assert.equal(stored.verified, false); assert.notEqual(stored.otpHash, otp);
     assert.equal((await request("/auth/send-otp", { email })).status, 429, "successful delivery enforces the actual resend cooldown");
-    assert.equal((await request("/auth/register", { email, password })).status, 403, "provider acceptance alone never verifies a Gmail account");
     const incorrect = otp === "000000" ? "111111" : "000000";
     assert.equal((await request("/auth/verify-otp", { email, challengeId: sent.data.challengeId, otp: incorrect })).status, 400);
-    assert.equal((await request("/auth/verify-otp", { email, challengeId: sent.data.challengeId, otp })).status, 200);
-    const created = await request("/auth/register", { email, password });
-    assert.equal(created.status, 201); assert.equal(created.data.account.emailVerified, true);
-    assert.equal(await db.collection("email_verifications").countDocuments(), 0, "successful registration consumes the proof");
-    assert.equal(await db.collection("admins").countDocuments({ email }), 1);
+    const verified = await request("/auth/verify-otp", { email, challengeId: sent.data.challengeId, otp });
+    assert.equal(verified.status, 200, "OTP verification remains available outside registration");
+    assert.equal((await db.collection("email_verifications").findOne({ email })).verified, true);
+    assert.equal(await db.collection("admins").countDocuments({ email }), 0, "using OTP for another flow does not create an account");
   } finally {
     globalThis.fetch = originalFetch;
     await backend.decorationScheduler.stop(); await backend.drainSessions(); await new Promise((resolve) => server.close(resolve));

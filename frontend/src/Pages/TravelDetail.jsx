@@ -2,6 +2,13 @@ import { Link } from "react-router-dom";
 import { Eyebrow, Icon } from "../Common/SiteUI";
 import { TravelHero, TravelCard, TravelGallery } from "../Common/TravelUI";
 import { destinations, regions, tourPackages, indiaJourneys, destinationPath, packagePath, regionPath, indiaPath } from "../Common/travelCatalog";
+import mapAsset from "../assets/Journey Voucher/Journey map.png";
+import { roadPoint } from "../Common/journeyRoute";
+
+function mapMarkerPosition(fraction) {
+  const { x, y } = roadPoint(fraction);
+  return { left: `${x}%`, top: `${y}%` };
+}
 
 export default function TravelDetail({ item, type = "destination" }) {
   const isPackage = type === "package";
@@ -18,10 +25,10 @@ export default function TravelDetail({ item, type = "destination" }) {
       {item.duration && <span className="travel-trip-duration"><Icon name="sun" size={17} />{item.duration}</span>}
       <div className="travel-detail-actions"><Link className="button" to={enquiryPath}>Plan this journey<Icon size={18} /></Link><Link className="text-link" to={collectionPath}>Back to {collectionName}<Icon size={16} /></Link></div>
     </TravelHero>
-    <section className="container travel-detail-section">
+    <section className="container travel-detail-section" data-theme={region.theme}>
       <div className="travel-detail-main">
         <Eyebrow>{item.tagline}</Eyebrow>
-        <h2>{item.itinerary ? "Your four-day journey." : isPackage || item.outline ? "A starting point for your itinerary." : "Start with these places."}</h2>
+        <h2>{item.itinerary ? `Your ${item.itinerary.length}-day journey.` : isPackage || item.outline ? "A starting point for your itinerary." : "Start with these places."}</h2>
         <p className="travel-detail-description">{item.itinerary ? "This suggested schedule is a starting point. Confirm travel times, accommodation and sightseeing arrangements with our team before booking." : isPackage || item.outline ? "Use this outline as inspiration. Your route, accommodation and transport will be discussed with our team before you book." : "Choose the places that interest you. We’ll help you decide how to bring them together into a route that suits your time and pace."}</p>
         <ol className="travel-stop-list">
           {item.places.map((place, index) => <li key={place}><span>{String(index + 1).padStart(2, "0")}</span><div><h3>{place}</h3>{item.outline && <p>{item.outline[index]}</p>}</div><Icon name="pin" size={20} /></li>)}
@@ -32,10 +39,23 @@ export default function TravelDetail({ item, type = "destination" }) {
         </section>)}
         {item.itinerary && <details className="travel-itinerary">
           <summary>Itinerary <span>{item.itinerary.length} days</span></summary>
+          <div className="travel-itinerary-overview">
+            <div className="travel-itinerary-map" aria-label={`Illustrated route map showing ${item.itinerary.length} itinerary days`}>
+              <img src={mapAsset} alt="Winding road illustration with numbered markers for each itinerary day" width="1151" height="1370" loading="lazy" decoding="async" />
+              <span className="travel-itinerary-map-endpoint" style={mapMarkerPosition(0)} aria-hidden="true">START</span>
+              {item.itinerary.map((day, index) => <span className="travel-itinerary-map-pin" key={day.day} style={mapMarkerPosition((index + 1) / (item.itinerary.length + 1))} aria-hidden="true">{index + 1}</span>)}
+              <span className="travel-itinerary-map-endpoint travel-itinerary-map-end" style={mapMarkerPosition(1)} aria-hidden="true">END</span>
+            </div>
+            <div className="travel-itinerary-route-summary">
+              <span className="travel-itinerary-kicker">THE ROAD AHEAD</span>
+              <h3>Your journey, mapped.</h3>
+              <p>{item.itinerary.length} days, with each numbered marker matching a day in the itinerary below.</p>
+            </div>
+          </div>
           <ol className="travel-itinerary-days">
-            {item.itinerary.map((day) => <li key={day.day}>
-              <span className="travel-itinerary-day">{day.day}</span>
-              <div><h3>{day.title}</h3>{day.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>
+            {item.itinerary.map((day, index) => <li key={day.day}>
+              <span className="travel-itinerary-day">{String(index + 1).padStart(2, "0")}</span>
+              <div><span className="travel-itinerary-kicker">{day.day}</span><h3>{day.title}</h3>{day.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>
             </li>)}
           </ol>
         </details>}

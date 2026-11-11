@@ -109,6 +109,13 @@ try {
     assert.ok(goldenTriangle.includes(value), `Golden Triangle page: missing ${value}`);
   }
   assert.ok(goldenTriangle.includes("<summary>Itinerary"), "Golden Triangle itinerary is available as an expandable option");
+  assert.ok(goldenTriangle.includes("Winding road illustration with numbered markers for each itinerary day"), "Tour itinerary includes the day-wise map artwork");
+  assert.ok(goldenTriangle.includes("Day 4</span><h3>Jaipur – Delhi – Departure"), "Day map markers correspond to the numbered itinerary cards");
+  const manaliPackage = pages.get(packagePath(tourPackages.find((item) => item.slug === "manali-volvo-package")));
+  for (const value of ["Manali is a resort and tourist town", "Manali in the Beas River Valley", "Your 6-day journey.", "Delhi – Manali", "Hadimba Devi Temple", "Solang Valley", "Manikaran", "Arrival in Delhi – Tour ends"]) {
+    assert.ok(manaliPackage.includes(value), `Manali Volvo package page: missing ${value}`);
+  }
+  assert.ok(manaliPackage.includes("<summary>Itinerary"), "Manali itinerary is available as an expandable option");
   for (const region of regions) {
     const html = pages.get(regionPath(region));
     for (const item of destinations.filter((entry) => entry.region === region.slug)) assert.ok(html.includes(`href="${destinationPath(item)}"`));

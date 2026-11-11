@@ -28,6 +28,12 @@ export async function verifyAdminInteractions(server, technical = false) {
       signedIn = body.password === "correct-password";
       return signedIn ? response({ admin: { id: "admin", email: body.email, canManageAccounts: true } }) : response({ message: "Email or password is incorrect." }, 401);
     }
+    if (url === `/api${basePath}/register`) {
+      const { email, password } = JSON.parse(options.body);
+      const role = technical ? "technical" : "admin";
+      accounts.push({ _id: `created-${accounts.length}`, email, roles: [role], status: "active", emailVerified: false, password });
+      return response({ message: "Account created successfully. You can now sign in." }, 201);
+    }
     if (url === `/api${basePath}/forgot-password`) return response({ message: "Password reset link sent." });
     if (url === `/api${basePath}/reset-password`) return response({ message: "Password updated." });
     if (url === `/api${basePath}/me`) return response({ message: "Please sign in." }, 401);
@@ -64,17 +70,19 @@ export async function verifyAdminInteractions(server, technical = false) {
     await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
     assert.ok(container.querySelector('[role="status"]').textContent.includes("reset link"));
     await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Back to sign in").click());
-    if (!technical) {
-      await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Create account").click());
-      assert.ok(container.querySelector('.gmail-verification'), 'registration has a Gmail OTP field');
-      assert.equal(container.querySelector('.admin-login-form button[type="submit"]').disabled, true, 'registration stays disabled before server verification');
-      await act(async () => type(container.querySelector('#admin-email'), 'registration.test@gmail.com'));
-      assert.equal(container.querySelector('.gmail-send').disabled, false);
-      await act(async () => container.querySelector('.admin-login-form').dispatchEvent(new testWindow.Event('submit', { bubbles: true, cancelable: true })));
-      assert.ok(container.querySelector('[role="alert"]').textContent.includes('Verify your Gmail'));
-      assert.equal(calls.some((call) => call.url === '/api/auth/register'), false, 'the unverified form never submits registration');
-      await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Back to sign in").click());
-    }
+    await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Create account").click());
+    assert.equal(container.querySelector(".gmail-verification"), null, "registration does not request Gmail OTP");
+    assert.equal(container.querySelector(".admin-login-form button[type='submit']").disabled, false, "registration is available without OTP");
+    const registrationEmail = technical ? "technical.registration@gmail.com" : "admin.registration@gmail.com";
+    await act(async () => { type(container.querySelector("#admin-email"), registrationEmail); type(container.querySelector("#admin-password"), "RegistrationPassword9"); type(container.querySelector("#admin-confirm-password"), "RegistrationPassword9"); });
+    await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
+    await waitFor(() => container.querySelector(".admin-success")?.textContent.includes("Account created successfully"));
+    const registrationCall = calls.find((call) => call.url === `/api${basePath}/register`);
+    assert.ok(registrationCall, "registration is submitted to the matching panel");
+    assert.equal(JSON.parse(registrationCall.options.body).password, "RegistrationPassword9");
+    assert.equal(calls.some((call) => call.url.includes("/send-otp")), false, "registration does not call the OTP endpoint");
+    assert.equal(accounts.at(-1).roles[0], technical ? "technical" : "admin");
+    await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Back to sign in").click());
     await act(async () => { type(container.querySelector("#admin-email"), "admin@example.com"); type(container.querySelector("#admin-password"), "incorrect"); });
     await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
     assert.ok(container.querySelector('[role="alert"]').textContent.includes("incorrect"));

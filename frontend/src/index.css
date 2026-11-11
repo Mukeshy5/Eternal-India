@@ -20,6 +20,11 @@
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
+@media (min-width: 1024px) {
+  :root {
+    --font-body: clamp(1rem, 0.92rem + 0.16vw, 1.0625rem);
+  }
+}
 * {
   box-sizing: border-box;
 }

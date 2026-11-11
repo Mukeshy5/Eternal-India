@@ -9,10 +9,10 @@ export default function AccountManager({ apiBase, onUnauthorized }) {
   const [accounts, setAccounts] = useState([]), [email, setEmail] = useState(""), [password, setPassword] = useState(""), [role, setRole] = useState("technical"), [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const lock = useRef(false), editorHeading = useRef(null);
-  const verification = useGmailVerification({ email, purpose: editing ? "account-edit" : "account-create", accountId: editing?._id, onUnauthorized });
+  const verification = useGmailVerification({ email, purpose: "account-edit", accountId: editing?._id, onUnauthorized });
   const unchangedVerified = !!editing?.emailVerified && email.trim().toLowerCase() === editing.email;
   const unchangedExisting = !!editing && (editing.isCurrent || editing.isOwner) && email.trim().toLowerCase() === editing.email;
-  const verified = unchangedVerified || unchangedExisting || verification.verified;
+  const verified = !editing || unchangedVerified || unchangedExisting || verification.verified;
   const locked = busy || verification.busy;
   const dirty = editing ? email !== editing.email || !!password || role !== (editing.roles[0] || "admin") : !!email || !!password;
   usePanelNavigationGuard(dirty, locked, "Discard the account details you entered?");
@@ -63,13 +63,13 @@ export default function AccountManager({ apiBase, onUnauthorized }) {
     await perform(async () => {
       const result = await api(`${apiBase}/accounts${editing ? `/${editing._id}` : ""}`, { method: editing ? "PATCH" : "POST", body: JSON.stringify({ email, role, ...(editing ? { version: editing.version, ...(password ? { password } : {}) } : { password }) }) });
       clear(); return result;
-    }, editing ? "Account updated." : "Verified account created successfully.");
+    }, editing ? "Account updated." : "Account created successfully.");
   }
-  return <div className="admin-tools"><header className="admin-tools-heading"><div><span className="dashboard-section-label">ADMINISTRATION / ACCESS</span><h1>Panel accounts</h1><p>Create Gmail-verified Admin and Technical accounts, edit credentials and approve account requests.</p></div></header>
+  return <div className="admin-tools"><header className="admin-tools-heading"><div><span className="dashboard-section-label">ADMINISTRATION / ACCESS</span><h1>Panel accounts</h1><p>Create Admin and Technical accounts, edit credentials and approve account requests.</p></div></header>
     {error && <p className="admin-error" role="alert">{error}</p>}{notice && <p className="admin-success" role="status">{notice}</p>}
     <form id="panel-account-editor" className="admin-tool-card admin-tool-form" onSubmit={save}>
       <h2 ref={editorHeading} tabIndex={-1}>{editing ? `Edit account · ${editing.email}` : "Create account"}</h2><fieldset disabled={locked} className="panel-auth-fields"><div className="panel-account-form-grid">
-        <GmailVerification id="account-gmail" name="accountEmail" email={email} onEmailChange={(value) => { setEmail(value); setError(""); }} verification={verification} existingVerified={unchangedVerified} existingAllowed={unchangedExisting} disabled={locked} />
+        {editing ? <GmailVerification id="account-gmail" name="accountEmail" email={email} onEmailChange={(value) => { setEmail(value); setError(""); }} verification={verification} existingVerified={unchangedVerified} existingAllowed={unchangedExisting} disabled={locked} /> : <label className="admin-tool-field"><span>Gmail address</span><input id="account-gmail" name="accountEmail" type="email" autoComplete="email" required maxLength={200} placeholder="yourname@gmail.com" value={email} onChange={(event) => { setEmail(event.target.value); setError(""); }} /></label>}
         <label className="admin-tool-field"><span>Panel</span><select name="accountRole" value={role} onChange={(event) => setRole(event.target.value)}><option value="technical">Technical Panel</option><option value="admin">Admin Panel</option></select></label>
         <label className="admin-tool-field"><span>{editing ? "New password (optional)" : "Password"}</span><input name="accountPassword" type="password" required={!editing} minLength={8} maxLength={256} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} />{editing && <small>Leave blank to keep the existing password.</small>}</label>
       </div><div className="admin-tool-actions"><button type="submit" className="dashboard-button dashboard-button-primary" disabled={locked || !verified}>{busy ? "Saving…" : editing ? "Save account changes" : "Create login credentials"}</button>{editing && <button type="button" className="dashboard-button" disabled={locked} onClick={clear}>Cancel edit</button>}</div></fieldset>

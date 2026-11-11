@@ -54,31 +54,25 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
   // can no longer block OTP resends for one hour or count non-delivery requests.
   auth.post("/send-otp", verificationAccess, verification.send);
   auth.post("/verify-otp", verifyLimit, verificationAccess, verification.verify);
-  async function createAccount(req, res, managed = false) {
-    const identity = gmailIdentity(req.body?.email), password = req.body?.password, role = req.body?.role;
-    if (!identity || !validPassword(password) || managed && !["admin", "technical"].includes(role)) return res.status(400).json({ message: "Enter a valid Gmail, a password of 8–256 characters and a valid panel type." });
+  async function createAccount(req, res, managed = false, registrationRole = req.body?.role || "admin") {
+    const identity = gmailIdentity(req.body?.email), password = req.body?.password, role = managed ? req.body?.role : registrationRole;
+    if (!identity || !validPassword(password) || !["admin", "technical"].includes(role)) return res.status(400).json({ message: "Enter a valid Gmail, a password of 8–256 characters and a valid panel type." });
     if (await accounts.findOne(gmailAccountFilter(identity), { projection: { _id: 1 } })) return res.status(409).json({ message: "This Gmail already has an account or pending request. Sign in or use Forgot password." });
     const passwordHash = await hashPassword(password);
-    const proof = await verification.claim(req, identity.email, managed ? "account-create" : "registration");
-    const record = { ...identity, passwordHash, roles: managed ? [role] : (["admin", "technical"].includes(role) ? [role] : ["admin"]), status: "active", emailVerified: true, emailVerifiedAt: proof.verifiedAt, version: 1, createdAt: new Date(), ...(managed ? { createdBy: req.admin._id } : {}) };
+    const record = { ...identity, passwordHash, roles: [role], status: "active", emailVerified: false, version: 1, createdAt: new Date(), ...(managed ? { createdBy: req.admin._id } : {}) };
     try {
       record._id = (await accounts.insertOne(record)).insertedId;
-      await verification.complete(proof);
     } catch (error) {
-      await verification.release(proof);
       if (error.code === 11000) return res.status(409).json({ message: "This Gmail already has an account or pending request." });
       throw error;
     }
     return res.status(201).json({ account: safeAccount(record, req.admin, config), message: "Account created successfully. You can now sign in." });
   }
-  const register = (req, res) => createAccount(req, res);
+  const register = (req, res) => createAccount(req, res, false);
   auth.post("/register", limit, register);
-  // Mounted once on /api/auth so both the Admin Panel and Technical Panel share the same
-  // endpoint and the same MongoDB-backed OTP send/verify limits.
+  // Keep the shared OTP endpoints available for account edits and other verification flows.
   app.use("/api/auth", auth);
-  management.post("/register", limit, (req, res, next) => req.originalUrl.startsWith("/api/technical/")
-    ? res.status(403).json({ message: "Account requests are available only through the Admin Panel registration page." })
-    : register(req, res, next));
+  management.post("/register", limit, (req, res) => createAccount(req, res, false, req.originalUrl.startsWith("/api/technical/") ? "technical" : "admin"));
   management.get("/accounts", ...guard, async (req, res) => {
     const records = await accounts.find({}, { projection: { email: 1, roles: 1, status: 1, createdAt: 1, emailVerified: 1, emailVerifiedAt: 1, version: 1 } }).sort({ createdAt: -1 }).limit(500).toArray();
     res.json({ accounts: records.map((account) => safeAccount(account, req.admin, config)) });
