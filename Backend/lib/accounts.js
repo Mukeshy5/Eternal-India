@@ -86,7 +86,7 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
     ? res.status(403).json({ message: "Technical Panel accounts can only be created by an administrator." })
     : createAccount(req, res, false, "admin"));
   management.get("/accounts", ...guard, async (req, res) => {
-    const records = await accounts.find({}, { projection: { email: 1, name: 1, username: 1, roles: 1, status: 1, createdAt: 1, emailVerified: 1, emailVerifiedAt: 1, version: 1 } }).sort({ createdAt: -1 }).limit(500).toArray();
+    const records = await accounts.find({}, { projection: { email: 1, name: 1, username: 1, roles: 1, status: 1, createdAt: 1, emailVerified: 1, emailVerifiedAt: 1, version: 1 } }).sort({ createdAt: -1, _id: -1 }).toArray();
     res.json({ accounts: records.map((account) => safeAccount(account, req.admin, config)) });
   });
   management.post("/accounts", ...guard, limit, (req, res) => createAccount(req, res, true));
@@ -157,7 +157,8 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
     const account = await accounts.findOne({ _id: new ObjectId(req.params.id) });
     if (!account) return res.status(404).json({ message: "Account not found." });
     if (canManageAccounts(account) && !await hasAnotherAdmin(account)) return res.status(409).json({ message: "This is the last active administrator. Create or approve another Admin Panel account before deleting it." });
-    await accounts.deleteOne({ _id: account._id });
+    const deleted = await accounts.findOneAndDelete({ _id: account._id });
+    if (!deleted) return res.status(404).json({ message: "Account not found." });
     await db.collection("email_verifications").deleteMany({ $or: [{ accountId: account._id.toString() }, ...(account.gmailKey ? [{ gmailKey: account.gmailKey }] : [{ email: account.email }])] });
     await Promise.all([db.collection("admin_sessions").deleteMany(sessionFilter(account._id)), db.collection("admin_tokens").deleteMany({ adminId: account._id })]);
     if (account._id.equals(req.admin._id)) return res.json({ reauthenticate: true, message: "Your account was deleted. Sign in with another account to continue." });

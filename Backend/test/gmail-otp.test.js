@@ -98,6 +98,7 @@ test("real MongoDB/API registration bypasses OTP while verification remains avai
       assert.equal((await request("/admin/me", undefined, "GET", true)).status, 401);
       await ensureInitialAdmin(db, config);
       assert.equal(await db.collection("admins").findOne({ email: owner.email }), null, "restart does not recreate a deleted configured owner");
+      assert.equal((await request("/admin/login", { email: owner.email, password: "UpdatedOwnerPassword9" })).status, 401, "a permanently deleted account cannot sign in again");
       const backupLogin = await request("/admin/login", { email: "backup.owner@gmail.com", password: config.adminPassword });
       assert.equal(backupLogin.status, 200); cookie = cookieHeader(backupLogin);
       assert.equal((await request("/admin/accounts", undefined, "GET", true)).status, 200);

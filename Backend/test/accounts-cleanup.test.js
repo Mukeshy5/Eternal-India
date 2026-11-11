@@ -75,6 +75,22 @@ test("panel accounts, one-time password recovery and safe database cleanup", asy
       await db.collection("admins").updateOne({ _id: fixture._id }, { $set: { roles: ["technical"] } });
       const list = await (await request("/admin/accounts")).json(); assert.ok(list.accounts.every((account) => !account.passwordHash && !account.passwordReset));
     });
+    await t.test("Admin Panel lists every MongoDB account rather than truncating after 500", async () => {
+      const fixtures = Array.from({ length: 501 }, (_, index) => ({
+        email: `account-list-${index}@example.test`,
+        roles: ["technical"],
+        status: "active",
+        version: 1,
+        createdAt: new Date(Date.now() + index),
+        passwordHash: "must-not-be-returned",
+      }));
+      await db.collection("admins").insertMany(fixtures);
+      const [response, storedCount] = await Promise.all([request("/admin/accounts"), db.collection("admins").countDocuments()]);
+      assert.equal(response.status, 200);
+      const { accounts: listed } = await response.json();
+      assert.equal(listed.length, storedCount, "all stored user records are visible to the authorized administrator");
+      assert.ok(listed.every((account) => !Object.hasOwn(account, "passwordHash")), "password hashes are never exposed in the account listing");
+    });
     await t.test("reset links are hashed, expire, work once, and revoke the old account sessions", async () => {
       const reply = await request("/technical/forgot-password", "POST", { email: technical.email }, ""); assert.equal(reply.status, 200);
       assert.equal(mail.length, 1); assert.equal(mail[0].email, technical.email);

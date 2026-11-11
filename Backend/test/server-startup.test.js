@@ -7,11 +7,14 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { readConfig } from "../config/env.js";
 import { connectDatabase } from "../config/database.js";
+import { hashPassword } from "../lib/passwords.js";
 
 test("the deployed server opens Render's public port with copied localhost settings and no SMTP", { timeout: 60000 }, async () => {
   const databaseName = `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`;
   const config = { ...readConfig(), databaseName };
   const { client, db } = await connectDatabase(config);
+  const disabledAccount = { email: "disabled.startup@example.com", passwordHash: await hashPassword("DisabledStartupPassword9"), roles: ["technical"], status: "disabled", emailVerified: true, createdAt: new Date() };
+  await db.collection("admins").insertOne(disabledAccount);
   const reservation = createServer().listen(0, "127.0.0.1"); await once(reservation, "listening");
   const port = reservation.address().port; await new Promise((resolve) => reservation.close(resolve));
   let child, output = "";
@@ -31,6 +34,9 @@ test("the deployed server opens Render's public port with copied localhost setti
     }
     const health = await fetch(`http://127.0.0.1:${port}/api/health`);
     assert.equal(health.status, 200); assert.equal((await health.json()).status, "ok");
+    const disabledLogin = await fetch(`http://127.0.0.1:${port}/api/technical/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: disabledAccount.email, password: "DisabledStartupPassword9" }) });
+    assert.equal(disabledLogin.status, 403, "email verification must not reactivate a disabled account on deployment");
+    assert.equal((await db.collection("admins").findOne({ email: disabledAccount.email })).status, "disabled", "startup preserves the disabled status in MongoDB");
     const preflight = await fetch(`http://127.0.0.1:${port}/api/admin/login`, { method: "OPTIONS", headers: { Origin: "https://eternal-india-phi.vercel.app", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" } });
     assert.equal(preflight.status, 204);
     assert.equal(preflight.headers.get("access-control-allow-origin"), "https://eternal-india-phi.vercel.app");
