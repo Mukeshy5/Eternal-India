@@ -39,6 +39,11 @@ export default function Footer() {
           <Link to="/contact#ayodhya">Ayodhya</Link>
           <Link to="/contact#buxar">Buxar</Link>
         </div>
+        <div>
+          <h3>Policies</h3>
+          <Link to="/privacy-policy">Our Privacy Policy</Link>
+          <Link to="/terms-and-conditions">Terms &amp; Conditions</Link>
+        </div>
         <div className="footer-contact">
           <h3>Let's talk travel</h3>
           <a href={whatsappUrl} target="_blank" rel="noreferrer">

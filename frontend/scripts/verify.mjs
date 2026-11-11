@@ -31,6 +31,8 @@ const knownRoutes = new Set([
   "/buddhist-tours-in-india",
   "/request-quote",
   "/online-payment",
+  "/privacy-policy",
+  "/terms-and-conditions",
   "/admin",
   "/admin/login",
   "/technical",
@@ -132,6 +134,9 @@ try {
   assert.ok(payment.includes('aria-controls="payment-qr-display" aria-expanded="false"'), "QR starts hidden");
   assert.ok(!payment.includes('class="actual-payment-qr"'), "payment QR is not rendered before requesting it");
   assert.ok(!pages.get("/").includes("Ready for your next chapter?") && !pages.get("/").includes("payment-banner"), "removed payment promotion is absent from home");
+  assert.ok(pages.get("/privacy-policy").includes("Our Privacy Policy"), "privacy policy route renders");
+  assert.ok(pages.get("/privacy-policy").includes("Only commitments and communications exchanged by email will apply."));
+  for (const value of ["Terms &amp; Conditions", "Payment policy", "Cancellation policy", "No refund is provided for no-shows."]) assert.ok(pages.get("/terms-and-conditions").includes(value), `terms page includes ${value}`);
   for (const [route, html] of pages) {
     const floatingChat = html.match(/<a\b[^>]*class="whatsapp-float"[^>]*>/)?.[0];
     const lineChat = html.match(/<a\b[^>]*class="line-float"[^>]*>/)?.[0];
