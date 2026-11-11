@@ -26,39 +26,40 @@ test("real MongoDB/API registration bypasses OTP while verification remains avai
   let cookie = "";
   const request = (path, body, method = "POST", authenticated = false) => fetch(base + path, { method, headers: { "Content-Type": "application/json", Origin: "http://localhost:5173", ...(authenticated && cookie ? { Cookie: cookie } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
   try {
-    await t.test("Admin and Technical registration create accounts without SMTP or OTP", async () => {
+    await t.test("Admin registration works without OTP and Technical self-registration is blocked", async () => {
       const registrations = [
         ["/auth/register", "shared.registration@gmail.com", "admin", undefined],
         ["/admin/register", "admin.registration@gmail.com", "admin", "technical"],
-        ["/technical/register", "technical.registration@gmail.com", "technical", "admin"],
       ];
       for (const [path, email, role, submittedRole] of registrations) {
         const response = await request(path, { email, password: "RegistrationPassword9", ...(submittedRole ? { role: submittedRole } : {}), emailVerified: true });
         assert.equal(response.status, 201, `${path} registers without an OTP`);
         const account = await db.collection("admins").findOne({ email });
-        assert.deepEqual(account.roles, [path === "/auth/register" ? "admin" : role], "panel registration cannot select a different role");
+        assert.deepEqual(account.roles, [role], "public registration cannot select a different role");
         assert.equal(account.emailVerified, false, "OTP bypass does not falsely mark an address as verified");
         assert.equal(await db.collection("email_verifications").countDocuments({ email }), 0, "registration does not access the OTP collection");
-        const panel = account.roles.includes("technical") ? "technical" : "admin";
-        assert.equal((await request(`/${panel}/login`, { email, password: "RegistrationPassword9" })).status, 200, "new credentials authenticate in the selected panel");
+        assert.equal((await request("/admin/login", { email, password: "RegistrationPassword9" })).status, 200, "new credentials authenticate in the Admin Panel");
       }
-      assert.equal(await db.collection("admins").countDocuments(), 6);
-      assert.equal((await request("/technical/register", { email: "invalid.password@gmail.com", password: "short" })).status, 400, "password validation remains active");
+      assert.equal(await db.collection("admins").countDocuments(), 5);
+      assert.equal((await request("/technical/register", { email: "invalid.password@gmail.com", password: "AnyPassword9" })).status, 403, "Technical self-registration is disabled");
+      assert.equal(await db.collection("admins").findOne({ email: "invalid.password@gmail.com" }), null);
+      assert.equal((await request("/auth/register", { email: "forced.admin@gmail.com", password: "RegistrationPassword9", role: "technical" })).status, 201);
+      assert.deepEqual((await db.collection("admins").findOne({ email: "forced.admin@gmail.com" })).roles, ["admin"], "shared public registration cannot assign the Technical role");
       assert.equal((await request("/auth/send-otp", { email: "not-gmail@example.com" })).status, 400);
       const unavailable = await request("/auth/send-otp", { email: "new.registration@gmail.com" }); assert.equal(unavailable.status, 503);
       assert.equal((await unavailable.json()).code, "EMAIL_NOT_CONFIGURED");
       assert.equal((await request("/auth/verify-otp", { email: "new.registration@gmail.com", otp: "invalid" })).status, 400);
       assert.equal((await request("/auth/send-otp", { email: "new.registration@gmail.com", purpose: "account-create" })).status, 401);
-      await db.collection("admins").deleteMany({ email: { $in: registrations.map(([, email]) => email) } });
+      await db.collection("admins").deleteMany({ email: { $in: [...registrations.map(([, email]) => email), "forced.admin@gmail.com"] } });
     });
     await t.test("duplicate Gmail aliases and unsafe account edits are rejected", async () => {
       assert.equal((await request("/auth/register", { email: "existingaccount+new@googlemail.com", password: "RegistrationPassword9" })).status, 409);
       const login = await request("/admin/login", { email: config.adminEmail, password: config.adminPassword }); assert.equal(login.status, 200); cookie = cookieHeader(login);
-      const created = await request("/admin/accounts", { email: "managed.registration@gmail.com", password: "RegistrationPassword9", role: "technical" }, "POST", true);
+      const created = await request("/admin/accounts", { name: "Managed Technician", email: "managed.registration@gmail.com", username: "managed.tech", password: "RegistrationPassword9", confirmPassword: "RegistrationPassword9", role: "technical" }, "POST", true);
       assert.equal(created.status, 201, "admin-managed account creation does not require OTP");
       const managedAccount = await db.collection("admins").findOne({ email: "managed.registration@gmail.com" });
       assert.equal(managedAccount.emailVerified, false);
-      const updated = await request(`/admin/accounts/${managedAccount._id}`, { email: managedAccount.email, role: "technical", version: managedAccount.version }, "PATCH", true);
+      const updated = await request(`/admin/accounts/${managedAccount._id}`, { name: managedAccount.name, email: managedAccount.email, username: managedAccount.username, role: "technical", version: managedAccount.version }, "PATCH", true);
       assert.equal(updated.status, 200, "editing an account without changing its email does not require OTP");
       assert.equal((await db.collection("admins").findOne({ _id: managedAccount._id })).emailVerified, false);
       assert.equal(await db.collection("email_verifications").countDocuments({ email: managedAccount.email }), 0, "unchanged account email edits do not access the OTP collection");
@@ -85,7 +86,7 @@ test("real MongoDB/API registration bypasses OTP while verification remains avai
       await ensureInitialAdmin(db, config);
       const blocked = await request(`/admin/accounts/${owner._id}`, undefined, "DELETE", true);
       assert.equal(blocked.status, 409); assert.ok((await blocked.json()).message.includes("last active administrator"));
-      assert.equal((await request(`/admin/accounts/${owner._id}`, { email: owner.email, role: "technical", version: 0 }, "PATCH", true)).status, 409);
+      assert.equal((await request(`/admin/accounts/${owner._id}`, { email: owner.email, name: "Owner", username: "owner.tech", role: "technical", version: 0 }, "PATCH", true)).status, 409);
       const edited = await request(`/admin/accounts/${owner._id}`, { email: owner.email, role: "admin", password: "UpdatedOwnerPassword9", version: 0 }, "PATCH", true);
       assert.equal(edited.status, 200); assert.equal((await edited.json()).reauthenticate, true);
       assert.equal((await request("/admin/me", undefined, "GET", true)).status, 401);

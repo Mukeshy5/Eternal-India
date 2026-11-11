@@ -30,13 +30,10 @@ test("HTTPS OTP delivery preserves verification gates and releases failed-delive
   try {
     const email = "https.otp.recipient@gmail.com", password = "HttpsOtpRecipientPassword9";
     const registration = await request("/technical/register", { email: "https.no.otp@gmail.com", password });
-    assert.equal(registration.status, 201, "Technical Panel registration succeeds without invoking SMTP");
-    const registered = await db.collection("admins").findOne({ email: "https.no.otp@gmail.com" });
-    assert.deepEqual(registered.roles, ["technical"]); assert.equal(registered.emailVerified, false);
-    assert.equal(await db.collection("email_verifications").countDocuments({ email: registered.email }), 0);
-    assert.equal((await request("/technical/login", { email: registered.email, password })).status, 200);
+    assert.equal(registration.status, 403, "Technical self-registration is disabled independently of SMTP");
+    assert.equal(await db.collection("admins").findOne({ email: "https.no.otp@gmail.com" }), null);
     const failed = await request("/auth/send-otp", { email });
-    assert.equal(failed.status, 503); assert.equal(failed.data.code, "EMAIL_DELIVERY_FAILED");
+    assert.equal(failed.status, 503); assert.equal(failed.data.code, "EMAIL_PROVIDER_REJECTED");
     assert.ok(!JSON.stringify(failed.data).includes("fixture-private-key"));
     assert.equal(await db.collection("email_verifications").countDocuments(), 0);
     assert.ok((await db.collection("email_verification_limits").find({}).toArray()).every((record) => record.count === 0), "failed delivery does not consume a send slot or enforce the resend cooldown");

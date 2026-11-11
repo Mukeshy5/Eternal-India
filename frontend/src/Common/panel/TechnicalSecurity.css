@@ -1,0 +1,6 @@
+.technical-security { display: grid; gap: 20px; }
+.technical-profile-card > p { display: flex; flex-wrap: wrap; gap: 10px 24px; padding-block: 12px; border-bottom: 1px solid var(--line); }
+.technical-profile-card > p:last-child { border-bottom: 0; }
+.technical-profile-card > p strong { min-width: 130px; color: var(--ink); }
+.technical-password-form > p { margin: 0 0 20px; }
+.technical-password-form .admin-tool-actions { margin-top: 20px; }

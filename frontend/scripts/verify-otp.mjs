@@ -48,20 +48,16 @@ export async function verifyOtpGates(vite) {
     const adminLogin = await globalThis.fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: registeredAdmin.email, password: "NewUiPassword9" }) });
     assert.equal(adminLogin.status, 200, "new Admin account can sign in without email verification");
     await act(async () => root.render(createElement(MemoryRouter, { key: "technical-register", initialEntries: ["/technical/register"] }, createElement(Admin, { technical: true }))));
-    await waitFor(() => container.querySelector(".admin-login-form"), "Technical Panel registration form");
-    assert.equal(container.querySelector(".gmail-verification"), null);
-    await act(async () => { type("#admin-email", "technical.ui.account@gmail.com"); type("#admin-password", "TechnicalUiPassword9"); type("#admin-confirm-password", "TechnicalUiPassword9"); });
-    await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new browser.Event("submit", { bubbles: true, cancelable: true })));
-    await waitFor(async () => container.querySelector(".admin-success")?.textContent.includes("created") && await db.collection("admins").findOne({ email: "technical.ui.account@gmail.com" }), "Technical Panel account creation without SMTP");
-    const registeredTechnical = await db.collection("admins").findOne({ email: "technical.ui.account@gmail.com" });
-    assert.deepEqual(registeredTechnical.roles, ["technical"]); assert.equal(registeredTechnical.emailVerified, false);
-    assert.equal((await globalThis.fetch("/api/technical/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: registeredTechnical.email, password: "TechnicalUiPassword9" }) })).status, 200, "new Technical account can sign in without email verification");
-    await db.collection("admins").deleteMany({ _id: { $in: [registeredAdmin._id, registeredTechnical._id] } });
+    await waitFor(() => container.querySelector(".admin-login-form"), "Technical Panel redirects registration to sign-in");
+    assert.equal([...container.querySelectorAll(".panel-auth-links a")].some((link) => link.textContent === "Create account"), false, "Technical Panel login has no self-registration option");
+    assert.equal((await originalFetch(`${base}/api/technical/register`, { method: "POST", headers: { "Content-Type": "application/json", Origin: config.origins[0] }, body: JSON.stringify({ email: "technical.ui.account@gmail.com", password: "TechnicalUiPassword9" }) })).status, 403, "the Technical registration API is blocked");
+    assert.equal(await db.collection("admins").findOne({ email: "technical.ui.account@gmail.com" }), null);
+    await db.collection("admins").deleteOne({ _id: registeredAdmin._id });
     await act(async () => root.render(null));
     const login = await globalThis.fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: config.adminEmail, password: config.adminPassword }) }); assert.equal(login.status, 200);
     await act(async () => root.render(createElement(MemoryRouter, { key: "managed", initialEntries: ["/admin/accounts"] }, createElement(Admin))));
     await waitFor(() => container.querySelectorAll(".panel-record-row").length === 2, "real managed account list");
-    const accountRow = (email) => [...container.querySelectorAll(".panel-record-row")].find((item) => item.querySelector("strong")?.textContent === email);
+    const accountRow = (email) => [...container.querySelectorAll(".panel-record-row")].find((item) => item.querySelector("strong")?.textContent.endsWith(email));
     const accountButton = (email, label) => [...(accountRow(email)?.querySelectorAll("button") || [])].find((button) => button.textContent === label);
     for (const label of ["Edit account", "Delete account"]) {
       const button = accountButton(config.adminEmail, label);
@@ -73,6 +69,7 @@ export async function verifyOtpGates(vite) {
     await act(async () => type('[name="accountEmail"]', "changed.owner@gmail.com"));
     assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, true, "changing the owner's email still requires OTP");
     await act(async () => { type('[name="accountEmail"]', config.adminEmail); type('[name="accountPassword"]', "UpdatedOwnerUiPassword9"); });
+    await act(async () => type('[name="accountConfirmPassword"]', "UpdatedOwnerUiPassword9"));
     await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new browser.Event("submit", { bubbles: true, cancelable: true })));
     await waitFor(() => container.querySelector(".admin-login-form"), "editing your own account returns to sign in");
     assert.ok(container.querySelector(".admin-success")?.textContent.includes("updated"));
@@ -81,11 +78,12 @@ export async function verifyOtpGates(vite) {
     await waitFor(() => accountRow(config.adminEmail), "updated owner credentials sign in and return to accounts");
     assert.equal(container.querySelector(".gmail-verification"), null, "new managed accounts do not render OTP controls");
     assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, false);
-    await act(async () => { type('[name="accountEmail"]', "managed.ui.account@gmail.com"); type('[name="accountPassword"]', "ManagedUiPassword9"); });
+    await act(async () => { type('[name="accountName"]', "Managed Technical"); type('[name="accountEmail"]', "managed.ui.account@gmail.com"); type('[name="accountUsername"]', "managed.ui.tech"); type('[name="accountPassword"]', "ManagedUiPassword9"); type('[name="accountConfirmPassword"]', "ManagedUiPassword9"); });
     await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new browser.Event("submit", { bubbles: true, cancelable: true })));
     await waitFor(async () => accountRow("managed.ui.account@gmail.com") && await db.collection("admins").findOne({ email: "managed.ui.account@gmail.com" }), "managed Technical account creation without SMTP");
     const managedTechnical = await db.collection("admins").findOne({ email: "managed.ui.account@gmail.com" });
     assert.deepEqual(managedTechnical.roles, ["technical"]); assert.equal(managedTechnical.emailVerified, false);
+    assert.equal(managedTechnical.name, "Managed Technical"); assert.equal(managedTechnical.username, "managed.ui.tech");
     assert.equal((await originalFetch(`${base}/api/technical/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: config.origins[0] }, body: JSON.stringify({ email: managedTechnical.email, password: "ManagedUiPassword9" }) })).status, 200);
     await act(async () => accountButton(managedTechnical.email, "Delete account").click());
     await waitFor(async () => !accountRow(managedTechnical.email) && !await db.collection("admins").findOne({ _id: managedTechnical._id }), "test account cleanup");
@@ -122,6 +120,7 @@ export async function verifyOtpGates(vite) {
       type('[name="accountPassword"]', "UpdatedUiPassword9");
       const select = container.querySelector('[name="accountRole"]'); select.value = "admin"; select.dispatchEvent(new browser.Event("change", { bubbles: true }));
     });
+    await act(async () => type('[name="accountConfirmPassword"]', "UpdatedUiPassword9"));
     await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new browser.Event("submit", { bubbles: true, cancelable: true })));
     await waitFor(() => container.querySelector(".admin-success")?.textContent.includes("Account updated"), "account edits save successfully");
     const saved = await db.collection("admins").findOne({ _id: verified._id });

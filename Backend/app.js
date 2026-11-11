@@ -66,7 +66,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
 
   const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
   const enquiryLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many enquiries. Please try again shortly." } });
-  const publicAdmin = (admin) => { const access = technicalAccess(admin, config); return { id: admin._id.toString(), email: admin.email, roles: access.roles, canManageAccounts: canManageAccounts(admin, config), technicalPermissions: access.permissions, staffPermissions: staffAccess(admin, config) }; };
+  const publicAdmin = (admin) => { const access = technicalAccess(admin, config); return { id: admin._id.toString(), name: admin.name || "", username: admin.username || "", email: admin.email, roles: access.roles, canManageAccounts: canManageAccounts(admin, config), technicalPermissions: access.permissions, staffPermissions: staffAccess(admin, config) }; };
   const verifyToken = (token) => {
     try { return jwt.verify(token, config.authTokenSecret, { algorithms: ["HS256"], issuer: "eternal-india", audience: "eternal-india-panels" }); }
     catch { return null; }

@@ -6,7 +6,7 @@ import { Icon } from "./SiteUI";
 export default function PanelAuth({ technical, busy, error, onError, onLogin }) {
   const base = technical ? "/technical" : "/admin";
   const location = useLocation(), navigate = useNavigate();
-  const mode = location.pathname.endsWith("/forgot-password") ? "forgot" : location.pathname.endsWith("/reset-password") ? "reset" : location.pathname.endsWith("/register") ? "register" : "login";
+  const mode = location.pathname.endsWith("/forgot-password") ? "forgot" : location.pathname.endsWith("/reset-password") ? "reset" : !technical && location.pathname.endsWith("/register") ? "register" : "login";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -44,7 +44,7 @@ export default function PanelAuth({ technical, busy, error, onError, onLogin }) 
         </fieldset>
         {error && <p className="admin-error" role="alert">{error}</p>}{message && <p className="admin-success" role="status">{message}</p>}
         <button className="button" type="submit" disabled={locked}>{locked ? "Please wait…" : action}<Icon size={18} /></button>
-        <div className="panel-auth-links">{mode === "login" ? <><Link onClick={changeMode} to={`${base}/forgot-password`}>Forgot password?</Link><Link onClick={changeMode} to={`${base}/register`}>Create account</Link></> : <Link onClick={changeMode} to={`${base}/login`}>Back to sign in</Link>}</div>
+        <div className="panel-auth-links">{mode === "login" ? <><Link onClick={changeMode} to={`${base}/forgot-password`}>Forgot password?</Link>{!technical && <Link onClick={changeMode} to={`${base}/register`}>Create account</Link>}</> : <Link onClick={changeMode} to={`${base}/login`}>Back to sign in</Link>}</div>
         <span className="admin-login-note">For authorized Eternal India team members.</span><Link className="panel-other-login" onClick={changeMode} to={technical ? "/admin/login" : "/technical/login"}>Open {technical ? "admin" : "technical"} panel →</Link>
       </form>
     </div>

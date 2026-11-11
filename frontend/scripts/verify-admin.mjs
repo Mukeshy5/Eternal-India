@@ -70,19 +70,22 @@ export async function verifyAdminInteractions(server, technical = false) {
     await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
     assert.ok(container.querySelector('[role="status"]').textContent.includes("reset link"));
     await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Back to sign in").click());
-    await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Create account").click());
-    assert.equal(container.querySelector(".gmail-verification"), null, "registration does not request Gmail OTP");
-    assert.equal(container.querySelector(".admin-login-form button[type='submit']").disabled, false, "registration is available without OTP");
-    const registrationEmail = technical ? "technical.registration@gmail.com" : "admin.registration@gmail.com";
-    await act(async () => { type(container.querySelector("#admin-email"), registrationEmail); type(container.querySelector("#admin-password"), "RegistrationPassword9"); type(container.querySelector("#admin-confirm-password"), "RegistrationPassword9"); });
-    await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
-    await waitFor(() => container.querySelector(".admin-success")?.textContent.includes("Account created successfully"));
-    const registrationCall = calls.find((call) => call.url === `/api${basePath}/register`);
-    assert.ok(registrationCall, "registration is submitted to the matching panel");
-    assert.equal(JSON.parse(registrationCall.options.body).password, "RegistrationPassword9");
-    assert.equal(calls.some((call) => call.url.includes("/send-otp")), false, "registration does not call the OTP endpoint");
-    assert.equal(accounts.at(-1).roles[0], technical ? "technical" : "admin");
-    await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Back to sign in").click());
+    if (technical) {
+      assert.equal([...container.querySelectorAll("a")].some((link) => link.textContent === "Create account"), false, "Technical Panel has no self-registration option");
+    } else {
+      await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Create account").click());
+      assert.equal(container.querySelector(".gmail-verification"), null, "registration does not request Gmail OTP");
+      assert.equal(container.querySelector(".admin-login-form button[type='submit']").disabled, false, "registration is available without OTP");
+      await act(async () => { type(container.querySelector("#admin-email"), "admin.registration@gmail.com"); type(container.querySelector("#admin-password"), "RegistrationPassword9"); type(container.querySelector("#admin-confirm-password"), "RegistrationPassword9"); });
+      await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
+      await waitFor(() => container.querySelector(".admin-success")?.textContent.includes("Account created successfully"));
+      const registrationCall = calls.find((call) => call.url === `/api${basePath}/register`);
+      assert.ok(registrationCall, "Admin registration is submitted to its panel API");
+      assert.equal(JSON.parse(registrationCall.options.body).password, "RegistrationPassword9");
+      assert.equal(calls.some((call) => call.url.includes("/send-otp")), false, "registration does not call the OTP endpoint");
+      assert.equal(accounts.at(-1).roles[0], "admin");
+      await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Back to sign in").click());
+    }
     await act(async () => { type(container.querySelector("#admin-email"), "admin@example.com"); type(container.querySelector("#admin-password"), "incorrect"); });
     await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
     assert.ok(container.querySelector('[role="alert"]').textContent.includes("incorrect"));
@@ -112,6 +115,13 @@ export async function verifyAdminInteractions(server, technical = false) {
     await act(async () => container.querySelector(".dashboard-search").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
     assert.ok(calls.some((call) => call.url.includes("search=Jaipur")));
     if (technical) {
+      const securityLink = [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "Profile & security");
+      assert.ok(securityLink, "Technical Panel has profile and security settings");
+      await act(async () => securityLink.click());
+      await waitFor(() => container.querySelector('[name="securityEmail"]'));
+      for (const field of ["currentPassword", "newPassword", "confirmNewPassword"]) assert.ok(container.querySelector(`[name="${field}"]`), `${field} is present in change-password form`);
+      await act(async () => [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "All enquiries").click());
+      await waitFor(() => container.querySelector(".dashboard-table"));
       for (const [label, heading] of [["Tour amounts & offers", "Tour amounts & offers"], ["Add hotel", "Hotel inventory"], ["Journey Voucher", "Journey Voucher"]]) {
         const tool = [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === label);
         assert.ok(tool, `${label} is present in the technical panel`);
@@ -127,10 +137,10 @@ export async function verifyAdminInteractions(server, technical = false) {
     } else {
       assert.ok(accountsLink, "panel account administration is available in the Admin Panel");
       await act(async () => accountsLink.click());
-      await waitFor(() => container.querySelector('[name="accountEmail"]'));
-      await act(async () => { type(container.querySelector('[name="accountEmail"]'), 'technical.account@gmail.com'); type(container.querySelector('[name="accountPassword"]'), 'TechnicalPassword9'); });
-      assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, true, 'admin-created accounts also require OTP');
-      assert.equal(container.querySelector('.gmail-send').disabled, false);
+      await waitFor(() => container.querySelector('[name="accountName"]'));
+      await act(async () => { type(container.querySelector('[name="accountName"]'), "Technical User"); type(container.querySelector('[name="accountEmail"]'), 'technical.account@gmail.com'); type(container.querySelector('[name="accountUsername"]'), 'technical.user'); type(container.querySelector('[name="accountPassword"]'), 'TechnicalPassword9'); type(container.querySelector('[name="accountConfirmPassword"]'), 'TechnicalPassword9'); });
+      assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, false, 'admin-created Technical accounts do not require OTP');
+      assert.equal(container.querySelector('.gmail-verification'), null);
     }
     testWindow.confirm = () => true;
     await act(async () => [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "Journey Voucher History").click());

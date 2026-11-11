@@ -8,6 +8,7 @@ export const panelSections = {
   vouchers: { label: "Journey Voucher", title: "Journey Vouchers", group: "Operations", icon: "calendar" },
   "voucher-history": { label: "Journey Voucher History", title: "Journey Voucher History", group: "Operations", icon: "archive" },
   accounts: { label: "Panel accounts", title: "Panel Accounts", group: "Administration", icon: "people", adminOnly: true },
+  security: { label: "Profile & security", title: "Profile & Security", group: "Account", icon: "people", technical: true },
   promotions: { label: "Tour amounts & offers", title: "Tour Pricing & Offers", group: "Website", icon: "spark", technical: true },
   festivals: { label: "Special Days & Festival Management", title: "Festival Management", group: "Website", icon: "spark", technical: true },
 };

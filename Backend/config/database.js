@@ -34,6 +34,7 @@ export async function connectDatabase(config) {
       await Promise.all([
         db.collection("admins").createIndex({ email: 1 }, { unique: true }),
         db.collection("admins").createIndex({ gmailKey: 1 }, { unique: true, partialFilterExpression: { gmailKey: { $type: "string" } } }),
+        db.collection("admins").createIndex({ usernameKey: 1 }, { unique: true, partialFilterExpression: { usernameKey: { $type: "string" } } }),
         db.collection("admin_tokens").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
         db.collection("email_verifications").createIndex({ purgeAt: 1 }, { expireAfterSeconds: 0 }),
         db.collection("email_verification_limits").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
