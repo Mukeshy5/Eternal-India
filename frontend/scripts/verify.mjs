@@ -104,6 +104,11 @@ try {
       if (item.duration) assert.ok(html.includes(item.duration), `${item.title}: requested trip duration`);
     }
   }
+  const goldenTriangle = pages.get(packagePath(tourPackages.find((item) => item.slug === "golden-triangle")));
+  for (const value of ["Delhi", "Agra", "Jaipur", "Chiang Rai Province", "Sop Ruak", "Day 1", "Arrive in Delhi", "Day 2", "Delhi – Agra", "Day 3", "Agra – Jaipur", "Day 4", "Jaipur – Delhi – Departure", "Fatehpur Sikri", "Amber Fort"]) {
+    assert.ok(goldenTriangle.includes(value), `Golden Triangle page: missing ${value}`);
+  }
+  assert.ok(goldenTriangle.includes("<summary>Itinerary"), "Golden Triangle itinerary is available as an expandable option");
   for (const region of regions) {
     const html = pages.get(regionPath(region));
     for (const item of destinations.filter((entry) => entry.region === region.slug)) assert.ok(html.includes(`href="${destinationPath(item)}"`));

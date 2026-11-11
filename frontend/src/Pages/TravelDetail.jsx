@@ -21,11 +21,24 @@ export default function TravelDetail({ item, type = "destination" }) {
     <section className="container travel-detail-section">
       <div className="travel-detail-main">
         <Eyebrow>{item.tagline}</Eyebrow>
-        <h2>{isPackage || item.outline ? "A starting point for your itinerary." : "Start with these places."}</h2>
-        <p className="travel-detail-description">{isPackage || item.outline ? "Use this outline as inspiration. Your route, accommodation and transport will be discussed with our team before you book." : "Choose the places that interest you. We’ll help you decide how to bring them together into a route that suits your time and pace."}</p>
+        <h2>{item.itinerary ? "Your four-day journey." : isPackage || item.outline ? "A starting point for your itinerary." : "Start with these places."}</h2>
+        <p className="travel-detail-description">{item.itinerary ? "This suggested schedule is a starting point. Confirm travel times, accommodation and sightseeing arrangements with our team before booking." : isPackage || item.outline ? "Use this outline as inspiration. Your route, accommodation and transport will be discussed with our team before you book." : "Choose the places that interest you. We’ll help you decide how to bring them together into a route that suits your time and pace."}</p>
         <ol className="travel-stop-list">
           {item.places.map((place, index) => <li key={place}><span>{String(index + 1).padStart(2, "0")}</span><div><h3>{place}</h3>{item.outline && <p>{item.outline[index]}</p>}</div><Icon name="pin" size={20} /></li>)}
         </ol>
+        {item.contentSections?.map((section) => <section className="travel-content-section" key={section.heading}>
+          <h3>{section.heading}</h3>
+          {section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+        </section>)}
+        {item.itinerary && <details className="travel-itinerary">
+          <summary>Itinerary <span>{item.itinerary.length} days</span></summary>
+          <ol className="travel-itinerary-days">
+            {item.itinerary.map((day) => <li key={day.day}>
+              <span className="travel-itinerary-day">{day.day}</span>
+              <div><h3>{day.title}</h3>{day.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>
+            </li>)}
+          </ol>
+        </details>}
         <h3 className="travel-interest-title">Make room for what you love.</h3>
         <div className="travel-interest-tags">{item.interests.map((interest) => <span key={interest}><Icon name="check" size={16} />{interest}</span>)}</div>
       </div>

@@ -56,6 +56,20 @@
 .travel-stop-list li > svg { margin: 4px 0 0 auto; color: #71836a; }
 .travel-stop-list h3 { font-size: 1.5rem; line-height: 1.3; }
 .travel-stop-list p { font-size: .8125rem; margin-top: 8px; }
+.travel-content-section { margin: 28px 0; }
+.travel-content-section h3 { font-family: Georgia, serif; font-size: 1.375rem; line-height: 1.35; }
+.travel-content-section p { margin-top: 10px; font-size: .875rem; }
+.travel-itinerary { margin: 30px 0; border: 1px solid var(--line); border-radius: 6px; background: #fffdf8; }
+.travel-itinerary summary { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 18px 20px; color: var(--green); font-family: Georgia, serif; font-size: 1.375rem; cursor: pointer; list-style: none; }
+.travel-itinerary summary::-webkit-details-marker { display: none; }
+.travel-itinerary summary::after { content: "+"; color: var(--pink); font-family: Arial, Helvetica, sans-serif; font-size: 1.5rem; }
+.travel-itinerary[open] summary::after { content: "−"; }
+.travel-itinerary summary span { margin-left: auto; color: var(--muted); font: 600 .6875rem Arial, Helvetica, sans-serif; letter-spacing: .04em; }
+.travel-itinerary-days { margin: 0; padding: 0 20px 8px; list-style: none; }
+.travel-itinerary-days > li { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 15px; padding: 18px 0; border-top: 1px solid var(--line); }
+.travel-itinerary-day { color: var(--pink); font-family: Georgia, serif; font-size: 1.125rem; }
+.travel-itinerary-days h3 { font-size: 1.125rem; }
+.travel-itinerary-days p { margin-top: 9px; font-size: .8125rem; }
 .travel-interest-title { font-size: 1.5rem; margin-bottom: 18px; }
 .travel-interest-tags { display: flex; flex-wrap: wrap; gap: 12px; }
 .travel-interest-tags > span { display: flex; align-items: center; gap: 8px; color: var(--green); background: #ecefe3; border-radius: 4px; padding: 10px 12px; font-size: .75rem; line-height: 1.6; }
