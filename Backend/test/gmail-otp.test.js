@@ -49,15 +49,19 @@ test("real MongoDB/API registration bypasses OTP while verification remains avai
       assert.equal((await unavailable.json()).code, "EMAIL_NOT_CONFIGURED");
       assert.equal((await request("/auth/verify-otp", { email: "new.registration@gmail.com", otp: "invalid" })).status, 400);
       assert.equal((await request("/auth/send-otp", { email: "new.registration@gmail.com", purpose: "account-create" })).status, 401);
+      await db.collection("admins").deleteMany({ email: { $in: registrations.map(([, email]) => email) } });
     });
     await t.test("duplicate Gmail aliases and unsafe account edits are rejected", async () => {
       assert.equal((await request("/auth/register", { email: "existingaccount+new@googlemail.com", password: "RegistrationPassword9" })).status, 409);
       const login = await request("/admin/login", { email: config.adminEmail, password: config.adminPassword }); assert.equal(login.status, 200); cookie = cookieHeader(login);
       const created = await request("/admin/accounts", { email: "managed.registration@gmail.com", password: "RegistrationPassword9", role: "technical" }, "POST", true);
       assert.equal(created.status, 201, "admin-managed account creation does not require OTP");
-      assert.equal((await db.collection("admins").findOne({ email: "managed.registration@gmail.com" })).emailVerified, false);
-      assert.equal((await request(`/admin/accounts/${existing._id}`, { email: "changed.account@gmail.com", role: "technical", version: 0 }, "PATCH", true)).status, 403);
-      assert.equal((await db.collection("admins").findOne({ _id: existing._id })).email, existing.email);
+      const managedAccount = await db.collection("admins").findOne({ email: "managed.registration@gmail.com" });
+      assert.equal(managedAccount.emailVerified, false);
+      const updated = await request(`/admin/accounts/${managedAccount._id}`, { email: managedAccount.email, role: "technical", version: managedAccount.version }, "PATCH", true);
+      assert.equal(updated.status, 200, "editing an account without changing its email does not require OTP");
+      assert.equal((await db.collection("admins").findOne({ _id: managedAccount._id })).emailVerified, false);
+      assert.equal(await db.collection("email_verifications").countDocuments({ email: managedAccount.email }), 0, "unchanged account email edits do not access the OTP collection");
       assert.equal((await request(`/admin/accounts/${owner._id}`, { email: "owner.change@gmail.com", role: "admin", version: 0 }, "PATCH", true)).status, 403, "even owner email changes require Gmail verification");
       assert.equal((await request(`/admin/accounts/${pending._id}/approve`, {}, "PATCH", true)).status, 403, "old unverified pending accounts cannot bypass verification through approval");
       const list = await (await request("/admin/accounts", undefined, "GET", true)).json();

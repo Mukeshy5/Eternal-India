@@ -28,6 +28,10 @@ export async function verifyOtpGates(vite) {
   browser.confirm = () => true;
   const { createRoot } = await import("react-dom/client"), container = browser.document.createElement("div"); browser.document.body.append(container); const root = createRoot(container);
   const waitFor = async (check, label) => { for (let i = 0; i < 200; i++) { let result; await act(async () => { result = await check(); if (!result) await new Promise((resolve) => setTimeout(resolve, 20)); }); if (result) return; } assert.fail(`${label}: ${container.textContent.slice(-1400)}`); };
+  const waitForAccountAction = async () => {
+    await waitFor(() => !container.querySelector(".admin-tool-form fieldset")?.disabled || !container.querySelector(".admin-tool-form"), "account action to finish");
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  };
   const type = (selector, value) => { const input = container.querySelector(selector); assert.ok(input, selector); Object.getOwnPropertyDescriptor(browser.HTMLInputElement.prototype, "value").set.call(input, value); input.dispatchEvent(new browser.Event("input", { bubbles: true })); input.dispatchEvent(new browser.Event("change", { bubbles: true })); };
   try {
     const { default: Admin } = await vite.ssrLoadModule("/src/Pages/Admin.jsx");
@@ -85,17 +89,19 @@ export async function verifyOtpGates(vite) {
     assert.equal((await originalFetch(`${base}/api/technical/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: config.origins[0] }, body: JSON.stringify({ email: managedTechnical.email, password: "ManagedUiPassword9" }) })).status, 200);
     await act(async () => accountButton(managedTechnical.email, "Delete account").click());
     await waitFor(async () => !accountRow(managedTechnical.email) && !await db.collection("admins").findOne({ _id: managedTechnical._id }), "test account cleanup");
+    await waitForAccountAction();
     const row = [...container.querySelectorAll(".panel-record-row")].find((item) => item.textContent.includes(legacy.email));
     await act(async () => [...row.querySelectorAll("button")].find((button) => button.textContent === "Edit account").click());
     assert.equal(container.querySelector('[name="accountEmail"]').value, legacy.email);
     assert.equal(browser.document.activeElement, container.querySelector("#panel-account-editor h2"), "editing moves keyboard focus to the account editor");
-    assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, true, "legacy unverified Gmail must be verified before editing");
+    assert.equal(container.querySelector('.admin-tool-form button[type="submit"]').disabled, false, "an unchanged legacy Gmail does not need OTP for account edits");
     browser.confirm = () => false;
     await act(async () => accountButton(legacy.email, "Delete account").click());
     assert.ok(await db.collection("admins").findOne({ _id: legacy._id }), "cancelling deletion keeps the account");
     browser.confirm = () => true;
     await act(async () => [...row.querySelectorAll("button")].find((button) => button.textContent === "Delete account").click());
     await waitFor(async () => await db.collection("admins").findOne({ _id: legacy._id }) === null && container.querySelectorAll(".panel-record-row").length === 2, "account deletion updates MongoDB and UI");
+    await waitForAccountAction();
     assert.equal(container.querySelector('[name="accountEmail"]').value, "", "deleting the edited account clears the editor");
     await act(async () => accountButton(config.adminEmail, "Delete account").click());
     await waitFor(() => container.querySelector('[role="alert"]')?.textContent.includes("last active administrator"), "last administrator deletion explains how to proceed");
@@ -138,6 +144,7 @@ export async function verifyOtpGates(vite) {
     globalThis.fetch = managedFetch;
     await act(async () => accountButton(verified.email, "Delete account").click());
     await waitFor(() => !accountRow(verified.email), "successful deletion removes the row");
+    await waitForAccountAction();
     assert.equal(await db.collection("admins").findOne({ _id: verified._id }), null);
 
     await db.collection("admins").updateOne({ _id: pending._id }, { $set: { status: "pending", expiresAt: new Date(Date.now() + 86400000) } });
@@ -145,10 +152,12 @@ export async function verifyOtpGates(vite) {
     await waitFor(() => accountButton(pending.email, "Reject request"), "pending request actions");
     await act(async () => accountButton(pending.email, "Reject request").click());
     await waitFor(() => !accountRow(pending.email), "rejecting a request removes it from the list");
+    await waitForAccountAction();
     assert.equal(await db.collection("admins").findOne({ _id: pending._id }), null);
     await ensureAdmin(db, { ...config, adminEmail: "backup.ui.owner@gmail.com" });
     await act(async () => accountButton(config.adminEmail, "Delete account").click());
     await waitFor(() => container.querySelector(".admin-login-form"), "deleting your own owner account signs you out");
+    await waitForAccountAction();
     assert.ok(container.querySelector(".admin-success")?.textContent.includes("deleted"));
     await ensureInitialAdmin(db, config);
     assert.equal(await db.collection("admins").findOne({ email: config.adminEmail }), null);

@@ -12,7 +12,8 @@ export default function AccountManager({ apiBase, onUnauthorized }) {
   const verification = useGmailVerification({ email, purpose: "account-edit", accountId: editing?._id, onUnauthorized });
   const unchangedVerified = !!editing?.emailVerified && email.trim().toLowerCase() === editing.email;
   const unchangedExisting = !!editing && (editing.isCurrent || editing.isOwner) && email.trim().toLowerCase() === editing.email;
-  const verified = !editing || unchangedVerified || unchangedExisting || verification.verified;
+  const unchangedEmail = !!editing && email.trim().toLowerCase() === editing.email;
+  const verified = !editing || unchangedEmail || verification.verified;
   const locked = busy || verification.busy;
   const dirty = editing ? email !== editing.email || !!password || role !== (editing.roles[0] || "admin") : !!email || !!password;
   usePanelNavigationGuard(dirty, locked, "Discard the account details you entered?");

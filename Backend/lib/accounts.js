@@ -84,7 +84,7 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
     if (!current) return res.status(404).json({ message: "Account not found." });
     const email = emailOf(req.body?.email), role = req.body?.role, password = req.body?.password;
     const permissions = safeAccount(current, req.admin, config);
-    const needsVerification = email !== current.email || current.emailVerified !== true && !permissions.isCurrent && !permissions.isOwner;
+    const needsVerification = email !== current.email;
     const identity = gmailIdentity(email);
     if (!validEmail(email) || needsVerification && !identity || !["admin", "technical"].includes(role) || password && !validPassword(password)) return res.status(400).json({ message: "Use a verified Gmail, a valid panel type and a password of at least 8 characters when changing it." });
     if (!Number.isInteger(req.body?.version) || req.body.version !== (current.version || 0)) return res.status(409).json({ message: "This account changed. Refresh before editing it." });

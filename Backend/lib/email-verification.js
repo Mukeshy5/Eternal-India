@@ -90,7 +90,7 @@ export function createEmailVerification({ db, config, mailer }) {
   }
   async function claim(req, email, purpose, accountId = "") {
     const ctx = context(req, { email, purpose, accountId });
-    if (!ctx.contextId) throw failure(403, "Verify this Gmail address with an OTP before creating or updating the account.", { code: "EMAIL_VERIFICATION_REQUIRED" });
+    if (!ctx.contextId) throw failure(403, "Verify this Gmail address with an OTP before changing the account email.", { code: "EMAIL_VERIFICATION_REQUIRED" });
     const record = await records.findOneAndUpdate({ _id: ctx.contextId, gmailKey: ctx.gmailKey, state: "verified", verified: true, consumed: false, verificationExpiresAt: { $gt: new Date() } }, { $set: { consumed: true } }, { returnDocument: "after" });
     if (!record) throw failure(403, "Gmail verification is missing, expired or already used. Request and verify a new OTP.", { code: "EMAIL_VERIFICATION_REQUIRED" });
     return record;
