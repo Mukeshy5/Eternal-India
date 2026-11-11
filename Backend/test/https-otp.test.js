@@ -11,8 +11,6 @@ import { cookieHeader } from "../lib/cookies.js";
 test("HTTPS OTP delivery preserves verification gates and releases failed-delivery reservations", async () => {
   const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "https-otp-owner@example.com", technicalEmail: "", adminPassword: "HttpsOtpOwnerPassword9", smtp: {}, email: { provider: "resend", apiKey: "fixture-private-key", from: "otp@example.com" } };
   const { client, db } = await connectDatabase(config); await ensureAdmin(db, config);
-  const backend = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await backend.decorationsReady;
-  const server = backend.app.listen(0, "127.0.0.1"); await once(server, "listening");
   const originalFetch = globalThis.fetch, messages = [];
   let providerFails = true, cookie = "";
   // Only the external provider is simulated; the API, hashing, session and MongoDB
@@ -22,6 +20,8 @@ test("HTTPS OTP delivery preserves verification gates and releases failed-delive
     messages.push(JSON.parse(options.body));
     return providerFails ? Response.json({ message: "fixture-private-key must never reach the browser" }, { status: 500 }) : Response.json({ id: randomUUID() });
   };
+  const backend = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await backend.decorationsReady;
+  const server = backend.app.listen(0, "127.0.0.1"); await once(server, "listening");
   const request = async (path, body) => {
     const response = await originalFetch(`http://127.0.0.1:${server.address().port}/api${path}`, { method: "POST", headers: { "Content-Type": "application/json", Origin: config.origins[0], ...(cookie ? { Cookie: cookie } : {}) }, body: JSON.stringify(body) });
     if (response.headers.get("set-cookie")) cookie = cookieHeader(response, cookie);
@@ -33,7 +33,7 @@ test("HTTPS OTP delivery preserves verification gates and releases failed-delive
     assert.equal(registration.status, 403, "Technical self-registration is disabled independently of SMTP");
     assert.equal(await db.collection("admins").findOne({ email: "https.no.otp@gmail.com" }), null);
     const failed = await request("/auth/send-otp", { email });
-    assert.equal(failed.status, 503); assert.equal(failed.data.code, "EMAIL_PROVIDER_REJECTED");
+    assert.equal(failed.status, 503); assert.equal(failed.data.code, "EMAIL_DELIVERY_FAILED");
     assert.ok(!JSON.stringify(failed.data).includes("fixture-private-key"));
     assert.equal(await db.collection("email_verifications").countDocuments(), 0);
     assert.ok((await db.collection("email_verification_limits").find({}).toArray()).every((record) => record.count === 0), "failed delivery does not consume a send slot or enforce the resend cooldown");

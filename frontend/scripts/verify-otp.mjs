@@ -107,8 +107,8 @@ export async function verifyOtpGates(vite) {
 
     const verified = await ensureAdmin(db, { ...config, adminEmail: "verified.ui.account@gmail.com", adminPassword: "OriginalUiPassword9" });
     const pending = await ensureAdmin(db, { ...config, adminEmail: "pending.ui.account@gmail.com" });
-    await db.collection("admins").updateOne({ _id: verified._id }, { $set: { roles: ["technical"], emailVerified: true, version: 1 } });
-    await db.collection("admins").updateOne({ _id: pending._id }, { $set: { roles: ["technical"], status: "pending", emailVerified: true, version: 1, expiresAt: new Date(Date.now() + 86400000) } });
+    await db.collection("admins").updateOne({ _id: verified._id }, { $set: { name: "Verified Technical", username: "verified.tech", usernameKey: "verified.tech", roles: ["technical"], emailVerified: true, version: 1 } });
+    await db.collection("admins").updateOne({ _id: pending._id }, { $set: { name: "Pending Technical", username: "pending.tech", usernameKey: "pending.tech", roles: ["technical"], status: "pending", emailVerified: true, version: 1, expiresAt: new Date(Date.now() + 86400000) } });
     const holderLogin = await originalFetch(`${base}/api/technical/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: config.origins[0] }, body: JSON.stringify({ email: verified.email, password: "OriginalUiPassword9" }) });
     assert.equal(holderLogin.status, 200); const holderCookie = cookieHeader(holderLogin);
     await act(async () => root.render(createElement(MemoryRouter, { key: "account-actions", initialEntries: ["/admin/accounts"] }, createElement(Admin))));
@@ -130,6 +130,8 @@ export async function verifyOtpGates(vite) {
     const updatedLogin = await originalFetch(`${base}/api/admin/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: config.origins[0] }, body: JSON.stringify({ email: verified.email, password: "UpdatedUiPassword9" }) }); assert.equal(updatedLogin.status, 200, "edited password and panel work at sign-in");
 
     await act(async () => accountButton(pending.email, "Edit account").click());
+    assert.equal(container.querySelector('[name="accountName"]').value, "Pending Technical");
+    assert.equal(container.querySelector('[name="accountUsername"]').value, "pending.tech");
     await act(async () => accountButton(pending.email, "Approve account").click());
     await waitFor(() => accountRow(pending.email).textContent.includes("Active"), "approval updates the account row");
     await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new browser.Event("submit", { bubbles: true, cancelable: true })));

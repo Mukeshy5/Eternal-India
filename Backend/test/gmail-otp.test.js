@@ -87,8 +87,8 @@ test("real MongoDB/API registration bypasses OTP while verification remains avai
       const blocked = await request(`/admin/accounts/${owner._id}`, undefined, "DELETE", true);
       assert.equal(blocked.status, 409); assert.ok((await blocked.json()).message.includes("last active administrator"));
       assert.equal((await request(`/admin/accounts/${owner._id}`, { email: owner.email, name: "Owner", username: "owner.tech", role: "technical", version: 0 }, "PATCH", true)).status, 409);
-      const edited = await request(`/admin/accounts/${owner._id}`, { email: owner.email, role: "admin", password: "UpdatedOwnerPassword9", version: 0 }, "PATCH", true);
-      assert.equal(edited.status, 200); assert.equal((await edited.json()).reauthenticate, true);
+      const edited = await request(`/admin/accounts/${owner._id}`, { email: owner.email, role: "admin", password: "UpdatedOwnerPassword9", confirmPassword: "UpdatedOwnerPassword9", version: 0 }, "PATCH", true);
+      assert.equal(edited.status, 200, await edited.clone().text()); assert.equal((await edited.json()).reauthenticate, true);
       assert.equal((await request("/admin/me", undefined, "GET", true)).status, 401);
       assert.equal((await request("/admin/login", { email: owner.email, password: config.adminPassword })).status, 401);
       const login = await request("/admin/login", { email: owner.email, password: "UpdatedOwnerPassword9" }); assert.equal(login.status, 200); cookie = cookieHeader(login);

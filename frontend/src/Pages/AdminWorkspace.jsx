@@ -58,6 +58,9 @@ function Workspace({ technical }) {
     }).finally(() => { if (!controller.signal.aborted) setChecking(false); });
     return () => controller.abort();
   }, [basePath]);
+  useEffect(() => {
+    if (technical && section === "register") navigate(`${basePath}/login`, { replace: true });
+  }, [technical, section, basePath, navigate]);
 
   function enquiryQuery(patch, replace = false) {
     const next = { search, status, page, ...patch }, query = new URLSearchParams();
@@ -113,7 +116,7 @@ function Workspace({ technical }) {
   const sectionInfo = panelSections[section];
   const forbidden = sectionInfo && ((sectionInfo.technical && !technical) || (sectionInfo.adminOnly && (technical || !admin?.canManageAccounts)) || (sectionInfo.permission && !admin?.staffPermissions?.includes(sectionInfo.permission)));
   if (checking) return <section className="admin-checking"><h1>{technical ? "Technical Panel" : "Admin Panel"}</h1><p role="status">Checking your session…</p></section>;
-  if (technical && section === "register") { navigate(`${basePath}/login`, { replace: true }); return null; }
+  if (technical && section === "register") return null;
   if (!admin || ["register", "forgot-password", "reset-password"].includes(section)) return <PanelAuth technical={technical} busy={busy} error={error} onError={setError} onLogin={login} />;
   return <div className="admin-shell"><PanelLayout admin={admin} technical={technical} section={section} busy={busy || !!updating} onNavigate={go} onLogout={logout}>
     {error && !["enquiries", "hotels", "vouchers"].includes(section) && <p className="admin-error panel-global-error" role="alert">{error}</p>}
