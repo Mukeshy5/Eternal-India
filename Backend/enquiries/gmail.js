@@ -31,7 +31,7 @@ export function createGmailIntegration({ db, config, enquiries, providerFactory 
   const vault = tokenVault(config.enquiries?.tokenSecret || config.sessionSecret);
   const configured = () => !!(settings.clientId && settings.clientSecret && settings.redirectUri && settings.email);
   const oauthClient = () => new OAuth2Client({ clientId: settings.clientId, clientSecret: settings.clientSecret, redirectUri: settings.redirectUri });
-  let running;
+  let running, stopping = false;
   async function storedToken() {
     const saved = await credentials.findOne({ _id: "gmail" });
     if (saved && saved.email !== settings.email) throw enquiryError(409, "The connected Gmail inbox does not match GMAIL_INBOX_EMAIL. Reconnect the configured business inbox.");
@@ -71,6 +71,7 @@ export function createGmailIntegration({ db, config, enquiries, providerFactory 
     } catch (error) { if (error.publicMessage) throw error; console.error("Gmail OAuth connection failed:", error.name); throw enquiryError(503, "Gmail connection failed. Check the OAuth configuration and try connecting again."); }
   }
   async function sync() {
+    if (stopping) throw enquiryError(503, "Gmail sync is stopping and will resume after restart.");
     if (running) return running;
     running = run().finally(() => { running = undefined; });
     return running;
@@ -85,7 +86,9 @@ export function createGmailIntegration({ db, config, enquiries, providerFactory 
     try {
       const api = await provider(), profile = await api.get("profile");
       if (profile.emailAddress?.toLowerCase() !== settings.email) throw enquiryError(409, "The OAuth account does not match the configured business Gmail inbox.");
+      if (typeof profile.historyId !== "string" || !/^\d+$/.test(profile.historyId)) throw enquiryError(503, "Gmail returned an invalid sync cursor; it will retry.");
       async function checkpoint(changes) {
+        if (stopping) throw enquiryError(503, "Gmail sync interrupted by a server restart; retry scheduled.");
         const reply = await stateCollection.updateOne({ _id: stateId, owner }, { $set: { ...changes, lockedUntil: new Date(Date.now() + 120000) } });
         if (!reply.matchedCount) throw enquiryError(409, "Another worker took over this sync. It will resume safely.");
         Object.assign(state, changes);
@@ -101,14 +104,20 @@ export function createGmailIntegration({ db, config, enquiries, providerFactory 
       if (!state.historyId && !state.initialHistoryId) await checkpoint({ initialHistoryId: profile.historyId, initialPageToken: null });
       for (let page = 0; page < 10; page++) {
         if (!state.historyId) {
-          const messages = await api.get("messages", { labelIds: ["INBOX"], maxResults: 100, pageToken: state.initialPageToken || undefined });
+          let messages;
+          try { messages = await api.get("messages", { labelIds: ["INBOX"], maxResults: 100, pageToken: state.initialPageToken || undefined }); }
+          catch (error) { if (error.providerStatus !== 400 || !state.initialPageToken) throw error; await checkpoint({ initialPageToken: null, initialHistoryId: profile.historyId }); continue; }
           for (const message of messages.messages || []) { await checkpoint({}); await importMessage(message.id); }
           if (messages.nextPageToken) await checkpoint({ initialPageToken: messages.nextPageToken });
           else { await checkpoint({ historyId: state.initialHistoryId, initialHistoryId: null, initialPageToken: null }); break; }
         } else {
           let changes;
           try { changes = await api.get("history", { startHistoryId: state.historyId, historyTypes: ["messageAdded", "labelAdded"], maxResults: 100, pageToken: state.historyPageToken || undefined }); }
-          catch (error) { if (error.providerStatus !== 404) throw error; await checkpoint({ historyId: null, historyPageToken: null, initialHistoryId: profile.historyId, initialPageToken: null }); continue; }
+          catch (error) {
+            if (error.providerStatus === 400 && state.historyPageToken) { await checkpoint({ historyPageToken: null }); continue; }
+            if (error.providerStatus !== 404) throw error;
+            await checkpoint({ historyId: null, historyPageToken: null, initialHistoryId: profile.historyId, initialPageToken: null }); continue;
+          }
           const ids = new Set();
           for (const history of changes.history || []) {
             for (const item of history.messagesAdded || []) ids.add(item.message.id);
@@ -133,5 +142,5 @@ export function createGmailIntegration({ db, config, enquiries, providerFactory 
     const state = settings.email ? await db.collection("enquiry_sync_state").findOne({ _id: `gmail:${settings.email}` }) : null;
     return { configured: configured(), connected: !!(settings.email && (saved?.email === settings.email || settings.refreshToken)), email: settings.email || "", lastSuccessAt: state?.lastSuccessAt || null, lastError: state?.lastError || null, nextAttemptAt: state?.nextAttemptAt || null, syncing: !!(state?.lockedUntil > new Date()) };
   }
-  return { configured, beginOAuth, completeOAuth, sync, status, async due() { const value = await status(); return value.connected && (!value.nextAttemptAt || new Date(value.nextAttemptAt) <= new Date()); }, async stop() { await running?.catch(() => {}); } };
+  return { configured, beginOAuth, completeOAuth, sync, status, async due() { const value = await status(); return value.connected && (!value.nextAttemptAt || new Date(value.nextAttemptAt) <= new Date()); }, async stop() { stopping = true; await running?.catch(() => {}); } };
 }

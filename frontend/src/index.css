@@ -2907,6 +2907,9 @@ main:focus {
     animation: none;
     transition: none;
   }
+}
+
+@media (max-width: 640px) {
   .vision-section {
     padding-block: 40px;
   }

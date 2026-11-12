@@ -79,6 +79,7 @@ async function start() {
   const stop = async () => {
     if (stopping) return;
     stopping = true;
+    setTimeout(() => process.exit(1), 5000).unref();
     try {
       await decorationScheduler.stop();
       await enquirySystem.stop();
@@ -90,7 +91,6 @@ async function start() {
       await closeDatabase();
       process.exit(0);
     });
-    setTimeout(() => process.exit(1), 5000).unref();
   };
 
   process.on("SIGINT", stop);

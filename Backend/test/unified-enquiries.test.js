@@ -107,6 +107,7 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       assert.equal((await request("/admin/enquiry-notification-settings", { method: "PATCH", cookie: adminCookie, body: { popup: true, sound: false } })).status, 200);
       assert.equal((await (await request("/technical/enquiry-notification-settings", { cookie: technicalCookie })).json()).sound, false);
       const reply = await request("/admin/enquiry-integrations/gmail/connect", { method: "POST", cookie: adminCookie, body: {} }); assert.equal(reply.status, 200);
+      assert.ok(reply.headers.getSetCookie().some((value) => value.includes("eternal_india.gmail_oauth=") && /HttpOnly/i.test(value) && /SameSite=Lax/i.test(value) && value.includes("Path=/api/integrations/gmail/callback")), "local OAuth return retains authentication without changing the strict sign-in cookie");
       const url = new URL((await reply.json()).url); assert.equal(url.origin, "https://accounts.google.com"); assert.equal(url.searchParams.get("access_type"), "offline"); assert.equal(url.searchParams.get("code_challenge_method"), "S256");
       const state = await db.collection("enquiry_oauth_states").findOne({}); assert.ok(state.verifier.data); assert.notEqual(state._id, url.searchParams.get("state"));
       const configReply = await (await request("/admin/enquiry-integrations", { cookie: adminCookie })).text(); assert.ok(!configReply.includes(config.enquiries.gmail.clientSecret)); assert.ok(!configReply.includes(config.enquiries.whatsapp.appSecret));

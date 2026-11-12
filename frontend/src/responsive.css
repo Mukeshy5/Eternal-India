@@ -1,0 +1,202 @@
+/* Shared screen layout. Print documents keep their own measured page styles. */
+@media screen {
+  :root { --page-gutter: clamp(16px, 3.5vw, 48px); }
+  html, body, #root, #main-content { min-width: 0; }
+  .container { width: min(1200px, calc(100% - 2 * var(--page-gutter))); }
+  :where(.page-intro, .section-heading, .office-grid, .support-grid, .footer-grid,
+    .journey-grid, .region-grid, .home-about, .home-process, .quote-section,
+    .form-grid, .vision-inner, .reach-section, .commitment-grid,
+    .travel-hero, .travel-grid, .travel-detail-section, .travel-gallery-grid,
+    .payment-grid, .secure-payment, .panel-body, .panel-page) > * { min-width: 0; }
+  :where(h1, h2, h3, p, address, dd, .text-link) { overflow-wrap: break-word; }
+  :where(input, select, textarea, fieldset) { min-width: 0; max-width: 100%; }
+  :where(video, canvas, iframe) { max-width: 100%; }
+  .button { max-width: 100%; white-space: normal; text-align: center; }
+  .eyebrow { flex-wrap: wrap; }
+  .section-heading > :last-child { flex-shrink: 1; }
+  .home-hero-photo { inset: 0 auto 0 50%; width: 100vw; margin: 0; transform: translateX(-50%); }
+  .home-hero-photo::after { background: linear-gradient(90deg, #10271fe6, #14291f99 46%, #14291f22 82%), linear-gradient(0deg, #14291f99, transparent 45%); }
+  .panel-body, .panel-page, .staff-workspace, .festival-workspace,
+  .voucher-preview-panel, .payment-management { min-width: 0; max-width: 100%; }
+  :where(.admin-table-wrap, .admin-tool-table-wrap, .staff-table-wrap,
+    .payment-admin-table, .attendance-calendar-grid) { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+  .enquiry-message-preview, .dashboard-guest > div, .dashboard-drawer-content { min-width: 0; overflow-wrap: anywhere; }
+}
+
+@media screen and (max-width: 1100px) {
+  .home-benefits-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .travel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .footer-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .home-hero-copy { width: min(590px, 70%); }
+  .home-hero-copy h1 { font-size: clamp(38px, 4.8vw, 60px); }
+}
+
+@media screen and (max-width: 900px) {
+  .home-hero { min-height: 0; background: var(--green); }
+  .home-hero-inner.container { display: flex; flex-direction: column; align-items: stretch; width: 100%; max-width: none; min-height: 0; gap: 0; }
+  .home-hero-photo { position: relative; inset: auto; width: 100%; height: clamp(270px, 48vw, 420px); margin: 0; transform: none; }
+  .home-hero-photo::after { background: linear-gradient(0deg, #14291fa6, transparent 65%); }
+  .home-hero-copy { width: 100%; max-width: 760px; margin-inline: auto; padding: 32px var(--page-gutter) 36px; background: var(--green); text-shadow: none; }
+  .home-hero-copy h1 { font-size: clamp(34px, 5.5vw, 52px); line-height: 1.12; }
+  .home-hero-copy > p:not(.eyebrow) { max-width: 620px; font-size: 16px; margin-top: 20px; }
+  .home-hero-copy .eyebrow { margin-bottom: 16px; }
+  .hero-actions { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 16px 24px; }
+  .hero-reassurance { margin-top: 24px; font-size: 12px; }
+  .hero-photo-label { left: auto; right: var(--page-gutter); bottom: 56px; font-size: clamp(23px, 4vw, 32px); }
+  .home-hero-photo .photo-caption { left: var(--page-gutter); right: var(--page-gutter); bottom: 20px; font-size: 11px; }
+  .page-intro, .travel-hero, .quote-section, .vision-inner, .reach-section,
+  .home-about, .home-process, .travel-detail-section { grid-template-columns: minmax(0, 1fr); gap: 30px; }
+  .page-intro, .travel-hero { padding-block: 38px 44px; }
+  .intro-photo { width: 100%; height: clamp(240px, 45vw, 380px); }
+  .intro-description, .intro-description p, .quote-intro > p:not(.eyebrow) { max-width: 680px; }
+  .home-about, .home-process { padding-block: 44px; }
+  .home-process > :first-child { max-width: 650px; }
+  .journey-editorial > article { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .journey-editorial > article:nth-child(even) .editorial-photo { order: 0; }
+  .editorial-photo { width: 100%; height: clamp(240px, 45vw, 400px); }
+  .quote-intro h1 { font-size: var(--font-h1); }
+  .contact-callout, .beyond-section, .buddhist-tour-cta { flex-wrap: wrap; }
+  .contact-callout .button, .beyond-section .button { margin-left: 0; }
+  .secure-payment { grid-template-columns: minmax(0, 1fr); gap: 30px; }
+  .secure-payment-intro { padding-top: 0; }
+  .secure-payment-intro > p, .secure-assurance p { max-width: 650px; }
+  .secure-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .payment-page .payment-methods { margin-top: 0; }
+  .payment-page .payment-help-details { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media screen and (max-width: 760px) {
+  .section { padding-block: 48px; }
+  .section-heading { align-items: flex-start; flex-direction: column; gap: 18px; margin-bottom: 26px; }
+  .section-heading > p br { display: none; }
+  .support-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .support-option { padding: 18px 0; min-width: 0; }
+  .support-option:not(:last-child) { border-right: 0; border-bottom: 1px solid #d6d8ca; }
+  .support-option h3 { font-size: 25px; }
+  .support-option div > span:last-child { font-size: 13px; }
+  .office-grid, .commitment-grid { grid-template-columns: minmax(0, 1fr); }
+  .service-list > article { grid-template-columns: 28px minmax(0, 1fr); gap: 12px 18px; }
+  .service-list p { grid-column: 2; font-size: 14px; }
+  .service-list h3 { max-width: none; font-size: 26px; }
+  .region-grid, .home-regions .region-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 22px; }
+  .footer-brand, .footer-contact { grid-column: 1 / -1; }
+  .footer-brand p { max-width: 580px; font-size: 13px; }
+  .cta-inner { flex-direction: column; align-items: flex-start; gap: 22px; padding-block: 38px; }
+  .cta-inner h2 { font-size: clamp(30px, 6vw, 40px); }
+  .cta-inner p br { display: none; }
+  .panel-app .dashboard-main, .panel-app .admin-tools { padding-inline: 16px; }
+  .panel-app .dashboard-page-heading, .payment-management-header { flex-wrap: wrap; gap: 16px; }
+  .panel-app .dashboard-toolbar { align-items: stretch; flex-direction: column; gap: 12px; }
+  .panel-app .dashboard-search, .panel-app .dashboard-filter { width: 100%; min-width: 0; }
+  .panel-app .dashboard-search input { min-width: 0; width: 100%; }
+  .panel-app .dashboard-pagination { flex-wrap: wrap; gap: 16px; }
+  .panel-app .dashboard-pagination > div { flex-wrap: wrap; }
+  .payment-management .payment-statistics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media screen and (max-width: 640px) {
+  :root { --font-body: 1rem; --font-h1: clamp(32px, 8vw, 44px); --font-h2: clamp(28px, 7vw, 36px); }
+  .container { width: calc(100% - 2 * var(--page-gutter)); }
+  .site-header .nav-inner { min-height: 72px; gap: 16px; }
+  .site-header .brand { width: clamp(130px, 39vw, 165px); }
+  .site-header .menu-button { min-width: 44px; min-height: 44px; }
+  .site-header .navigation { left: calc(-1 * var(--page-gutter)); right: calc(-1 * var(--page-gutter)); max-height: calc(100dvh - 110px); padding: 16px var(--page-gutter) 24px; overscroll-behavior: contain; }
+  .site-header .navigation > a:not(.button), .site-header .nav-trigger { min-height: 44px; font-size: 15px; }
+  .site-header .nav-panel { max-width: 100%; padding: 14px; }
+  .site-header .destination-menu-grid { grid-template-columns: minmax(0, 1fr); }
+  .site-header .destination-menu-grid ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .site-header .destination-menu-grid li a { min-height: 44px; display: flex; align-items: center; font-size: 13px; }
+  .home-hero-photo { height: clamp(255px, 72vw, 390px); }
+  .home-hero-copy { padding: 28px var(--page-gutter) 34px; }
+  .home-hero-copy h1 { font-size: clamp(32px, 8.4vw, 44px); letter-spacing: -.035em; }
+  .home-hero-copy > p:not(.eyebrow) { font-size: 16px; line-height: 1.8; }
+  .hero-actions { align-items: stretch; flex-direction: column; gap: 14px; }
+  .hero-actions .button { width: 100%; min-height: 50px; font-size: 14px; gap: 14px; }
+  .hero-actions .text-link { align-self: flex-start; font-size: 14px; }
+  .hero-reassurance { align-items: flex-start; gap: 10px; line-height: 1.7; }
+  .trust-strip > .container { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; padding-block: 22px; }
+  .trust-strip span { align-items: flex-start; font-size: 12px; line-height: 1.6; }
+  .trust-strip svg { width: 19px; height: 19px; margin-top: 1px; }
+  .home-benefits-grid, .journey-grid, .available-places-section .journey-grid,
+  .region-grid, .home-regions .region-grid, .travel-grid,
+  .travel-gallery-grid, .travel-gallery-three { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .home-benefit-card, .journey-card, .region-card, .travel-card { min-height: 0; }
+  .home-benefits-section, .available-places-section, .home-regions.section { padding-block: 42px; }
+  .home-benefit-card h3 { font-size: 21px; max-width: none; }
+  .home-benefit-card p { font-size: 14px; }
+  .journey-image, .available-places-section .journey-image, .home-regions .region-image,
+  .travel-card-photo, .travel-package-grid .travel-card-photo { height: clamp(205px, 63vw, 310px); }
+  .journey-card h3, .travel-card h3 { font-size: 27px; }
+  .journey-card > p, .region-card p, .travel-card p { font-size: 14px; }
+  .travel-gallery-three figure:first-child { grid-column: auto; }
+  .travel-hero-art > img, .travel-gallery-grid img,
+  .travel-gallery-three figure:first-child img { height: clamp(225px, 64vw, 350px); }
+  .travel-itinerary-overview { grid-template-columns: minmax(0, 1fr); text-align: left; }
+  .travel-itinerary-map { width: min(180px, 100%); margin-inline: auto; }
+  .travel-itinerary-days > li { grid-template-columns: 36px minmax(0, 1fr); gap: 14px; }
+  .travel-stop-list li > div, .travel-art-caption { min-width: 0; }
+  .quote-section .enquiry-form { padding: 24px 18px; }
+  .quote-section .form-grid, .secure-fields, .admin-tool-grid { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .form-wide { grid-column: 1 / -1; }
+  .form-actions { align-items: stretch; flex-direction: column; gap: 12px; }
+  .form-actions .button { width: 100%; min-height: 48px; font-size: 14px; }
+  .form-grid label, .secure-fields label > span { font-size: 14px; }
+  #root :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]) { font-size: 16px; min-height: 44px; }
+  .quote-section .quote-intro h1 { font-size: var(--font-h1); }
+  .contact-callout, .beyond-section, .buddhist-tour-cta { display: flex; flex-direction: column; align-items: flex-start; padding: 24px 20px; gap: 18px; }
+  .contact-callout .button, .beyond-section .button { margin: 0; }
+  .office-card { padding: 24px 20px; }
+  .office-card address, .office-links a { font-size: 14px; }
+  .photo-note { max-width: calc(100% - 24px); right: 12px; }
+  .footer-bottom { flex-direction: column; line-height: 1.8; gap: 12px; font-size: 11px; padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
+  .footer-grid > div:not(:first-child) > a { min-height: 35px; font-size: 13px; margin-bottom: 7px; }
+  .payment-page .bank-card-heading { align-items: flex-start; gap: 12px; }
+  .payment-page .bank-card-heading img { width: 64px; height: 64px; }
+  .payment-page .bank-details { grid-template-columns: minmax(0, 1fr); }
+  .bank-account-number dd { font-size: clamp(21px, 6.3vw, 32px); letter-spacing: .4px; overflow-wrap: anywhere; }
+  .payment-page .cash-payment > div { flex-basis: 100%; }
+  .payment-page .cash-payment > a { margin-left: 0; }
+  .payment-page .payment-help-intro h2 { font-size: 34px; }
+  .payment-page .payment-hero-inner { min-height: 0; padding-block: 24px 42px; }
+  .payment-page .payment-hero h1 { font-size: var(--font-h1); }
+  .payment-page .payment-hero-photo { left: 0; }
+  .payment-page .payment-hero-photo::after { background: linear-gradient(90deg, #142b49f2, #142b49ba); }
+  .secure-payment-intro h2 { font-size: 34px; }
+  .secure-payment-form-card { padding: 24px 18px; }
+  .secure-pay-button, .secure-status-button { min-height: 48px; font-size: 14px; }
+  .panel-app .panel-topbar { padding-inline: 12px; gap: 10px; }
+  .panel-app .panel-breadcrumb { min-width: 0; gap: 6px; }
+  .panel-app .panel-breadcrumb > strong { max-width: 28vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .panel-app .panel-topbar-actions { gap: 8px; }
+  .panel-app .dashboard-main, .panel-app .admin-tools { padding-inline: 12px; }
+  .panel-app .dashboard-inbox-heading { flex-wrap: wrap; gap: 12px; }
+  .panel-app .dashboard-drawer { width: 100%; max-width: 100%; height: 100dvh; max-height: 100dvh; }
+  .panel-app .dashboard-drawer-footer { flex-wrap: wrap; padding: 16px; gap: 9px; }
+  .panel-app .dashboard-drawer-footer .dashboard-button { min-height: 44px; flex: 1 1 115px; }
+  .panel-app .admin-tool-card { padding: 22px 16px; }
+  .panel-app .voucher-billing, .panel-app .voucher-route-layout, .panel-app .voucher-schedule-facts { grid-template-columns: minmax(0, 1fr); }
+  .panel-app .voucher-map-column { width: min(320px, 100%); margin-inline: auto; }
+  .panel-app .festival-history-filters, .panel-app .festival-history-diff { grid-template-columns: minmax(0, 1fr); }
+  .panel-app .festival-device-frame { max-width: 100%; }
+  .panel-app .payment-admin-pagination { flex-wrap: wrap; }
+  .panel-app .attendance-period { max-width: 100%; flex-wrap: wrap; }
+  .enquiry-toasts { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+}
+
+@media screen and (max-width: 380px) {
+  .footer-grid { grid-template-columns: minmax(0, 1fr); }
+  .site-header .destination-menu-grid ul { grid-template-columns: minmax(0, 1fr); }
+  .trust-strip > .container { gap: 18px 10px; }
+  .trust-strip span { font-size: 11px; }
+  .panel-app .dashboard-stats, .payment-management .payment-statistics { grid-template-columns: minmax(0, 1fr); }
+  .payment-page .payment-methods a { padding-inline: 5px; }
+  .payment-page .payment-methods strong { font-size: 11px; }
+  .home-hero-copy h1 { font-size: 32px; }
+}
+
+@media screen and (max-height: 500px) and (orientation: landscape) {
+  .site-header .navigation { max-height: calc(100dvh - 96px); }
+  .home-hero-photo { height: 230px; }
+  .home-hero-copy { padding-block: 24px; }
+}

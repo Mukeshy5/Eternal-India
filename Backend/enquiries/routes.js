@@ -70,11 +70,20 @@ export function registerEnquiryRoutes({ app, management, db, config, requireAdmi
   });
   app.post("/api/admin/enquiry-integrations/gmail/connect", requireAdmin, syncLimit, async (req, res) => {
     if (!canManageAccounts(req.admin, config)) throw enquiryError(403, "Only account managers can connect the business inbox.");
-    res.json({ url: await gmail.beginOAuth(req.admin, req.cookies?.["eternal_india.auth"] || "") });
+    const token = req.cookies?.["eternal_india.auth"] || "";
+    const url = await gmail.beginOAuth(req.admin, token);
+    // Local sign-in cookies use SameSite=Strict. A short-lived, callback-only
+    // HttpOnly copy lets Google's top-level return retain the same authentication.
+    if (!config.production) res.cookie("eternal_india.gmail_oauth", token, { httpOnly: true, sameSite: "lax", secure: false, path: "/api/integrations/gmail/callback", maxAge: 10 * 60000 });
+    res.json({ url });
   });
-  app.get("/api/integrations/gmail/callback", requireAdmin, async (req, res) => {
+  app.get("/api/integrations/gmail/callback", (req, _res, next) => {
+    if (!config.production && !req.cookies?.["eternal_india.auth"] && req.cookies?.["eternal_india.gmail_oauth"]) req.cookies["eternal_india.auth"] = req.cookies["eternal_india.gmail_oauth"];
+    next();
+  }, requireAdmin, async (req, res) => {
     if (!canManageAccounts(req.admin, config)) throw enquiryError(403, "Only account managers can connect the business inbox.");
     await gmail.completeOAuth(req.query, req.admin, req.cookies?.["eternal_india.auth"] || "");
+    if (!config.production) res.clearCookie("eternal_india.gmail_oauth", { httpOnly: true, sameSite: "lax", secure: false, path: "/api/integrations/gmail/callback" });
     res.redirect(303, `${config.origins[0]}/admin?gmail=connected`);
   });
 }
