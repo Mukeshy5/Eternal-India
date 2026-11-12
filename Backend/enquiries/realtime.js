@@ -1,14 +1,32 @@
 import { Server } from "socket.io";
 import { authenticatePanel } from "../lib/panel-auth.js";
 
-export function createEnquiryRealtime({ db, config, enquiries }) {
+export function createEnquiryRealtime({ db, config, enquiries, notifications }) {
   let io, poller, polling = false;
   const emitted = new Map();
-  function emit(event) {
-    if (!io || emitted.has(event._id)) return;
-    emitted.set(event._id, Date.now());
+  function remember(key) {
+    if (emitted.has(key)) return false;
+    emitted.set(key, Date.now());
     if (emitted.size > 5000) emitted.delete(emitted.keys().next().value);
+    return true;
+  }
+  function emitNotification(event) {
+    if (!io) return;
+    if (["read", "read-all"].includes(event.action)) {
+      if (event.userId) io.to(`account:${event.userId}`).emit("notification:event", event);
+      return;
+    }
+    if (event.action === "created" && event.notification?.id && !remember(`notification:notification:${event.notification.id}`)) return;
+    for (const panel of event.audience || []) io.to(`panel:${panel}`).emit("notification:event", event);
+  }
+  notifications.onEvent(emitNotification);
+  function emit(event) {
+    if (!io || !remember(`enquiry:${event._id}`)) return;
     io.to("enquiries").emit("enquiry:event", { id: event._id, type: event.type, enquiryId: event.enquiryId, name: event.name, source: event.source, at: event.at, publishedAt: event.publishedAt });
+    if (event.notification) {
+      const { _id, type: _type, notification: _notification, readBy: _readBy, audience, ...item } = event;
+      emitNotification({ action: "created", notification: { ...item, id: _id.slice("notification:".length), createdAt: event.publishedAt }, audience, actorId: event.actorId || "" });
+    }
   }
   enquiries.onEvent(emit);
   const originAllowed = (origin) => {
@@ -28,13 +46,22 @@ export function createEnquiryRealtime({ db, config, enquiries }) {
         const result = await authenticate();
         if (!result.admin) return next(new Error("Please sign in to continue."));
         socket.data.authenticate = authenticate;
+        socket.data.accountId = result.admin._id.toString();
+        socket.data.panel = socket.handshake.auth.panel;
         next();
       } catch { next(new Error("Please sign in again.")); }
     });
     io.on("connection", (socket) => {
-      socket.join("enquiries"); socket.emit("enquiry:ready");
+      socket.join(["enquiries", `panel:${socket.data.panel}`, `account:${socket.data.accountId}`]); socket.emit("enquiry:ready");
       const since = Date.parse(socket.handshake.auth?.since || "");
-      if (Number.isFinite(since) && since <= Date.now() && since > Date.now() - 86400000) void db.collection("enquiry_events").find({ publishedAt: { $gte: new Date(since - 5000) } }).sort({ publishedAt: 1 }).limit(5000).toArray().then((events) => { for (const event of events) socket.emit("enquiry:event", { id: event._id, type: event.type, enquiryId: event.enquiryId, name: event.name, source: event.source, at: event.at, publishedAt: event.publishedAt }); }).catch(() => socket.emit("enquiry:ready"));
+      if (Number.isFinite(since) && since <= Date.now() && since > Date.now() - 86400000) void db.collection("enquiry_events").find({ publishedAt: { $gte: new Date(since - 5000) }, $or: [{ notification: true }, { type: { $ne: "notification" } }] }).sort({ publishedAt: 1 }).limit(5000).toArray().then((events) => {
+        for (const event of events) {
+          if (event.notification) {
+            const { _id, type: _type, notification: _notification, readBy: _readBy, audience, ...item } = event;
+            if (audience?.includes(socket.data.panel)) socket.emit("notification:event", { action: "created", notification: { ...item, id: _id.slice("notification:".length), createdAt: event.publishedAt }, audience, actorId: event.actorId || "" });
+          } else socket.emit("enquiry:event", { id: event._id, type: event.type, enquiryId: event.enquiryId, name: event.name, source: event.source, at: event.at, publishedAt: event.publishedAt });
+        }
+      }).catch(() => socket.emit("enquiry:ready"));
       // Logout, password rotation, disabled accounts and expired JWTs also revoke
       // long-lived notification connections, rather than trusting the handshake forever.
       const guard = setInterval(() => { void socket.data.authenticate().then((result) => { if (!result.admin) socket.disconnect(true); }).catch(() => socket.disconnect(true)); }, 15000);
@@ -47,7 +74,12 @@ export function createEnquiryRealtime({ db, config, enquiries }) {
       polling = true;
       try {
         await enquiries.reconcile();
-        if (io.engine.clientsCount) for await (const event of db.collection("enquiry_events").find({ publishedAt: { $gte: new Date(Math.max(started.getTime(), Date.now() - 120000)) } }).sort({ publishedAt: 1 })) emit(event);
+        if (io.engine.clientsCount) for await (const event of db.collection("enquiry_events").find({ publishedAt: { $gte: new Date(Math.max(started.getTime(), Date.now() - 120000)) } }).sort({ publishedAt: 1 })) {
+          if (event.notification) {
+            const { _id, type: _type, notification: _notification, readBy: _readBy, audience, ...item } = event;
+            emitNotification({ action: "created", notification: { ...item, id: _id.slice("notification:".length), createdAt: event.publishedAt }, audience, actorId: event.actorId || "" });
+          } else emit(event);
+        }
       } catch (error) { console.error("Enquiry realtime refresh failed:", error.name); }
       finally { polling = false; }
     }, 1500);

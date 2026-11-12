@@ -7,7 +7,7 @@ export const enquiryError = (status, message, details = {}) => Object.assign(new
 export const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 export const notificationPreferences = (account) => ({ popup: account.enquiryNotifications?.popup !== false, sound: account.enquiryNotifications?.sound !== false });
 
-export function createEnquiryService({ db }) {
+export function createEnquiryService({ db, notifications }) {
   const collection = db.collection("enquiries");
   const deletedSubmissions = db.collection("enquiry_deleted_submissions");
   let notify = () => {};
@@ -16,6 +16,18 @@ export function createEnquiryService({ db }) {
       const saved = await db.collection("enquiry_events").findOneAndUpdate({ _id: event.id }, { $setOnInsert: { ...event, enquiryId: record._id.toString(), name: record.name, source: record.source, publishedAt: new Date() } }, { upsert: true, returnDocument: "after" });
       await db.collection("enquiry_history").updateOne({ _id: event.id }, { $setOnInsert: { enquiryId: record._id, reference: record.reference, action: event.type === "created" ? "created" : event.type === "archived" ? "archived" : event.type === "restored" ? "restored" : "updated", status: event.status || record.status, from: event.from, changedAt: event.at } }, { upsert: true });
       await collection.updateOne({ _id: record._id }, { $pull: { pendingEvents: { id: event.id } } });
+      if (event.type === "created") {
+        const source = record.source || "WEBSITE";
+        const sourceName = source === "WHATSAPP" ? "WhatsApp" : source === "GMAIL" ? "Gmail" : "Website";
+        await notifications?.publish({
+          id: `enquiry:${record._id}`,
+          category: `${sourceName} enquiry`,
+          title: `New ${sourceName} enquiry`,
+          message: `A new enquiry has arrived from ${record.name}.`,
+          source,
+          enquiryId: record._id.toString(),
+        });
+      }
       notify(saved);
     }
   }
