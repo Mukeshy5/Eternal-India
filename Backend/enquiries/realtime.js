@@ -1,9 +1,37 @@
+import { createHash, randomBytes } from "node:crypto";
+import { ObjectId } from "mongodb";
 import { Server } from "socket.io";
-import { authenticatePanel } from "../lib/panel-auth.js";
+import { adminPanelAccess } from "../lib/panel-access.js";
+import { technicalAccess } from "../festivals/permissions.js";
 
 export function createEnquiryRealtime({ db, config, enquiries, notifications }) {
   let io, poller, polling = false;
   const emitted = new Map();
+  const socketTickets = db.collection("enquiry_socket_tickets");
+  async function issueTicket(panel, accountId, authTokenId) {
+    const ticket = randomBytes(32).toString("base64url");
+    await socketTickets.insertOne({
+      _id: createHash("sha256").update(ticket).digest("hex"),
+      accountId,
+      authTokenId,
+      panel,
+      expiresAt: new Date(Date.now() + 60000),
+    });
+    return ticket;
+  }
+  async function authenticateSession(accountId, authTokenId, panel) {
+    const adminId = new ObjectId(accountId);
+    const session = await db.collection("admin_tokens").findOne({
+      _id: authTokenId,
+      adminId,
+      expiresAt: { $gt: new Date() },
+    }, { projection: { createdAt: 1 } });
+    if (!session) return null;
+    const admin = await db.collection("admins").findOne({ _id: adminId });
+    if (!admin || ["pending", "disabled"].includes(admin.status) || admin.passwordChangedAt && session.createdAt <= admin.passwordChangedAt) return null;
+    if (panel === "technical" ? !technicalAccess(admin, config).technical : !adminPanelAccess(admin, config)) return null;
+    return admin;
+  }
   function remember(key) {
     if (emitted.has(key)) return false;
     emitted.set(key, Date.now());
@@ -39,15 +67,19 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     io = new Server(server, { path: "/api/enquiries/socket.io", transports: ["polling", "websocket"], maxHttpBufferSize: 16384, cors: { origin(origin, callback) { callback(null, originAllowed(origin)); }, credentials: true }, allowRequest: (request, callback) => callback(null, originAllowed(request.headers.origin)) });
     io.use(async (socket, next) => {
       try {
-        if (!["admin", "technical"].includes(socket.handshake.auth?.panel)) return next(new Error("Please sign in to continue."));
-        const rawCookie = socket.handshake.headers.cookie || "";
-        const token = rawCookie.split(";").map((value) => value.trim()).find((value) => value.startsWith("eternal_india.auth="))?.slice("eternal_india.auth=".length);
-        const authenticate = () => authenticatePanel({ db, config, token, panel: socket.handshake.auth.panel });
+        const { panel, ticket } = socket.handshake.auth || {};
+        if (!["admin", "technical"].includes(panel) || typeof ticket !== "string" || ticket.length > 200) return next(new Error("Please sign in to continue."));
+        const digest = createHash("sha256").update(ticket).digest("hex");
+        const savedTicket = await socketTickets.findOneAndDelete({ _id: digest, panel, expiresAt: { $gt: new Date() } });
+        if (!savedTicket) return next(new Error("Live notification authorization expired. Please reconnect."));
+        const accountId = savedTicket.accountId;
+        const authTokenId = savedTicket.authTokenId;
+        const authenticate = async () => ({ admin: await authenticateSession(accountId, authTokenId, panel) });
         const result = await authenticate();
         if (!result.admin) return next(new Error("Please sign in to continue."));
         socket.data.authenticate = authenticate;
-        socket.data.accountId = result.admin._id.toString();
-        socket.data.panel = socket.handshake.auth.panel;
+        socket.data.accountId = accountId;
+        socket.data.panel = panel;
         next();
       } catch { next(new Error("Please sign in again.")); }
     });
@@ -86,5 +118,5 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     poller.unref?.();
     return io;
   }
-  return { attach, async stop() { clearInterval(poller); if (io) await new Promise((resolve) => io.close(resolve)); } };
+  return { attach, issueTicket, async stop() { clearInterval(poller); if (io) await new Promise((resolve) => io.close(resolve)); } };
 }

@@ -82,6 +82,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     const result = await authenticatePanel({ db, config, token: req.cookies?.[tokenCookieName], panel: req.originalUrl.startsWith("/api/technical/") ? "technical" : "admin" });
     if (!result.admin) return res.status(result.status).json({ message: result.status === 403 ? "This account is not authorized for this panel." : "Please sign in to continue." });
     req.admin = result.admin;
+    req.authClaims = result.claims;
     next();
   }
 

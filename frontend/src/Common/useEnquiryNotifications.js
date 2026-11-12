@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
-import { api, apiUrl } from "./api";
+import { api, socketServerUrl } from "./api";
 import notificationRing from "../assets/Notification Ring/notification-ring.mp3";
 
-const initialPreferences = { popup: true, sound: false };
+const initialPreferences = { popup: true, sound: true };
 const maxNotifications = 20;
 
 export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onUnauthorized, socketFactory = io }) {
@@ -231,7 +231,16 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onU
       }
     });
 
-    const socket = socketFactory(new URL(apiUrl("/"), window.location.href).origin, { path: "/api/enquiries/socket.io", auth: { panel: apiBase.slice(1) }, withCredentials: true, transports: ["websocket", "polling"], reconnection: true });
+    const socket = socketFactory(socketServerUrl(), {
+      path: "/api/enquiries/socket.io",
+      auth: (done) => {
+        void api(`${apiBase}/socket-ticket`, { method: "POST", body: "{}" })
+          .then(({ ticket }) => done({ panel: apiBase.slice(1), ticket }))
+          .catch((failure) => { handleFailure(failure); done({ panel: apiBase.slice(1) }); });
+      },
+      transports: ["websocket", "polling"],
+      reconnection: true,
+    });
     const refreshData = () => {
       callbacks.current.onRefresh?.();
       if (loaded.current) void loadFirstPage().catch(handleFailure);

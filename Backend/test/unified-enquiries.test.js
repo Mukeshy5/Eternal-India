@@ -63,9 +63,15 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
     await t.test("authentication protects both inboxes and realtime connections", async () => {
       for (const panel of ["admin", "technical"]) assert.equal((await request(`/${panel}/enquiries`)).status, 401);
       const rejected = io(base, { path: "/api/enquiries/socket.io", transports: ["polling"], reconnection: false, auth: { panel: "admin" } }); sockets.push(rejected); await once(rejected, "connect_error"); assert.equal(rejected.connected, false);
+      assert.equal((await request("/admin/socket-ticket", { method: "POST" })).status, 401);
       adminCookie = await login("admin"); technicalCookie = await login("technical");
       for (const [panel, cookie, events] of [["admin", adminCookie, adminEvents], ["technical", technicalCookie, technicalEvents]]) {
-        const socket = io(base, { path: "/api/enquiries/socket.io", transports: ["polling"], extraHeaders: { Cookie: cookie, Origin: "http://localhost:5173" }, reconnection: false, auth: { panel, since: new Date().toISOString() } }); sockets.push(socket); socket.on("enquiry:event", (event) => events.push(event)); socket.on("notification:event", (event) => (panel === "admin" ? adminNotifications : technicalNotifications).push(event)); await once(socket, "connect");
+        const ticketReply = await request(`/${panel}/socket-ticket`, { method: "POST", cookie });
+        assert.equal(ticketReply.status, 200);
+        const { ticket } = await ticketReply.json();
+        assert.equal(typeof ticket, "string");
+        assert.ok(!ticketReply.headers.get("set-cookie"), "socket ticket is returned without creating a browser cookie");
+        const socket = io(base, { path: "/api/enquiries/socket.io", transports: ["polling"], extraHeaders: { Origin: "http://localhost:5173" }, reconnection: false, auth: { panel, ticket, since: new Date().toISOString() } }); sockets.push(socket); socket.on("enquiry:event", (event) => events.push(event)); socket.on("notification:event", (event) => (panel === "admin" ? adminNotifications : technicalNotifications).push(event)); await once(socket, "connect");
       }
     });
     await t.test("website submission persists once, preserves complete fields and notifies both panels once", async () => {

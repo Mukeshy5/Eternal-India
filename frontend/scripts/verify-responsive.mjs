@@ -38,12 +38,13 @@ export async function verifyResponsive(vite) {
       assert.equal(element(".nav-plan-trip").closest("nav"), null);
       assert.notEqual(computed(".nav-plan-trip").display, "none", `${width}: navbar trip button remains visible`);
       assert.equal(element(".nav-plan-trip").getAttribute("href"), "/request-quote");
-      assert.equal(computed(".home-plan-float").position, "fixed");
-      assert.equal(element(".home-plan-float").getAttribute("href"), "/request-quote");
+      assert.equal(win.document.querySelector(".home-plan-float"), null, `${width}: homepage has no floating Plan Your Trip button`);
       assert.equal(element(".whatsapp-float").getAttribute("href"), "https://wa.me/919319140846");
       assert.equal(computed(".floating-contact-links").position, "fixed");
-      assert.equal(computed(".home-plan-float").writingMode, width > 1300 ? "vertical-rl" : "horizontal-tb");
       assert.equal(computed(".menu-button").display, width <= 1200 ? "block" : "none");
+      element(".navigation").classList.add("navigation-open");
+      assert.equal(win.document.querySelector(".home-plan-float"), null);
+      element(".navigation").classList.remove("navigation-open");
       assert.equal(computed(".home-hero-photo").position, width <= 900 ? "relative" : "absolute");
       assert.equal(computed(".dashboard-desktop-list").display, width <= 800 ? "none" : "block");
       const scrolling = computed(".attendance-calendar-grid");

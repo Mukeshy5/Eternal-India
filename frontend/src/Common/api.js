@@ -9,9 +9,14 @@ export class ApiError extends Error {
 }
 
 const apiOrigin = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+const socketOrigin = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_BASE_URL || "https://eternal-india-1.onrender.com";
 
 export function apiUrl(path) {
   return `${apiOrigin}/api${path}`;
+}
+
+export function socketServerUrl() {
+  return new URL(socketOrigin, window.location.href).origin;
 }
 
 export async function api(path, options = {}) {

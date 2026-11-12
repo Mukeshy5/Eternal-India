@@ -14,6 +14,7 @@ export async function verifyUnifiedEnquiries(vite) {
   const response = (data) => new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
   globalThis.fetch = async (url, options = {}) => {
     if (url.endsWith("/enquiry-notification-settings")) { if (options.method === "PATCH") prefs = JSON.parse(options.body); return response({ ...prefs, unread }); }
+    if (url.endsWith("/socket-ticket")) return response({ ticket: "single-use-test-socket-ticket" });
     if (url.includes("/notifications?limit=")) return response({ notifications: [], hasMore: false });
     if (url.endsWith("/notifications/unread-count")) return response({ unread });
     if (url.endsWith("/notifications/read-all") || url.endsWith("/notifications")) return options.method === "DELETE" ? new Response(null, { status: 204 }) : response({ updated: 1 });
@@ -21,14 +22,14 @@ export async function verifyUnifiedEnquiries(vite) {
     if (/\/notifications\/[^/]+$/.test(url)) return new Response(null, { status: 204 });
     throw new Error(`Unexpected notification API: ${url}`);
   };
-  const socketFactory = (_url, options) => {
-    const socket = { options, connected: false, on(event, callback) { handlers[event] = callback; return socket; }, off(event) { delete handlers[event]; return socket; }, connect() { socket.connected = true; handlers["enquiry:ready"]?.(); }, disconnect() { socket.connected = false; } }; sockets.push(socket); return socket;
+  const socketFactory = (url, options) => {
+    const socket = { url, options, connected: false, on(event, callback) { handlers[event] = callback; return socket; }, off(event) { delete handlers[event]; return socket; }, connect() { options.auth((auth) => { socket.auth = auth; socket.connected = true; handlers.connect?.(); handlers["enquiry:ready"]?.(); }); }, disconnect() { socket.connected = false; } }; sockets.push(socket); return socket;
   };
   const { createRoot } = await import("react-dom/client"), container = testWindow.document.createElement("div"); testWindow.document.body.append(container); let root = createRoot(container);
   try {
     const { default: useNotifications } = await vite.ssrLoadModule("/src/Common/useEnquiryNotifications.js"), { default: Notifications } = await vite.ssrLoadModule("/src/Common/EnquiryNotifications.jsx");
     function Probe() { latest = useNotifications({ admin: { id: "notification-test" }, apiBase: "/admin", socketFactory, onRefresh: () => refreshes++, onUnauthorized: () => assert.fail("Unexpected unauthorized request") }); return createElement(Notifications, { notifications: latest, onOpen: (id) => { openId = id; } }); }
-    await act(async () => root.render(createElement(Probe))); assert.equal(sockets.length, 1); assert.equal(sockets[0].options.path, "/api/enquiries/socket.io"); assert.equal(sockets[0].options.withCredentials, true);
+    await act(async () => root.render(createElement(Probe))); assert.equal(sockets.length, 1); assert.equal(sockets[0].url, "https://eternal-india-1.onrender.com"); assert.equal(sockets[0].options.path, "/api/enquiries/socket.io"); assert.equal(sockets[0].options.withCredentials, undefined); assert.equal(sockets[0].options.transports[0], "websocket"); assert.equal(sockets[0].auth.panel, "admin"); assert.equal(sockets[0].auth.ticket, "single-use-test-socket-ticket"); assert.equal(sockets[0].options.auth instanceof Function, true);
     assert.ok(container.textContent.includes("Live"));
     await act(async () => { testWindow.document.dispatchEvent(new testWindow.Event("pointerdown")); await Promise.resolve(); });
     await act(async () => container.querySelector('input[type="checkbox"]').click());

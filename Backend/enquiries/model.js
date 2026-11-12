@@ -23,6 +23,7 @@ export async function ensureEnquiryModels(db) {
     db.collection("enquiry_events").createIndex({ type: 1, audience: 1, publishedAt: -1 }),
     db.collection("enquiry_events").createIndex({ type: 1, notification: 1, enquiryId: 1 }),
     db.collection("enquiry_oauth_states").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.collection("enquiry_socket_tickets").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
   ]);
 }
 

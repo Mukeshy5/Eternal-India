@@ -13,10 +13,12 @@ export function registerWhatsAppWebhook({ app, whatsapp }) {
   app.post("/api/integrations/whatsapp/webhook", webhookLimit, express.raw({ type: "application/json", limit: "1mb" }), async (req, res) => res.json(await whatsapp.receive(req.body, req.get("X-Hub-Signature-256"))));
 }
 
-export function registerEnquiryRoutes({ app, management, db, config, requireAdmin, enquiries, whatsapp, gmail, notifications }) {
+export function registerEnquiryRoutes({ app, management, db, config, requireAdmin, enquiries, whatsapp, gmail, notifications, realtime }) {
   const publicLimit = rateLimit({ windowMs: 15 * 60000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many enquiries. Please try again shortly." } });
   const syncLimit = rateLimit({ windowMs: 60000, limit: 5, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Please wait before starting another inbox sync." } });
+  const socketTicketLimit = rateLimit({ windowMs: 60000, limit: 120, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Please wait before reconnecting live notifications." } });
   const notificationPanel = (req) => req.originalUrl.startsWith("/api/technical/") ? "technical" : "admin";
+  management.post("/socket-ticket", socketTicketLimit, requireAdmin, async (req, res) => res.json({ ticket: await realtime.issueTicket(notificationPanel(req), req.admin._id.toString(), req.authClaims.jti) }));
   management.get("/notifications/unread-count", requireAdmin, async (req, res) => res.json({ unread: await notifications.unreadCount(notificationPanel(req), req.admin._id.toString()) }));
   management.get("/notifications", requireAdmin, async (req, res) => {
     const limit = Math.max(1, Math.min(50, Number.parseInt(req.query.limit, 10) || 20));
