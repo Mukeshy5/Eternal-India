@@ -7,11 +7,10 @@ import helmet from "helmet";
 import jwt from "jsonwebtoken";
 import { rateLimit } from "express-rate-limit";
 import { ObjectId } from "mongodb";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { hashPassword, isBcryptPasswordHash, verifyPassword } from "./lib/passwords.js";
-import { enquiryStatuses, validateEnquiry } from "./lib/validation.js";
 import { registerPromotions } from "./lib/promotions.js";
 import { registerFestivalRoutes } from "./festivals/routes.js";
 import { technicalAccess } from "./festivals/permissions.js";
@@ -22,8 +21,11 @@ import { sessionLifecycle } from "./lib/session-lifecycle.js";
 import { canManageAccounts, registerAccounts } from "./lib/accounts.js";
 import { gmailAccountFilter, gmailIdentity } from "./lib/email-identity.js";
 import { registerPaymentRoutes } from "./payments/routes.js";
+import { createEnquirySystem } from "./enquiries/index.js";
+import { registerEnquiryRoutes, registerWhatsAppWebhook } from "./enquiries/routes.js";
+import { authenticatePanel } from "./lib/panel-auth.js";
 
-export function createApp({ client, db, config, schedulerOptions, sendPasswordReset, paymentGateway }) {
+export function createApp({ client, db, config, schedulerOptions, sendPasswordReset, paymentGateway, gmailProviderFactory }) {
   const app = express();
   app.disable("x-powered-by");
   if (config.render) app.set("trust proxy", 1);
@@ -65,55 +67,27 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   // JSON is parsed for ordinary routes after the raw Razorpay webhook route.
   // Payment admin handlers use the same cookie/JWT authentication as the panel.
   registerPaymentRoutes({ app, db, config, requireAdmin, gateway: paymentGateway });
+  const enquirySystem = createEnquirySystem({ db, config, gmailProviderFactory });
+  registerWhatsAppWebhook({ app, whatsapp: enquirySystem.whatsapp });
   app.use(["/api/admin/staff-attendance/bulk", "/api/technical/staff-attendance/bulk"], express.json({ limit: "128kb" }));
   app.use(express.json({ limit: "16kb" }));
 
   const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
-  const enquiryLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many enquiries. Please try again shortly." } });
   const publicAdmin = (admin) => { const access = technicalAccess(admin, config); return { id: admin._id.toString(), name: admin.name || "", username: admin.username || "", email: admin.email, roles: access.roles, canManageAccounts: canManageAccounts(admin, config), technicalPermissions: access.permissions, staffPermissions: staffAccess(admin, config) }; };
   const verifyToken = (token) => {
     try { return jwt.verify(token, config.authTokenSecret, { algorithms: ["HS256"], issuer: "eternal-india", audience: "eternal-india-panels" }); }
     catch { return null; }
   };
   async function requireAdmin(req, res, next) {
-    const claims = verifyToken(req.cookies?.[tokenCookieName] || "");
-    if (!claims || typeof claims.sub !== "string" || !ObjectId.isValid(claims.sub) || typeof claims.jti !== "string") return res.status(401).json({ message: "Please sign in to continue." });
-    const token = await db.collection("admin_tokens").findOne({ _id: claims.jti, adminId: new ObjectId(claims.sub), expiresAt: { $gt: new Date() } });
-    if (!token) return res.status(401).json({ message: "Please sign in again." });
-    const admin = await db.collection("admins").findOne({ _id: new ObjectId(claims.sub) });
-    if (!admin || ["pending", "disabled"].includes(admin.status) || (admin.passwordChangedAt && token.createdAt <= admin.passwordChangedAt)) return res.status(401).json({ message: "Please sign in again." });
-    if (req.originalUrl.startsWith("/api/technical/")) {
-      if (!technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
-    } else if (!adminPanelAccess(admin, config)) {
-      return res.status(403).json({ message: "This account is not authorized for the Admin Panel." });
-    }
-    req.admin = admin;
+    const result = await authenticatePanel({ db, config, token: req.cookies?.[tokenCookieName], panel: req.originalUrl.startsWith("/api/technical/") ? "technical" : "admin" });
+    if (!result.admin) return res.status(result.status).json({ message: result.status === 403 ? "This account is not authorized for this panel." : "Please sign in to continue." });
+    req.admin = result.admin;
     next();
   }
 
   app.get("/api/health", async (_req, res) => {
     await db.command({ ping: 1 });
     res.json({ status: "ok", service: "eternal-india-api" });
-  });
-  app.post("/api/enquiries", enquiryLimit, async (req, res) => {
-    const { fields, errors, submissionId } = validateEnquiry(req.body);
-    if (Object.keys(errors).length) return res.status(400).json({ message: "Please check the highlighted details.", errors });
-    const submissionHash = createHash("sha256").update(JSON.stringify(fields)).digest("hex");
-    const entry = { ...fields, submissionId, submissionHash, reference: `EI-${randomBytes(6).toString("hex").toUpperCase()}`, status: "new", createdAt: new Date(), updatedAt: new Date() };
-    let created = true;
-    try {
-      await db.collection("enquiries").insertOne(entry);
-    } catch (error) {
-      if (error.code !== 11000) throw error;
-      const saved = await db.collection("enquiries").findOne({ submissionId });
-      if (!saved || saved.submissionHash !== submissionHash) return res.status(409).json({ message: "These details changed. Refresh the form before submitting again." });
-      entry.reference = saved.reference;
-      created = false;
-    }
-    if (created) {
-      await db.collection("enquiry_history").insertOne({ enquiryId: entry._id, reference: entry.reference, action: "created", status: entry.status, changedAt: entry.createdAt });
-    }
-    res.status(created ? 201 : 200).json({ message: "Your enquiry has been submitted successfully.", reference: entry.reference });
   });
   management.post("/login", loginLimit, async (req, res, next) => {
     const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase().slice(0, 200) : "";
@@ -160,26 +134,6 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
       res.clearCookie(tokenCookieName, { path: "/api", httpOnly: true, sameSite: config.production ? "none" : "strict", secure: config.production });
       res.sendStatus(204);
     });
-  });
-  management.get("/enquiries", requireAdmin, async (req, res) => {
-    const page = Math.max(1, Math.min(100000, Number.parseInt(req.query.page, 10) || 1));
-    const limit = 20;
-    const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 120) : "";
-    const filter = {};
-    if (enquiryStatuses.includes(req.query.status)) filter.status = req.query.status;
-    if (search) {
-      const pattern = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      filter.$or = ["name", "email", "phone", "destination", "reference"].map((key) => ({ [key]: { $regex: pattern, $options: "i" } }));
-    }
-    const collection = db.collection("enquiries");
-    const [entries, total, counts] = await Promise.all([
-      collection.find(filter, { projection: { submissionId: 0, submissionHash: 0 } }).sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
-      collection.countDocuments(filter),
-      collection.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]).toArray(),
-    ]);
-    const stats = { total: 0, new: 0, pending: 0, confirmed: 0, cancelled: 0, contacted: 0, closed: 0 };
-    for (const group of counts) { stats[group._id] = group.count; stats.total += group.count; }
-    res.json({ enquiries: entries, total, page, pages: Math.max(1, Math.ceil(total / limit)), stats });
   });
   management.get("/history", requireAdmin, async (req, res) => {
     const history = await db.collection("enquiry_history").find({}, { projection: { _id: 0 } }).sort({ changedAt: -1 }).limit(200).toArray();
@@ -279,26 +233,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     const result = await db.collection("journey_vouchers").insertOne(voucher);
     res.status(201).json({ voucher: { _id: result.insertedId, ...voucher } });
   });
-  management.patch("/enquiries/:id", requireAdmin, async (req, res) => {
-    if (!/^[a-f\d]{24}$/i.test(req.params.id) || !enquiryStatuses.includes(req.body?.status)) return res.status(400).json({ message: "Choose a valid enquiry and status." });
-    const enquiryId = new ObjectId(req.params.id);
-    const changedAt = new Date();
-    const current = await db.collection("enquiries").findOne({ _id: enquiryId }, { projection: { reference: 1, status: 1 } });
-    if (!current) return res.status(404).json({ message: "Enquiry not found." });
-    const result = await db.collection("enquiries").updateOne({ _id: enquiryId }, { $set: { status: req.body.status, updatedAt: changedAt } });
-    if (!result.matchedCount) return res.status(404).json({ message: "Enquiry not found." });
-    if (current.status !== req.body.status) await db.collection("enquiry_history").insertOne({ enquiryId, reference: current.reference, action: "status_changed", from: current.status, status: req.body.status, changedAt });
-    res.json({ message: "Enquiry status updated." });
-  });
-  management.delete("/enquiries/:id", requireAdmin, async (req, res) => {
-    if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid enquiry." });
-    const enquiryId = new ObjectId(req.params.id);
-    const current = await db.collection("enquiries").findOne({ _id: enquiryId }, { projection: { reference: 1, status: 1 } });
-    if (!current) return res.status(404).json({ message: "Enquiry not found." });
-    await db.collection("enquiries").deleteOne({ _id: enquiryId });
-    await db.collection("enquiry_history").deleteMany({ enquiryId });
-    res.status(204).send();
-  });
+  registerEnquiryRoutes({ app, management, db, config, requireAdmin, ...enquirySystem });
   registerAccounts({ app, management, db, requireAdmin, config, sendPasswordReset });
   const festivals = registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions });
   registerPromotions({ app, management, db, requireAdmin });
@@ -328,5 +263,5 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     console.error("Request failed:", error.name);
     res.status(503).json({ message: "We couldn't save your request. Please try again shortly." });
   });
-  return { app, store, drainSessions, decorationScheduler: festivals.scheduler, decorationsReady: festivals.ready };
+  return { app, store, drainSessions, enquirySystem, decorationScheduler: festivals.scheduler, decorationsReady: festivals.ready };
 }

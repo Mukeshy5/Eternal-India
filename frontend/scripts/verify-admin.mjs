@@ -17,7 +17,7 @@ export async function verifyAdminInteractions(server, technical = false) {
   let signedIn = false, backendAvailable = true;
   const accounts = [];
   let vouchers = [{ _id: "000000000000000000000002", voucherNumber: "EIV-HISTORY-TEST", billing: { name: "History Guest", visitingCardNo: "H-1" }, journey: { from: "Delhi", fromAddress: "Airport" }, stops: [{ name: "Jaipur", address: "Hotel", distanceKm: 280, duration: "2 nights", arrivalDate: "2026-11-01", departureDate: "2026-11-03", meals: [], hotel: { name: "Test Hotel", starRating: "3-Star", gst: 12, amount: 2000 } }], message: "Happy travels", createdAt: "2026-11-01T00:00:00Z" }];
-  const entry = { _id: "000000000000000000000001", name: "Admin UI Guest", email: "guest@example.com", phone: "+91 9000000000", destination: "Jaipur", travellers: 2, date: "", message: "Family holiday\nHeritage and local food", voiceLanguage: "hi", reference: "EI-TEST-UI", status: "new", createdAt: "2026-11-05T08:00:00Z" };
+  const entry = { _id: "000000000000000000000001", name: "Admin UI Guest", email: "guest@example.com", phone: "+91 9000000000", destination: "Jaipur", travellers: 2, date: "", message: "Family holiday\nHeritage and local food", voiceLanguage: "hi", reference: "EI-TEST-UI", source: "WEBSITE", subject: "Trip enquiry ? Jaipur", status: "NEW", createdAt: "2026-11-05T08:00:00Z" };
   const response = (data, status = 200) => new Response(status === 204 ? null : JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
   globalThis.fetch = async (url, options = {}) => {
     calls.push({ url, options });
@@ -47,8 +47,12 @@ export async function verifyAdminInteractions(server, technical = false) {
     if (url.startsWith(`/api${basePath}/vouchers/`) && options.method === "DELETE") { vouchers = []; return response(null, 204); }
     if (url === "/api/technical/promotions") return response({ targets: [], promotions: [] });
     if (url === "/api/technical/hotels") return response({ hotels: [] });
+    if (url === `/api${basePath}/enquiry-notification-settings`) return response({ popup: true, sound: false, unread: 1 });
+    if (url === `/api${basePath}/enquiry-summary`) return response({ unread: 1 });
+    if (url === `/api${basePath}/enquiry-assignees`) return response({ assignees: [] });
+    if (url === `/api${basePath}/enquiries/${entry._id}` && !options.method) return response({ enquiry: entry });
     if (options.method === "PATCH") { entry.status = JSON.parse(options.body).status; return response({ message: "Updated" }); }
-    if (url.startsWith(`/api${basePath}/enquiries?`)) return response({ enquiries: [entry], total: 1, page: 1, pages: 1, stats: { total: 1, new: entry.status === "new" ? 1 : 0, contacted: entry.status === "contacted" ? 1 : 0, closed: 0 } });
+    if (url.startsWith(`/api${basePath}/enquiries?`)) return response({ enquiries: [entry], total: 1, page: 1, pages: 1, stats: { total: 1, new: entry.status === "NEW" ? 1 : 0, contacted: entry.status === "IN_PROGRESS" ? 1 : 0, closed: 0 } });
     throw new Error(`Unexpected API request: ${url}`);
   };
   const { createRoot } = await import("react-dom/client");
@@ -108,9 +112,9 @@ export async function verifyAdminInteractions(server, technical = false) {
     assert.ok(container.querySelector(".dashboard-drawer").textContent.includes("Hindi"));
     await act(async () => container.querySelector('[aria-label="Close enquiry details"]').click());
     const status = container.querySelector(`#status-${entry._id}`);
-    await act(async () => { status.value = "contacted"; status.dispatchEvent(new testWindow.Event("change", { bubbles: true })); });
-    assert.ok(calls.some((call) => call.options.method === "PATCH" && JSON.parse(call.options.body).status === "contacted"));
-    assert.equal(container.querySelector(`#status-${entry._id}`).value, "contacted");
+    await act(async () => { status.value = "IN_PROGRESS"; status.dispatchEvent(new testWindow.Event("change", { bubbles: true })); });
+    assert.ok(calls.some((call) => call.options.method === "PATCH" && JSON.parse(call.options.body).status === "IN_PROGRESS"));
+    assert.equal(container.querySelector(`#status-${entry._id}`).value, "IN_PROGRESS");
     await act(async () => type(container.querySelector("#enquiry-search"), "Jaipur"));
     await act(async () => container.querySelector(".dashboard-search").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
     assert.ok(calls.some((call) => call.url.includes("search=Jaipur")));

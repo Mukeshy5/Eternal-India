@@ -45,6 +45,13 @@ export function readConfig(env = process.env) {
   if (!["test", "live"].includes(paymentMode)) throw new Error("RAZORPAY_MODE must be test or live.");
   const paymentKeyId = (env.RAZORPAY_KEY_ID || "").trim();
   if (paymentKeyId && !paymentKeyId.startsWith(`rzp_${paymentMode}_`)) throw new Error("RAZORPAY_KEY_ID must match RAZORPAY_MODE. Test mode is the default.");
+  const gmailInterval = Number(env.GMAIL_SYNC_INTERVAL_SECONDS || 30);
+  if (!Number.isInteger(gmailInterval) || gmailInterval < 15 || gmailInterval > 3600) throw new Error("GMAIL_SYNC_INTERVAL_SECONDS must be between 15 and 3600.");
+  const gmailRedirect = (env.GMAIL_REDIRECT_URI || "").trim();
+  if (gmailRedirect && !/^https?:\/\//.test(gmailRedirect)) throw new Error("GMAIL_REDIRECT_URI must be an HTTP(S) callback URL.");
+  if (gmailRedirect && production && new URL(gmailRedirect).protocol !== "https:") throw new Error("GMAIL_REDIRECT_URI must use HTTPS in production.");
+  if (env.GMAIL_INBOX_EMAIL && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.GMAIL_INBOX_EMAIL.trim())) throw new Error("GMAIL_INBOX_EMAIL must be the business inbox email address.");
+  if (env.INTEGRATION_TOKEN_SECRET && env.INTEGRATION_TOKEN_SECRET.length < 32) throw new Error("INTEGRATION_TOKEN_SECRET must contain at least 32 characters.");
   return {
     port,
     host: onRender ? "0.0.0.0" : env.HOST || (production ? "0.0.0.0" : "127.0.0.1"),
@@ -60,6 +67,11 @@ export function readConfig(env = process.env) {
     technicalEmail: (env.TECHNICAL_EMAIL || "").trim().toLowerCase(),
     companyName: env.COMPANY_NAME || "Eternal India",
     otpSecret: env.OTP_HASH_SECRET || env.SESSION_SECRET,
+    enquiries: {
+      tokenSecret: env.INTEGRATION_TOKEN_SECRET || env.SESSION_SECRET,
+      whatsapp: { appSecret: (env.WHATSAPP_APP_SECRET || "").trim(), verifyToken: (env.WHATSAPP_VERIFY_TOKEN || "").trim(), phoneNumberId: (env.WHATSAPP_PHONE_NUMBER_ID || "").trim() },
+      gmail: { clientId: (env.GMAIL_CLIENT_ID || "").trim(), clientSecret: (env.GMAIL_CLIENT_SECRET || "").trim(), redirectUri: gmailRedirect, email: (env.GMAIL_INBOX_EMAIL || "").trim().toLowerCase(), refreshToken: (env.GMAIL_REFRESH_TOKEN || "").trim(), intervalMs: gmailInterval * 1000 },
+    },
     payments: { keyId: paymentKeyId, keySecret: (env.RAZORPAY_KEY_SECRET || "").trim(), webhookSecret: (env.RAZORPAY_WEBHOOK_SECRET || "").trim(), mode: paymentMode, minAmount: Math.round(paymentMin * 100), maxAmount: Math.round(paymentMax * 100) },
     email: { provider: emailProvider, apiKey: resendApiKey, from: emailFrom, brevoApiKey, brevoSenderEmail: (env.BREVO_SENDER_EMAIL || "").trim(), brevoSenderName: (env.BREVO_SENDER_NAME || "").trim() },
     smtp: { host: smtpHost, port: smtpPort, secure: env.SMTP_SECURE ? env.SMTP_SECURE === "true" : smtpPort === 465, user: smtpUser, password: smtpHost === "smtp.gmail.com" ? (env.SMTP_PASSWORD || env.GMAIL_APP_PASSWORD || "").replace(/\s/g, "") : env.SMTP_PASSWORD || "", from: smtpFrom || smtpUser || env.ADMIN_EMAIL },

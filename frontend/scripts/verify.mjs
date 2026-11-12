@@ -9,6 +9,7 @@ import { buildEnquiryUrl } from "../src/Common/enquiries.js";
 import { bankDetails, QR_DISPLAY_MS, qrSecondsRemaining, formatQrTime } from "../src/Common/payments.js";
 import { verifyPaymentInteractions } from "./verify-payment.mjs";
 import { verifyRazorpayInteractions } from "./verify-razorpay.mjs";
+import { verifyUnifiedEnquiries } from "./verify-unified-enquiries.mjs";
 import { verifyNavigation } from "./verify-navigation.mjs";
 import { verifyEnquiryInteractions } from "./verify-enquiry.mjs";
 import { verifyAdminInteractions } from "./verify-admin.mjs";
@@ -232,6 +233,7 @@ try {
   await verifyEnquiryInteractions(server);
   await verifyAdminInteractions(server);
   await verifyAdminInteractions(server, true);
+  await verifyUnifiedEnquiries(server);
   await verifyOtpGates(server);
   await verifyPromotions(server);
   await verifyVoucher(server);

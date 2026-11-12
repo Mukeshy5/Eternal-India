@@ -33,7 +33,7 @@ export default function RequestQuote() {
     setError("");
     setFieldErrors({});
     try {
-      const saved = await api("/enquiries", { method: "POST", body: JSON.stringify({ ...fields, voiceLanguage: language, submissionId: submissionId.current }), signal: controller.signal });
+      const saved = await api("/enquiries", { method: "POST", body: JSON.stringify({ ...fields, contactChannel: channel, voiceLanguage: language, submissionId: submissionId.current }), signal: controller.signal });
       if (controller.signal.aborted) return;
       formRef.current?.reset();
       submissionId.current = null;

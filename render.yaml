@@ -35,3 +35,21 @@ services:
         value: "1"
       - key: PAYMENT_MAX_AMOUNT_INR
         value: "500000"
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: GMAIL_CLIENT_ID
+        sync: false
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_INBOX_EMAIL
+        sync: false
+      - key: GMAIL_REDIRECT_URI
+        value: https://eternal-india-phi.vercel.app/api/integrations/gmail/callback
+      - key: GMAIL_SYNC_INTERVAL_SECONDS
+        value: "30"
+      - key: INTEGRATION_TOKEN_SECRET
+        sync: false

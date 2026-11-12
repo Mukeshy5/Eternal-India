@@ -33,7 +33,7 @@ async function start() {
 
   await cleanupDatabase(connection.db, { apply: true });
 
-  const { app, drainSessions, decorationScheduler, decorationsReady } = createApp({ ...connection, config });
+  const { app, drainSessions, decorationScheduler, decorationsReady, enquirySystem } = createApp({ ...connection, config });
   await decorationsReady;
 
   server = app.listen(config.port, config.host, () => {
@@ -54,6 +54,8 @@ async function start() {
       });
     } else console.error("Email delivery is not configured. Set BREVO_API_KEY/BREVO_SENDER_EMAIL (Brevo HTTPS), RESEND_API_KEY/EMAIL_FROM (Resend HTTPS), or SMTP_HOST/SMTP_USER/SMTP_PASSWORD (Gmail SMTP) in the backend environment to enable OTP email.");
   });
+  enquirySystem.realtime.attach(server);
+  enquirySystem.start();
 
   const closeDatabase = async () => {
     if (closing) return;
@@ -79,6 +81,7 @@ async function start() {
     stopping = true;
     try {
       await decorationScheduler.stop();
+      await enquirySystem.stop();
     } catch {}
     server.close(async () => {
       try {

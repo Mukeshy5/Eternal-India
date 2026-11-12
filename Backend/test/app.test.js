@@ -1,3 +1,4 @@
+import { ObjectId } from "mongodb";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomBytes, randomUUID, scrypt as scryptCallback } from "node:crypto";
@@ -110,14 +111,15 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       const filtered = await (await request("/admin/enquiries?status=new")).json();
       assert.equal(filtered.total, 0);
       assert.equal(filtered.stats.confirmed, 1);
-      assert.equal((await db.collection("enquiries").findOne({ reference })).status, "confirmed");
-      assert.ok((await (await request("/admin/history")).json()).history.some((item) => item.status === "confirmed"));
+      assert.equal((await db.collection("enquiries").findOne({ reference })).status, "RESOLVED");
+      assert.ok((await (await request("/admin/history")).json()).history.some((item) => item.status === "RESOLVED"));
       assert.equal((await request(`/admin/enquiries/${id}`, { method: "PATCH", body: { status: "pending" } })).status, 200);
       assert.equal((await request(`/admin/enquiries/${id}`, { method: "PATCH", body: { status: "cancelled" } })).status, 200);
       assert.equal((await request(`/admin/enquiries/${id}`, { method: "DELETE" })).status, 204);
-      assert.equal(await db.collection("enquiries").findOne({ reference }), null);
-      assert.equal(await db.collection("enquiry_history").countDocuments({ enquiryId: saved._id }), 0);
-      assert.equal((await (await request("/admin/history")).json()).history.some((item) => item.reference === reference), false);
+      assert.ok((await db.collection("enquiries").findOne({ reference })).archivedAt);
+      assert.equal((await (await request("/admin/enquiries")).json()).total, 0);
+      assert.ok(await db.collection("enquiry_history").countDocuments({ enquiryId: new ObjectId(saved._id) }) > 0);
+      assert.equal((await (await request("/admin/history")).json()).history.some((item) => item.reference === reference), true);
     });
     await t.test("saves voucher addresses and distances with a hotel snapshot", async () => {
       const hotelReply = await request("/admin/hotels", { method: "POST", body: { name: "Voucher Test Stay", starRating: "4-Star (Upscale / Deluxe)", gst: 12, amount: 5000 } });
