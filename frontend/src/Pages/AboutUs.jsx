@@ -1,94 +1,58 @@
 import { Link } from "react-router-dom";
 import { Eyebrow, Icon, JourneyCTA, PageIntro } from "../Common/SiteUI";
+
 const services = [
   {
     number: "01",
-    title: "A network that knows India",
-    text: "We partner with hotels from budget to luxury and transportation providers across India. Our 30 associates in key cities, multilingual guides, and local offices work together to keep your tour running smoothly.",
+    title: "Network",
+    text: "We at Eternal India have established partnerships with hotels across categories, from budget to luxury, along with transportation providers across India. We have well-versed guides with knowledge and experience in many languages. We have a network of 30 associates across important Indian cities for smooth tour operations. Our local offices are always ready to support smooth tours.",
   },
   {
     number: "02",
-    title: "People who find a way",
-    text: "Our experienced team handles your questions with creativity and care. Equipped with modern technology and local knowledge, we work professionally and on time to bring your plans together.",
+    title: "Creativity",
+    text: "We have well-versed staff on our team to handle and solve client queries. Our offices are fully equipped with modern technology and the people needed to complete work on time and professionally.",
   },
   {
     number: "03",
-    title: "Bookings made personal",
-    text: "Our centralised Computer Reservation System (CRS) helps us manage and confirm hotel bookings and tour packages. Our team responds promptly with itineraries, travel tips, and answers to your travel questions.",
+    title: "Bookings",
+    text: "Our experienced staff provide quick replies. We have a centralized CRS (Computer Reservation System) to manage and confirm hotel bookings and tour packages. Our team responds to customers' queries with tour details, itinerary information, and travel tips.",
   },
   {
     number: "04",
-    title: "By your side, around the clock",
-    text: "Our 24-hour assistance team supports you before and during your tour. Skilled executives are ready to help with last-minute requests and the practical details that matter along the way.",
+    title: "Emergency Contacts",
+    text: "Eternal India has a 24-hour contact cell to assist customers before and during tours. Our skilled team of executives is ready to cater to last-minute special requests.",
   },
 ];
+
 const commitments = [
-  [
-    "Relationships that last",
-    "We build long-term client relationships and let your expectations guide the standard of our service.",
-  ],
-  [
-    "The right details",
-    "We select accommodation, transportation, sightseeing, and excursions to suit your taste, with specialist knowledge at your disposal.",
-  ],
-  [
-    "Care in every commitment",
-    "We work towards excellence and customer satisfaction through efficient service and competitive pricing.",
-  ],
-  [
-    "A timely response",
-    "We respond to your questions and requests with a sense of urgency.",
-  ],
-  [
-    "The India beyond the familiar",
-    "Alongside traditional highlights, we help you discover offbeat destinations and experience the life and character of India.",
-  ],
-  [
-    "Advice from people who know",
-    "Our caring travel professionals understand the destinations and offer practical suggestions for every place you visit.",
-  ],
+  "We are dedicated to developing long-term client relationships, as we understand that our customers define the standard of our services.",
+  "We want your trip to be truly memorable. We select the best possible accommodation, transportation, sightseeing, and excursions to suit your taste, and put our specialist knowledge at your disposal to perfect your travel plans.",
+  "We are committed to doing our best to achieve excellence in our undertakings and provide customer satisfaction by being efficient and competitive.",
+  "We always respond to clients with a sense of urgency.",
+  "Our primary aim is to assist in the development of offbeat India travel destinations, helping visitors see and feel the real India alongside traditional destinations.",
+  "We have efficient and caring travel professionals who understand the destinations and offer practical suggestions for every place you visit.",
 ];
+
 export default function AboutUs() {
   return (
     <>
-      <PageIntro
-        label="Our story. Your next chapter."
-        title={
-          <>
-            Journeys with soul.
-            <br />
-            People who <em>care.</em>
-          </>
-        }
-      >
-        <p>
-          We are Eternal India. A team of travel professionals bringing local
-          knowledge, thoughtful planning, and personal care to your journey
-          through India and the subcontinent.
-        </p>
-      </PageIntro>
+      <PageIntro label="Eternal India" title="About" />
       <section className="vision-section">
         <div className="container vision-inner">
           <div>
-            <Eyebrow>Our vision</Eyebrow>
-            <h2>
-              Extraordinary experiences.
-              <br />
-              <em>Thoughtfully within reach.</em>
-            </h2>
+            <h2>Vision</h2>
           </div>
           <div>
             <p>
-              Our vision is to offer the best tour packages at competitive
-              prices, with comprehensive, professional service for every
-              customer. We use the best available resources and technology to
-              make travel planning effective and suited to your needs.
-            </p>
-            <p>
-              We nurture a culture of commitment and growth within our team and
-              with our partners. Our ambition is to become India's largest and
-              most reliable travel company, recognised for professionalism and
-              service you can trust.
+              To provide the best tour packages at competitive prices to all
+              our customers through comprehensive and professionally effective
+              service, using the best available resources and technology. We
+              aim to make our services effective and suitable, and to nurture a
+              work culture and environment, internally and externally, that
+              promotes total commitment and growth. Our vision is to become the
+              largest and most reliable travel company in India, with
+              distinctive standards of professionalism and reliability for our
+              customers.
             </p>
           </div>
         </div>
@@ -96,17 +60,8 @@ export default function AboutUs() {
       <section className="section container">
         <div className="section-heading">
           <div>
-            <Eyebrow>What makes it all possible</Eyebrow>
-            <h2>
-              Local knowledge.
-              <br />
-              Connected care.
-            </h2>
+            <h2>Network, Creativity,<br />Bookings &amp; Emergency Contacts</h2>
           </div>
-          <p>
-            From your first enquiry to your journey home,
-            <br />a team that takes care of the details.
-          </p>
         </div>
         <div className="service-list">
           {services.map((service) => (
@@ -118,51 +73,38 @@ export default function AboutUs() {
           ))}
         </div>
       </section>
+      <section className="section container reach-section">
+        <div>
+          <h2>Reach Us for</h2>
+        </div>
+        <div>
+          <p>
+            We take you on a journey to mystic destinations. Explore the
+            mystique of South Asia with tours to fascinating destinations in
+            India and the subcontinent, including Nepal and Bhutan. In India,
+            explore Delhi, Agra, Jaipur, Rajasthan, Goa, South India and the
+            backwaters of Kerala, the forests of Eastern India, and the exotic
+            hills of Leh-Ladakh and Uttarakhand. You may explore grand temples
+            and monuments on cultural tours and visit Buddhist pilgrimage
+            destinations.
+          </p>
+          <Link to="/tours" className="text-link">
+            Explore our tours <Icon />
+          </Link>
+        </div>
+      </section>
       <section className="commitments-section">
         <div className="container">
-          <Eyebrow>Our promise to you</Eyebrow>
-          <h2>
-            Travel is personal.
-            <br />
-            So is our commitment.
-          </h2>
+          <Eyebrow>Our commitments</Eyebrow>
+          <h2>Dedicated to your journey.</h2>
           <div className="commitment-grid">
-            {commitments.map(([title, text]) => (
-              <article key={title}>
+            {commitments.map((commitment) => (
+              <article key={commitment}>
                 <Icon name="check" />
-                <div>
-                  <h3>{title}</h3>
-                  <p>{text}</p>
-                </div>
+                <div><p>{commitment}</p></div>
               </article>
             ))}
           </div>
-        </div>
-      </section>
-      <section className="section container reach-section">
-        <div>
-          <Eyebrow>Reach us for</Eyebrow>
-          <h2>
-            A little wonder.
-            <br />
-            <em>In every direction.</em>
-          </h2>
-        </div>
-        <div>
-          <p>
-            Explore the mystique of South Asia: India, Nepal, and Bhutan.
-            Discover Delhi, Agra, Jaipur, and Rajasthan; the beaches of Goa and
-            the backwaters of Kerala; the forests of Eastern India and the hills
-            of Leh, Ladakh, and Uttarakhand.
-          </p>
-          <p>
-            From grand temples and monuments to Buddhist pilgrimage
-            destinations, our journeys connect you with the places, cultures,
-            and stories that speak to you.
-          </p>
-          <Link to="/tours" className="text-link">
-            Find your inspiration <Icon />
-          </Link>
         </div>
       </section>
       <JourneyCTA />
