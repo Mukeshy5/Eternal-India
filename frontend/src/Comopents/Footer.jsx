@@ -25,6 +25,7 @@ export default function Footer() {
         <div>
           <h3>Explore with us</h3>
           <Link to="/about">Our story</Link>
+          <Link to="/blog">Blog</Link>
           <Link to="/tours">Our journeys</Link>
           <Link to="/tour-packages">Tour packages</Link>
           <Link to="/destinations-in-india">Destinations in India</Link>

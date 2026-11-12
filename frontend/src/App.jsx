@@ -15,6 +15,7 @@ import India from "./Comopents/India";
 import Admin from "./Pages/Admin";
 import TravelDetail from "./Pages/TravelDetail";
 import BuddhistToursInIndia from "./Pages/BuddhistToursInIndia";
+import Blog from "./Pages/Blog";
 import { PrivacyPolicy, TermsConditions } from "./Pages/LegalPages";
 import { PromotionsProvider } from "./Common/Promotions";
 import PublicDecorations from "./Common/festivals/PublicDecorations";
@@ -28,6 +29,7 @@ const titles = {
   "/contact": "Contact us",
   "/tours": "Our journeys",
   "/buddhist-tours-in-india": "Buddhist tours in India",
+  "/blog": "Travel journal",
   "/request-quote": "Plan your trip",
   "/online-payment": "Online payment",
   "/privacy-policy": "Our Privacy Policy",
@@ -86,6 +88,7 @@ export default function App() {
           <Route path="/about" element={<AboutUs />} />
           <Route path="/tours" element={<Journeys />} />
           <Route path="/buddhist-tours-in-india" element={<BuddhistToursInIndia />} />
+          <Route path="/blog" element={<Blog />} />
           <Route path="/products" element={<Navigate to="/tours" replace />} />
           <Route path="/request-quote" element={<RequestQuote />} />
           <Route path="/admin/*" element={<Admin key="admin" />} />

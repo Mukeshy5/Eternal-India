@@ -31,6 +31,7 @@ const knownRoutes = new Set([
   "/contact",
   "/tours",
   "/buddhist-tours-in-india",
+  "/blog",
   "/request-quote",
   "/online-payment",
   "/privacy-policy",
@@ -119,6 +120,22 @@ try {
   for (const value of ["A 10-day pilgrimage route", "View the day-by-day itinerary", "Day 01", "Arrive in Delhi", "Delhi – Varanasi by flight", "Varanasi – Bodhgaya", "Bodhgaya – Nalanda – Rajgir", "Rajgir – Vaishali – Kushinagar", "Kushinagar – Sravasti", "Sravasti – Lucknow", "Lucknow – Sankisa – Agra", "Agra – Delhi", "Departure by flight", "Mahabodhi Temple", "Ashokan Pillar", "Mahaparinirvana Temple", "Sankisa", "Taj Mahal"]) {
     assert.ok(buddhistPage.includes(value), `Buddhist pilgrimage itinerary: missing ${value}`);
   }
+  const blog = pages.get("/blog");
+  for (const value of ["Stories &amp; sacred places", "Parsili is an idyllic place", "Sidhi district", "Banas River", "The barefoot trek", "Kathbungalow", "What to wear and bring", "Sanjay-Dubri National Park", "Gopad Darshan", "footprints on damp soil"]) {
+    assert.ok(blog.includes(value), `Parsili blog: missing ${value}`);
+  }
+  for (const value of ["Chitrakoot: a landscape of faith and legend", "Getting to Chitrakoot", "Places to visit", "Kamadgiri / Kamtanath", "Gupta Godavari", "Places near Chitrakoot Dham", "Kalinjar", "Fairs and festivals", "Medical services", "Accommodation", "Madhya Pradesh Tourism Tourist Bungalow"]) {
+    assert.ok(blog.includes(value), `Chitrakoot blog: missing ${value}`);
+  }
+  assert.equal((blog.match(/class="[^"]*blog-article-place-grid/g) || []).length, 2, "Chitrakoot attractions and nearby excursions have separate sections");
+  for (const value of ["Jain pilgrimage in Bihar", "Kamaldah · Patna", "Kund Gram · Muzaffarpur", "Jalmandir · Pawapuri", "Son Bhandar caves · Rajgir", "Mandar Hill · Banka", "Ramayana places in Bihar", "Janaki Temple · Punaura, Sitamarhi", "Valmiki Nagar · West Champaran", "Ahirauli · Buxar", "Sita Kund · Munger"]) {
+    assert.ok(blog.includes(value), `Bihar sacred routes blog: missing ${value}`);
+  }
+  assert.equal((blog.match(/class="blog-topic-option(?: is-active)?"/g) || []).length, 4, "blog offers four topic options at the top");
+  assert.ok(blog.includes('class="blog-topic-option is-active"') && blog.includes('aria-pressed="true"'), "Parsili is the initially selected topic");
+  assert.equal((blog.match(/class="blog-topic-panel" hidden=""/g) || []).length, 3, "only the selected topic panel is shown initially");
+  assert.equal((blog.match(/<details class="blog-sacred-disclosure"/g) || []).length, 2, "Bihar Jain and Ramayana details can expand");
+  assert.match(blog, /<a[^>]*href="\/blog"[^>]*>Blog<\/a>/, "footer links to the blog");
   assert.equal((buddhistPage.match(/class="travel-itinerary-day"/g) || []).length, 10, "Buddhist itinerary contains all ten days");
   const manaliPackage = pages.get(packagePath(tourPackages.find((item) => item.slug === "manali-volvo-package")));
   for (const value of ["Manali is a resort and tourist town", "Manali in the Beas River Valley", "Your 6-day journey.", "Delhi – Manali", "Hadimba Devi Temple", "Solang Valley", "Manikaran", "Arrival in Delhi – Tour ends"]) {
@@ -142,6 +159,11 @@ try {
   assert.ok(!payment.includes('class="actual-payment-qr"'), "payment QR is not rendered before requesting it");
   assert.ok(!pages.get("/").includes("Ready for your next chapter?") && !pages.get("/").includes("payment-banner"), "removed payment promotion is absent from home");
   assert.ok(pages.get("/privacy-policy").includes("Our Privacy Policy"), "privacy policy route renders");
+  const home = pages.get("/");
+  for (const value of ["TripAdvisor award-winning company", "Certificate of Excellence award", "100% customizable", "Local experts. Middleman-free pricing.", "No hidden charges", "travel permits, lodging and meals"]) {
+    assert.ok(home.toLowerCase().includes(value.toLowerCase()), `homepage travel benefits: missing ${value}`);
+  }
+  assert.equal((home.match(/class="home-benefit-card"/g) || []).length, 4, "homepage shows the four distinct benefits once");
   for (const value of ["Payment policy", "NEFT/ RTGS", "Remarks", "Rohtang pass", "Only the commitment’s/ communication exchanged through mail will be applicable.", "Cancellation policy", "There will be no refunds for no-shows."]) assert.ok(pages.get("/privacy-policy").includes(value), `privacy policy includes ${value}`);
   for (const value of ["Terms &amp; Conditions", "Using this website", "Reservations", "Current account number: 921020029366590", "Children policy", "Hotels policy", "Refunds", "Air ticket cancellation and layover policy", "Railway ticket cancellation", "Complaints", "Other conditions", "Within one week of departure: 100%."]) assert.ok(pages.get("/terms-and-conditions").toLowerCase().includes(value.toLowerCase()), `terms page includes ${value}`);
   for (const [route, html] of pages) {

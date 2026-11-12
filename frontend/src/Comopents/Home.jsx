@@ -29,6 +29,33 @@ const homeRegions = [
   },
 ];
 
+const travelBenefits = [
+  {
+    icon: "globe",
+    title: "TripAdvisor award-winning company",
+    description:
+      "We've received a Certificate of Excellence award from TripAdvisor, the world's largest travel website.",
+  },
+  {
+    icon: "compass",
+    title: "100% customizable",
+    description:
+      "Tell us about your trip requirements. We'll work together to tailor your journey to you and help make it memorable.",
+  },
+  {
+    icon: "pin",
+    title: "Local experts. Middleman-free pricing.",
+    description:
+      "We're a local travel agency. Book with us for the best possible price, without a middleman.",
+  },
+  {
+    icon: "check",
+    title: "No hidden charges",
+    description:
+      "Trips include travel permits, lodging and meals, with no surprise extras or hidden costs.",
+  },
+];
+
 export default function Home() {
   const availablePlaces = destinations.filter((destination) => destination.image).slice(0, 4);
 
@@ -95,6 +122,28 @@ export default function Home() {
             <Icon name="sun" />
             24/7 travel assistance
           </span>
+        </div>
+      </section>
+      <section className="home-benefits-section" aria-labelledby="home-benefits-heading">
+        <div className="container">
+          <div className="home-benefits-heading">
+            <Eyebrow>Travel with confidence</Eyebrow>
+            <h2 id="home-benefits-heading">
+              Thoughtful journeys.
+              <br />
+              <em>No guesswork.</em>
+            </h2>
+          </div>
+          <div className="home-benefits-grid">
+            {travelBenefits.map((benefit, index) => (
+              <article className="home-benefit-card" key={benefit.title}>
+                <span className="home-benefit-number">{String(index + 1).padStart(2, "0")}</span>
+                <span className="home-benefit-icon"><Icon name={benefit.icon} size={22} /></span>
+                <h3>{benefit.title}</h3>
+                <p>{benefit.description}</p>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
       <section className="section container available-places-section">

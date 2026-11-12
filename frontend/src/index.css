@@ -837,6 +837,73 @@ main:focus {
 .trust-strip svg {
   color: #6c7f63;
 }
+.home-benefits-section {
+  position: relative;
+  overflow: hidden;
+  padding-block: 82px 92px;
+  background: #f8f6f0;
+}
+.home-benefits-heading {
+  max-width: 620px;
+  margin-bottom: 36px;
+}
+.home-benefits-heading h2 {
+  font-size: clamp(2rem, 1.4rem + 2vw, 3rem);
+  line-height: 1.15;
+}
+.home-benefits-heading h2 em {
+  color: #75836a;
+  font-weight: 400;
+}
+.home-benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.home-benefit-card {
+  position: relative;
+  min-height: 245px;
+  padding: 27px 23px;
+  border: 1px solid #e4e0d5;
+  border-radius: 9px;
+  background: #fffefa;
+  box-shadow: 0 10px 28px #293c3409;
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+}
+.home-benefit-card:hover {
+  transform: translateY(-5px);
+  border-color: #b7c0aa;
+  box-shadow: 0 16px 34px #293c3415;
+}
+.home-benefit-number {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  color: #9a9c8b;
+  font: 600 .6875rem Arial, Helvetica, sans-serif;
+  letter-spacing: .08em;
+}
+.home-benefit-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 28px;
+  place-items: center;
+  border-radius: 50%;
+  color: #54684d;
+  background: #edf0e7;
+}
+.home-benefit-card h3 {
+  max-width: 240px;
+  color: var(--green);
+  font: 600 1.125rem/1.35 Georgia, "Times New Roman", serif;
+}
+.home-benefit-card p {
+  margin-top: 11px;
+  color: #667064;
+  font-size: .8125rem;
+  line-height: 1.75;
+}
 .journey-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -981,6 +1048,312 @@ main:focus {
   grid-template-columns: 0.9fr 1.1fr;
   gap: 90px;
   padding-block: 100px;
+}
+.blog-article {
+  padding-block: 12px 76px;
+}
+.blog-topic-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: -14px;
+}
+.blog-topic-option {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffefa;
+  color: var(--green);
+  text-align: left;
+}
+.blog-topic-option:hover {
+  border-color: #9aa58d;
+  transform: translateY(-2px);
+}
+.blog-topic-option.is-active {
+  border-color: var(--green);
+  background: var(--green);
+  color: white;
+  box-shadow: 0 5px 16px #243f3520;
+}
+.blog-topic-option strong {
+  font: 600 .9rem/1.35 Arial, Helvetica, sans-serif;
+}
+.blog-topic-option span {
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.4;
+}
+.blog-topic-option.is-active span {
+  color: #d3ddd1;
+}
+.blog-topic-hint {
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: .72rem;
+  text-align: right;
+}
+.blog-topic-panel[hidden] {
+  display: none !important;
+}
+.blog-article-secondary {
+  border-top: 1px solid var(--line);
+  padding-top: 55px;
+}
+.blog-article-secondary .blog-article-intro > h2 {
+  margin-top: 8px;
+}
+.blog-article-smallprint {
+  margin-top: 16px;
+  font-size: .76rem;
+}
+.blog-article-transport {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+.blog-article-transport > div,
+.blog-article-place-grid > article {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffefa;
+}
+.blog-article-transport h3,
+.blog-article-place-grid h3 {
+  color: var(--green);
+  font: 600 .95rem/1.45 Arial, Helvetica, sans-serif;
+}
+.blog-article-transport p,
+.blog-article-place-grid p {
+  margin-top: 7px;
+  font-size: .86rem;
+}
+.blog-article-place-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+.blog-article-nearby-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.blog-article-festival-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+.blog-article-festival-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: .82rem;
+}
+.blog-article-festival-list strong {
+  color: var(--green);
+}
+.blog-article-festival-list span {
+  color: var(--muted);
+  text-align: right;
+}
+.blog-article-note ul,
+.blog-article-lodging-list {
+  display: grid;
+  gap: 8px 24px;
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: .86rem;
+  line-height: 1.65;
+}
+.blog-article-lodging-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-block: 18px;
+}
+.blog-sacred-section {
+  padding-block: 60px 76px;
+  background: #efeee5;
+}
+.blog-sacred-inner {
+  display: grid;
+  grid-template-columns: minmax(220px, .7fr) minmax(0, 1.3fr);
+  align-items: start;
+  gap: clamp(28px, 5vw, 64px);
+}
+.blog-sacred-heading {
+  position: sticky;
+  top: 28px;
+}
+.blog-sacred-heading h2 {
+  margin-top: 8px;
+}
+.blog-sacred-heading p {
+  margin-top: 14px;
+  font-size: .9rem;
+}
+.blog-sacred-disclosures {
+  display: grid;
+  gap: 12px;
+}
+.blog-sacred-disclosure {
+  overflow: hidden;
+  border: 1px solid #dcdccf;
+  border-radius: 9px;
+  background: #faf8f3;
+}
+.blog-sacred-disclosure summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  cursor: pointer;
+  list-style: none;
+}
+.blog-sacred-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+.blog-sacred-disclosure summary::after {
+  content: "+";
+  color: #64765d;
+  font: 400 1.5rem/1 Arial, Helvetica, sans-serif;
+}
+.blog-sacred-disclosure[open] summary::after {
+  content: "−";
+}
+.blog-sacred-disclosure summary > span:first-child {
+  display: grid;
+  gap: 5px;
+}
+.blog-sacred-disclosure summary strong {
+  color: var(--green);
+  font: 600 1rem/1.4 Georgia, "Times New Roman", serif;
+}
+.blog-sacred-disclosure summary small {
+  color: var(--muted);
+  font-size: .76rem;
+  line-height: 1.5;
+}
+.blog-sacred-count {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #e9ece3;
+  color: #4c6247;
+  font-size: .68rem;
+}
+.blog-sacred-place-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+.blog-sacred-place-grid article {
+  padding: 14px;
+  border: 1px solid #e8e5db;
+  border-radius: 7px;
+  background: white;
+}
+.blog-sacred-place-grid h3 {
+  color: var(--green);
+  font: 600 .84rem/1.45 Arial, Helvetica, sans-serif;
+}
+.blog-sacred-place-grid p {
+  margin-top: 6px;
+  font-size: .76rem;
+  line-height: 1.65;
+}
+.blog-article-intro {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 28px 0 42px;
+  border-bottom: 1px solid var(--line);
+}
+.blog-article-intro > p {
+  margin-top: 13px;
+  color: var(--ink);
+  font: 1.2rem/1.85 Georgia, "Times New Roman", serif;
+}
+.blog-article-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 30px;
+}
+.blog-article-facts > div {
+  display: grid;
+  gap: 7px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f3f1e9;
+}
+.blog-article-facts span {
+  color: var(--muted);
+  font-size: .68rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.blog-article-facts strong {
+  color: var(--green);
+  font: 600 .9rem/1.45 Arial, Helvetica, sans-serif;
+}
+.blog-article-body {
+  display: grid;
+  gap: 36px;
+  max-width: 760px;
+  margin: 40px auto 0;
+}
+.blog-article-body section h2 {
+  margin-top: 8px;
+}
+.blog-article-body section p {
+  margin-top: 15px;
+}
+.blog-article-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 22px;
+  border-left: 3px solid #87937c;
+  background: #efeee5;
+}
+.blog-article-note > svg {
+  color: #64765d;
+}
+.blog-article-note h3 {
+  font: 600 .95rem/1.4 Arial, Helvetica, sans-serif;
+}
+.blog-article-note p {
+  margin-top: 5px;
+  font-size: .88rem;
+}
+.blog-article-quote {
+  margin: 0;
+  padding: 26px 30px;
+  border-radius: 8px;
+  background: var(--green);
+  color: #f2efe5;
+  font: italic 1.1rem/1.8 Georgia, "Times New Roman", serif;
+}
+.blog-article-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  max-width: 860px;
+  margin: 48px auto 0;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+.blog-article-footer p {
+  font-size: .88rem;
 }
 .home-process > div:first-child > p {
   max-width: 390px;
@@ -1686,6 +2059,12 @@ main:focus {
   .trust-strip span {
     font-size: 0.75rem;
   }
+  .home-benefits-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .home-benefit-card {
+    min-height: 225px;
+  }
   .journey-grid {
     gap: 17px;
   }
@@ -2001,6 +2380,23 @@ main:focus {
   .trust-strip svg {
     width: 18px;
   }
+  .home-benefits-section {
+    padding-block: 58px 64px;
+  }
+  .home-benefits-heading {
+    margin-bottom: 25px;
+  }
+  .home-benefits-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .home-benefit-card {
+    min-height: auto;
+    padding: 23px;
+  }
+  .home-benefit-icon {
+    margin-bottom: 20px;
+  }
   .journey-grid {
     grid-template-columns: 1fr;
     gap: 24px;
@@ -2122,6 +2518,394 @@ main:focus {
   .cta-inner p {
     font-size: 13px;
     margin-bottom: 18px;
+  }
+}
+
+/* Homepage spacing and responsive layout */
+.home-hero {
+  min-height: clamp(490px, 42vw, 610px);
+}
+.home-hero-inner {
+  min-height: inherit;
+}
+.home-hero-copy {
+  width: min(590px, 56%);
+  padding: clamp(24px, 3.2vw, 48px) 0;
+}
+.home-hero-copy h1 {
+  font-size: clamp(2.6rem, 4.5vw, 4.4rem);
+  line-height: 1.04;
+}
+.home-hero-copy > p:not(.eyebrow) {
+  max-width: 440px;
+  margin-top: 20px;
+}
+.hero-actions {
+  gap: 18px;
+  margin-top: 22px;
+}
+.hero-reassurance {
+  margin-top: 24px;
+}
+.home-hero-photo {
+  inset-inline: calc((min(1200px, 100vw - 96px) - 100vw) / 2);
+}
+.trust-strip > .container {
+  padding-block: 17px;
+  gap: 12px 20px;
+}
+.home-benefits-section {
+  padding-block: 62px 68px;
+}
+.home-benefits-heading {
+  margin-bottom: 25px;
+}
+.home-benefit-card {
+  min-height: 218px;
+  padding: 22px 20px;
+}
+.home-benefit-icon {
+  margin-bottom: 20px;
+}
+.available-places-section {
+  padding-block: 64px;
+}
+.available-places-section .section-heading {
+  margin-bottom: 26px;
+}
+.available-places-section .journey-grid {
+  gap: 20px;
+}
+.available-places-section .journey-card {
+  min-height: 0;
+}
+.available-places-section .journey-image {
+  height: clamp(165px, 18vw, 220px);
+}
+.available-places-section .journey-card > .small-label,
+.available-places-section .journey-card > h3,
+.available-places-section .journey-card > p,
+.available-places-section .journey-card > .promotion-card-footer {
+  margin-inline: 18px;
+}
+.available-places-section .journey-card > .small-label {
+  margin-top: 17px;
+}
+.available-places-section .journey-card h3 {
+  margin-block: 6px;
+  font-size: clamp(1.35rem, 1.7vw, 1.8rem);
+}
+.home-about {
+  gap: clamp(32px, 6vw, 76px);
+  padding-block: 44px 58px;
+}
+.home-about p + p {
+  margin-top: 11px;
+}
+.home-regions.section {
+  padding-block: 62px;
+}
+.home-regions .section-heading {
+  margin-bottom: 26px;
+}
+.home-regions .region-grid {
+  gap: 20px;
+}
+.home-regions .region-card {
+  min-height: 0;
+}
+.home-regions .region-image {
+  height: clamp(190px, 23vw, 275px);
+}
+.home-regions .region-card > .eyebrow,
+.home-regions .region-card > p,
+.home-regions .region-card > .promotion-card-footer {
+  margin-inline: 18px;
+}
+.home-regions .region-card > .eyebrow {
+  margin-top: 17px;
+}
+.home-regions .region-card > p {
+  padding-bottom: 15px;
+}
+.home-process {
+  gap: clamp(32px, 6vw, 76px);
+  padding-block: 62px;
+}
+.home-process > div:first-child > p {
+  margin-top: 16px;
+}
+.process-step {
+  padding-block: 18px;
+}
+.process-step h3 {
+  font-size: 1.25rem;
+}
+.cta-inner {
+  padding-block: 44px;
+}
+
+@media (min-width: 1101px) {
+  .home-hero-copy {
+    text-shadow: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .home-hero {
+    min-height: 0;
+  }
+  .home-hero-inner {
+    min-height: 0;
+  }
+  .home-hero-photo {
+    height: clamp(280px, 48vw, 390px);
+    margin: 0;
+  }
+  .home-hero-copy {
+    width: 100%;
+    padding: 34px 30px 32px;
+  }
+  .home-hero-copy h1 {
+    font-size: clamp(2.35rem, 6vw, 3.5rem);
+  }
+  .home-hero-copy > p:not(.eyebrow) {
+    margin-top: 14px;
+  }
+  .hero-actions {
+    margin-top: 18px;
+  }
+  .hero-reassurance {
+    margin-top: 18px;
+  }
+  .available-places-section .journey-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .available-places-section .journey-image {
+    height: clamp(170px, 28vw, 230px);
+  }
+  .home-benefits-section,
+  .home-regions.section,
+  .home-process {
+    padding-block: 50px;
+  }
+}
+
+@media (max-width: 600px) {
+  .blog-topic-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: -8px;
+  }
+  .blog-topic-option {
+    min-height: 64px;
+    padding: 11px 12px;
+    border-radius: 7px;
+  }
+  .blog-topic-option strong {
+    font-size: .82rem;
+  }
+  .blog-topic-option span {
+    font-size: .68rem;
+  }
+  .blog-topic-hint {
+    margin-top: 7px;
+    font-size: .68rem;
+    text-align: left;
+  }
+  .blog-sacred-section {
+    padding-block: 38px 48px;
+  }
+  .blog-sacred-inner {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .blog-sacred-heading {
+    position: static;
+  }
+  .blog-sacred-place-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding-inline: 10px;
+  }
+  .blog-sacred-disclosure summary {
+    padding: 15px;
+    gap: 10px;
+  }
+  .blog-sacred-count {
+    font-size: .62rem;
+  }
+  .blog-article {
+    padding-block: 0 48px;
+  }
+  .blog-article-secondary {
+    padding-top: 34px;
+  }
+  .blog-article-place-grid,
+  .blog-article-nearby-grid,
+  .blog-article-festival-list,
+  .blog-article-lodging-list {
+    grid-template-columns: 1fr;
+  }
+  .blog-article-place-grid {
+    gap: 9px;
+  }
+  .blog-article-place-grid > article,
+  .blog-article-transport > div {
+    padding: 15px;
+  }
+  .blog-article-festival-list > div {
+    font-size: .78rem;
+  }
+  .blog-article-intro {
+    padding-block: 18px 26px;
+  }
+  .blog-article-intro > p {
+    font-size: 1.02rem;
+  }
+  .blog-article-facts {
+    grid-template-columns: 1fr;
+    gap: 9px;
+    margin-top: 20px;
+  }
+  .blog-article-facts > div {
+    padding: 12px 14px;
+  }
+  .blog-article-body {
+    gap: 26px;
+    margin-top: 27px;
+  }
+  .blog-article-body section h2 {
+    font-size: 1.75rem;
+  }
+  .blog-article-note {
+    padding: 17px;
+  }
+  .blog-article-quote {
+    padding: 21px;
+    font-size: 1rem;
+  }
+  .blog-article-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 30px;
+  }
+  .home-hero-photo {
+    height: clamp(230px, 66vw, 320px);
+  }
+  .home-hero-copy {
+    padding: 26px 20px;
+  }
+  .home-hero-copy h1 {
+    font-size: clamp(2.1rem, 10vw, 3rem);
+  }
+  .home-hero-copy > p:not(.eyebrow) {
+    font-size: .9rem;
+  }
+  .hero-actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .hero-actions .button {
+    justify-content: center;
+  }
+  .hero-reassurance {
+    font-size: .68rem;
+    margin-top: 15px;
+  }
+  .trust-strip > .container {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 10px;
+    padding-block: 15px;
+  }
+  .trust-strip span {
+    font-size: .67rem;
+    line-height: 1.4;
+  }
+  .trust-strip svg {
+    flex: 0 0 18px;
+  }
+  .home-benefits-section,
+  .home-regions.section,
+  .home-process {
+    padding-block: 40px;
+  }
+  .home-benefit-card {
+    padding: 20px;
+  }
+  .home-benefit-icon {
+    width: 42px;
+    height: 42px;
+    margin-bottom: 15px;
+  }
+  .available-places-section {
+    padding-block: 42px;
+  }
+  .available-places-section .section-heading,
+  .home-regions .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .available-places-section .section-heading h2,
+  .home-regions .section-heading h2,
+  .home-process h2,
+  .home-about h2 {
+    font-size: clamp(1.8rem, 8vw, 2.4rem);
+  }
+  .available-places-section .journey-grid,
+  .home-regions .region-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .available-places-section .journey-image,
+  .home-regions .region-image {
+    height: clamp(185px, 60vw, 245px);
+  }
+  .available-places-section .journey-card > .small-label,
+  .available-places-section .journey-card > h3,
+  .available-places-section .journey-card > p,
+  .available-places-section .journey-card > .promotion-card-footer,
+  .home-regions .region-card > .eyebrow,
+  .home-regions .region-card > p,
+  .home-regions .region-card > .promotion-card-footer {
+    margin-inline: 16px;
+  }
+  .home-about {
+    gap: 14px;
+    padding-block: 36px 40px;
+  }
+  .home-about p {
+    font-size: .9rem;
+  }
+  .home-process {
+    gap: 16px;
+  }
+  .process-step {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+    padding-block: 15px;
+  }
+  .process-step h3 {
+    font-size: 1.1rem;
+  }
+  .process-step p {
+    font-size: .78rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero-copy,
+  .home-hero-photo > picture img,
+  .trust-strip,
+  .section,
+  .home-about,
+  .home-benefit-card {
+    animation: none;
+    transition: none;
   }
   .vision-section {
     padding-block: 40px;
