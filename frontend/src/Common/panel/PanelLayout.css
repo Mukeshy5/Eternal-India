@@ -39,6 +39,7 @@
 .panel-page { min-width:0; min-height:calc(100dvh - 118px); }
 .panel-footer { display:flex; align-items:center; justify-content:space-between; gap:15px; padding:18px 30px; color:#8993a4; font-size:9px; border-top:1px solid var(--panel-line); }
 .panel-backdrop { display:none; }
+.panel-drawer-close { display:none; }
 .panel-app .dashboard-layout { display:block; min-height:0; background:transparent; --dashboard-ink:#233046; --dashboard-line:#e4e8ef; --dashboard-muted:#7b8799; }
 .panel-app .dashboard-main { padding:30px; }
 .panel-app .dashboard-page-heading { margin-bottom:24px; }
@@ -124,6 +125,7 @@
   .panel-app { display:block; }
   .panel-sidebar.dashboard-sidebar { position:fixed; inset:0 auto 0 0; width:246px; height:100dvh; overflow-y:auto; padding:22px 14px 0; border-right:1px solid #233047; transform:translateX(-100%); transition:transform .18s ease; }
   .panel-sidebar.panel-sidebar-open { transform:translateX(0); }
+  .panel-drawer-close { display:grid; place-items:center; align-self:flex-end; width:44px; min-height:44px; margin-bottom:8px; border:1px solid #ffffff30; border-radius:7px; background:#ffffff08; color:white; }
   .panel-backdrop { display:block; position:fixed; z-index:41; inset:0; border:0; background:#101a2c65; }
   .panel-navigation.dashboard-status-navigation { display:flex; flex-direction:column; max-height:none; overflow:visible; margin:0; padding:4px 0 22px; }
   .panel-menu-button.dashboard-mobile-menu { display:grid; place-items:center; width:34px; min-height:34px; padding:5px; margin:0; border:1px solid #dfe4ed; border-radius:6px; color:#52617b; background:#fff; font-size:17px; }

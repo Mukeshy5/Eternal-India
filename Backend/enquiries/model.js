@@ -20,6 +20,8 @@ export async function ensureEnquiryModels(db) {
     enquiries.createIndex({ "pendingEvents.0": 1 }),
     db.collection("enquiry_deleted_submissions").createIndex({ deletedAt: 1 }),
     db.collection("enquiry_events").createIndex({ publishedAt: 1 }),
+    db.collection("enquiry_events").createIndex({ type: 1, audience: 1, publishedAt: -1 }),
+    db.collection("enquiry_events").createIndex({ type: 1, notification: 1, enquiryId: 1 }),
     db.collection("enquiry_oauth_states").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
   ]);
 }

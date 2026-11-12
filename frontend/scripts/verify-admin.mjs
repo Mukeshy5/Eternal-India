@@ -118,6 +118,10 @@ export async function verifyAdminInteractions(server, technical = false) {
     await act(async () => type(container.querySelector("#enquiry-search"), "Jaipur"));
     await act(async () => container.querySelector(".dashboard-search").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
     assert.ok(calls.some((call) => call.url.includes("search=Jaipur")));
+    const sort = container.querySelector('#enquiry-sort');
+    await act(async () => { sort.value = 'oldest'; sort.dispatchEvent(new testWindow.Event('change', { bubbles: true })); });
+    assert.ok(calls.some((call) => call.url.includes('sort=oldest') && call.url.includes('search=Jaipur')), 'sorting is requested from the shared backend and preserves the search');
+    assert.equal(container.querySelector('#enquiry-sort').value, 'oldest');
     if (technical) {
       const securityLink = [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "Profile & security");
       assert.ok(securityLink, "Technical Panel has profile and security settings");

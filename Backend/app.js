@@ -7,7 +7,7 @@ import helmet from "helmet";
 import jwt from "jsonwebtoken";
 import { rateLimit } from "express-rate-limit";
 import { ObjectId } from "mongodb";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { hashPassword, isBcryptPasswordHash, verifyPassword } from "./lib/passwords.js";
@@ -84,6 +84,34 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     req.admin = result.admin;
     next();
   }
+
+  management.use((req, res, next) => {
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+    res.once("finish", () => {
+      if (res.statusCode < 200 || res.statusCode >= 300 || !req.admin) return;
+      const path = req.path;
+      if (/^\/(?:notifications(?:\/|$)|enquiry-notification-settings|accounts(?:\/|$)|register(?:\/|$)|login(?:\/|$)|logout(?:\/|$))/.test(path)) return;
+      const panel = req.originalUrl.startsWith("/api/technical/") ? "technical" : "admin";
+      const label = path.includes("staff-attendance") || path.includes("staff-calendar")
+        ? "staff attendance"
+        : path.includes("/staff") ? "staff records"
+          : path.includes("/enquiries") ? "an enquiry"
+            : path.includes("festival") || path.includes("decoration") ? "festival settings"
+              : path.includes("promotion") || path.includes("offer-image") ? "tour pricing or offers"
+                : path.includes("voucher") ? "a journey voucher"
+                  : path.includes("hotel") ? "hotel details"
+                    : "workspace settings";
+      void enquirySystem.notifications.publish({
+        id: `panel:${randomUUID()}`,
+        category: panel === "technical" ? "Technical panel activity" : "Admin panel activity",
+        title: panel === "technical" ? "Technical panel activity" : "Admin panel activity",
+        message: `${req.admin.name || req.admin.email} updated ${label}.`,
+        audience: ["admin", "technical"],
+        actorId: req.admin._id,
+      }).catch((error) => console.error("Panel activity notification could not be saved:", error.name));
+    });
+    next();
+  });
 
   app.get("/api/health", async (_req, res) => {
     await db.command({ ping: 1 });
@@ -234,7 +262,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     res.status(201).json({ voucher: { _id: result.insertedId, ...voucher } });
   });
   registerEnquiryRoutes({ app, management, db, config, requireAdmin, ...enquirySystem });
-  registerAccounts({ app, management, db, requireAdmin, config, sendPasswordReset });
+  registerAccounts({ app, management, db, requireAdmin, config, sendPasswordReset, notifications: enquirySystem.notifications });
   const festivals = registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions });
   registerPromotions({ app, management, db, requireAdmin });
   registerStaffRoutes({ management, db, requireAdmin, config });

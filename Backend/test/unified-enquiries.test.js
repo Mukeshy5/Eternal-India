@@ -51,7 +51,7 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
   const request = (path, { method = "GET", body, cookie = "" } = {}) => fetch(`${base}/api${path}`, { method, headers: { "Content-Type": "application/json", Origin: "http://localhost:5173", ...(cookie ? { Cookie: cookie } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
   const login = async (panel) => { const response = await request(`/${panel}/login`, { method: "POST", body: { email: config.adminEmail, password: config.adminPassword } }); assert.equal(response.status, 200); return cookieHeader(response); };
   const webhook = (payload, signature) => { const raw = JSON.stringify(payload, null, 2); return fetch(`${base}/api/integrations/whatsapp/webhook`, { method: "POST", headers: { "Content-Type": "application/json", "X-Hub-Signature-256": signature || `sha256=${createHmac("sha256", config.enquiries.whatsapp.appSecret).update(raw).digest("hex")}` }, body: raw }); };
-  const sockets = [], adminEvents = [], technicalEvents = [];
+  const sockets = [], adminEvents = [], technicalEvents = [], adminNotifications = [], technicalNotifications = [];
   const waitFor = async (check) => { for (let i = 0; i < 100; i++) { if (check()) return; await new Promise((resolve) => setTimeout(resolve, 30)); } assert.fail("Expected realtime event was not delivered"); };
   let adminCookie, technicalCookie, websiteId, waId;
   try {
@@ -65,7 +65,7 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       const rejected = io(base, { path: "/api/enquiries/socket.io", transports: ["polling"], reconnection: false, auth: { panel: "admin" } }); sockets.push(rejected); await once(rejected, "connect_error"); assert.equal(rejected.connected, false);
       adminCookie = await login("admin"); technicalCookie = await login("technical");
       for (const [panel, cookie, events] of [["admin", adminCookie, adminEvents], ["technical", technicalCookie, technicalEvents]]) {
-        const socket = io(base, { path: "/api/enquiries/socket.io", transports: ["polling"], extraHeaders: { Cookie: cookie, Origin: "http://localhost:5173" }, reconnection: false, auth: { panel, since: new Date().toISOString() } }); sockets.push(socket); socket.on("enquiry:event", (event) => events.push(event)); await once(socket, "connect");
+        const socket = io(base, { path: "/api/enquiries/socket.io", transports: ["polling"], extraHeaders: { Cookie: cookie, Origin: "http://localhost:5173" }, reconnection: false, auth: { panel, since: new Date().toISOString() } }); sockets.push(socket); socket.on("enquiry:event", (event) => events.push(event)); socket.on("notification:event", (event) => (panel === "admin" ? adminNotifications : technicalNotifications).push(event)); await once(socket, "connect");
       }
     });
     await t.test("website submission persists once, preserves complete fields and notifies both panels once", async () => {
@@ -74,6 +74,8 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       const saved = await db.collection("enquiries").findOne({ email: fields.email }); websiteId = saved._id.toString(); assert.equal(saved.source, "WEBSITE"); assert.equal(saved.status, "NEW"); assert.equal(saved.message, fields.message);
       await waitFor(() => adminEvents.some((event) => event.enquiryId === websiteId) && technicalEvents.some((event) => event.enquiryId === websiteId));
       assert.equal(adminEvents.filter((event) => event.id === `created:${websiteId}`).length, 1); assert.equal(technicalEvents.filter((event) => event.id === `created:${websiteId}`).length, 1);
+      await waitFor(() => adminNotifications.some((event) => event.action === "created" && event.notification?.enquiryId === websiteId) && technicalNotifications.some((event) => event.action === "created" && event.notification?.enquiryId === websiteId));
+      for (const events of [adminNotifications, technicalNotifications]) assert.equal(events.filter((event) => event.action === "created" && event.notification?.enquiryId === websiteId).length, 1);
     });
     await t.test("WhatsApp challenge, raw signatures, duplicate prevention and original sender/message/timestamp", async () => {
       const challenge = await fetch(`${base}/api/integrations/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=test-meta-verify-token&hub.challenge=12345`); assert.equal(challenge.status, 200); assert.equal(await challenge.text(), "12345");
@@ -83,6 +85,7 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       const saved = await db.collection("enquiries").findOne({ externalMessageId: "wamid.Integration1" }); waId = saved._id.toString(); assert.equal(saved.source, "WHATSAPP"); assert.equal(saved.phone, "+919876543210"); assert.equal(saved.name, "WhatsApp Customer"); assert.equal(saved.receivedAt.getTime(), 1794450000000); assert.equal(saved.message, waPayload().entry[0].changes[0].value.messages[0].text.body);
       assert.equal(await db.collection("enquiries").countDocuments({ externalMessageId: "wamid.Integration1" }), 1);
       await waitFor(() => technicalEvents.some((event) => event.enquiryId === waId)); assert.equal(adminEvents.filter((event) => event.id === `created:${waId}`).length, 1);
+      await waitFor(() => adminNotifications.some((event) => event.action === "created" && event.notification?.enquiryId === waId) && technicalNotifications.some((event) => event.action === "created" && event.notification?.enquiryId === waId));
     });
     await t.test("Gmail pagination, full bodies and incremental sync are retry-safe and deduplicated", async () => {
       const result = await instance.enquirySystem.gmail.sync(); assert.equal(result.imported, 2); assert.equal(await db.collection("enquiries").countDocuments({ source: "GMAIL" }), 2);
@@ -92,6 +95,7 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       expired = true; await instance.enquirySystem.gmail.sync(); assert.equal(await db.collection("enquiries").countDocuments({ source: "GMAIL" }), 3);
       const email = await db.collection("enquiries").findOne({ externalMessageId: "gmail1" }); assert.ok(email.message.includes("नमस्ते")); assert.equal(email.subject, "Trip planning enquiry");
       await waitFor(() => adminEvents.some((event) => event.enquiryId === email._id.toString()) && technicalEvents.some((event) => event.enquiryId === email._id.toString()));
+      await waitFor(() => adminNotifications.some((event) => event.action === "created" && event.notification?.enquiryId === email._id.toString()) && technicalNotifications.some((event) => event.action === "created" && event.notification?.enquiryId === email._id.toString()));
     });
     await t.test("both panels return identical records, source filters, details, status, assignment and unread totals", async () => {
       const admin = await (await request("/admin/enquiries", { cookie: adminCookie })).json(), technical = await (await request("/technical/enquiries", { cookie: technicalCookie })).json();
@@ -102,6 +106,43 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       assert.equal((await request(`/technical/enquiries/${websiteId}`, { method: "PATCH", body: { status: "RESOLVED" }, cookie: technicalCookie })).status, 200);
       assert.equal((await request(`/technical/enquiries/${websiteId}`, { method: "PATCH", body: { status: "INVALID" }, cookie: technicalCookie })).status, 400);
       const summary = await (await request("/admin/enquiry-summary", { cookie: adminCookie })).json(); assert.equal(summary.unread, 4);
+    });
+    await t.test("sorting is deterministic across both panels and validates the requested order", async () => {
+      const collection = db.collection("enquiries");
+      for (const [sort, order] of Object.entries({ newest: { receivedAt: -1, _id: -1 }, oldest: { receivedAt: 1, _id: 1 }, updated: { updatedAt: -1, _id: -1 } })) {
+        const expected = (await collection.find({ archivedAt: { $exists: false } }).sort(order).toArray()).map((entry) => entry._id.toString());
+        for (const [panel, cookie] of [["admin", adminCookie], ["technical", technicalCookie]]) {
+          const response = await request(`/${panel}/enquiries?sort=${sort}`, { cookie });
+          assert.equal(response.status, 200);
+          assert.deepEqual((await response.json()).enquiries.map((entry) => entry._id), expected);
+        }
+      }
+      assert.equal((await request("/admin/enquiries?sort=invalid", { cookie: adminCookie })).status, 400);
+      assert.equal((await request("/technical/enquiries?sort=oldest&sort=newest", { cookie: technicalCookie })).status, 400);
+    });
+    await t.test("notification history, global read state, deletion and panel synchronization", async () => {
+      assert.equal((await request("/admin/notifications")).status, 401);
+      const adminPage = await (await request("/admin/notifications?limit=50", { cookie: adminCookie })).json();
+      const technicalPage = await (await request("/technical/notifications?limit=50", { cookie: technicalCookie })).json();
+      const enquiryItems = adminPage.notifications.filter((item) => item.enquiryId);
+      assert.equal(enquiryItems.length, 5);
+      assert.deepEqual(new Set(enquiryItems.map((item) => item.id)), new Set(technicalPage.notifications.filter((item) => item.enquiryId).map((item) => item.id)));
+      assert.equal(new Set(enquiryItems.map((item) => item.enquiryId)).size, 5, "duplicate provider deliveries create one notification per enquiry");
+      const websiteNotification = enquiryItems.find((item) => item.enquiryId === websiteId);
+      assert.equal((await request(`/admin/notifications/${websiteNotification.id}/read`, { method: "PATCH", cookie: adminCookie })).status, 204);
+      await waitFor(() => adminNotifications.some((event) => event.action === "read" && event.id === websiteNotification.id) && technicalNotifications.some((event) => event.action === "read" && event.id === websiteNotification.id));
+      const adminAfterRead = await (await request("/admin/notifications?limit=50", { cookie: adminCookie })).json();
+      const technicalAfterRead = await (await request("/technical/notifications?limit=50", { cookie: technicalCookie })).json();
+      assert.equal(adminAfterRead.notifications.find((item) => item.id === websiteNotification.id).read, true);
+      assert.equal(technicalAfterRead.notifications.find((item) => item.id === websiteNotification.id).read, true);
+      const gmailNotification = enquiryItems.find((item) => item.source === "GMAIL");
+      assert.equal((await request(`/admin/notifications/${gmailNotification.id}`, { method: "DELETE", cookie: adminCookie })).status, 204);
+      await waitFor(() => adminNotifications.some((event) => event.action === "deleted" && event.id === gmailNotification.id) && technicalNotifications.some((event) => event.action === "deleted" && event.id === gmailNotification.id));
+      assert.equal(await db.collection("enquiry_events").countDocuments({ _id: `notification:${gmailNotification.id}` }), 0);
+      assert.equal((await request("/technical/notifications/read-all", { method: "PATCH", cookie: technicalCookie })).status, 200);
+      await waitFor(() => adminNotifications.some((event) => event.action === "read-all") && technicalNotifications.some((event) => event.action === "read-all"));
+      assert.equal((await (await request("/admin/notifications/unread-count", { cookie: adminCookie })).json()).unread, 0);
+      assert.equal((await (await request("/technical/notifications/unread-count", { cookie: technicalCookie })).json()).unread, 0);
     });
     await t.test("notifications and OAuth state stay on the backend; settings and encrypted PKCE are persistent", async () => {
       assert.equal((await request("/admin/enquiry-notification-settings", { method: "PATCH", cookie: adminCookie, body: { popup: true, sound: false } })).status, 200);
@@ -127,6 +168,12 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       await waitFor(() => adminEvents.some((event) => event.id === `deleted:${waId}`) && technicalEvents.some((event) => event.id === `deleted:${waId}`));
       await webhook(waPayload());
       assert.equal(await db.collection("enquiries").countDocuments({ externalMessageId: "wamid.Integration1" }), 0);
+    });
+    await t.test("clear all notifications persists deletion and broadcasts to both panels", async () => {
+      const response = await request("/technical/notifications", { method: "DELETE", cookie: technicalCookie });
+      assert.equal(response.status, 200);
+      await waitFor(() => adminNotifications.some((event) => event.action === "cleared") && technicalNotifications.some((event) => event.action === "cleared"));
+      assert.equal(await db.collection("enquiry_events").countDocuments({ type: "notification" }), 0);
     });
   } finally {
     for (const socket of sockets) socket.disconnect(); await instance.enquirySystem.stop(); await instance.decorationScheduler.stop(); await instance.drainSessions();

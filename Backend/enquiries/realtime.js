@@ -13,7 +13,7 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
   function emitNotification(event) {
     if (!io) return;
     if (["read", "read-all"].includes(event.action)) {
-      if (event.userId) io.to(`account:${event.userId}`).emit("notification:event", event);
+      for (const panel of event.audience || []) io.to(`panel:${panel}`).emit("notification:event", event);
       return;
     }
     if (event.action === "created" && event.notification?.id && !remember(`notification:notification:${event.notification.id}`)) return;

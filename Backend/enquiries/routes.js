@@ -1,7 +1,7 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 import { ObjectId } from "mongodb";
-import { enquirySources, enquiryStatus, enquiryStatusLabels } from "../../shared/enquiries.js";
+import { enquirySources, enquiryStatus, enquiryStatusLabels, enquirySorts } from "../../shared/enquiries.js";
 import { validateEnquiry } from "../lib/validation.js";
 import { canManageAccounts } from "../lib/accounts.js";
 import { publicEnquiry } from "./model.js";
@@ -13,9 +13,25 @@ export function registerWhatsAppWebhook({ app, whatsapp }) {
   app.post("/api/integrations/whatsapp/webhook", webhookLimit, express.raw({ type: "application/json", limit: "1mb" }), async (req, res) => res.json(await whatsapp.receive(req.body, req.get("X-Hub-Signature-256"))));
 }
 
-export function registerEnquiryRoutes({ app, management, db, config, requireAdmin, enquiries, whatsapp, gmail }) {
+export function registerEnquiryRoutes({ app, management, db, config, requireAdmin, enquiries, whatsapp, gmail, notifications }) {
   const publicLimit = rateLimit({ windowMs: 15 * 60000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many enquiries. Please try again shortly." } });
   const syncLimit = rateLimit({ windowMs: 60000, limit: 5, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Please wait before starting another inbox sync." } });
+  const notificationPanel = (req) => req.originalUrl.startsWith("/api/technical/") ? "technical" : "admin";
+  management.get("/notifications/unread-count", requireAdmin, async (req, res) => res.json({ unread: await notifications.unreadCount(notificationPanel(req), req.admin._id.toString()) }));
+  management.get("/notifications", requireAdmin, async (req, res) => {
+    const limit = Math.max(1, Math.min(50, Number.parseInt(req.query.limit, 10) || 20));
+    res.json(await notifications.list(notificationPanel(req), req.admin._id.toString(), { cursor: req.query.cursor, limit }));
+  });
+  management.patch("/notifications/read-all", requireAdmin, async (req, res) => res.json({ updated: await notifications.markAllRead(notificationPanel(req), req.admin._id.toString()) }));
+  management.delete("/notifications", requireAdmin, async (req, res) => res.json({ deleted: await notifications.clear(notificationPanel(req)) }));
+  management.patch("/notifications/:id/read", requireAdmin, async (req, res) => {
+    await notifications.markRead(req.params.id, notificationPanel(req), req.admin._id.toString());
+    res.sendStatus(204);
+  });
+  management.delete("/notifications/:id", requireAdmin, async (req, res) => {
+    await notifications.remove(req.params.id, notificationPanel(req));
+    res.sendStatus(204);
+  });
   app.post("/api/enquiries", publicLimit, async (req, res) => {
     const { fields, errors, submissionId } = validateEnquiry(req.body);
     if (Object.keys(errors).length) return res.status(400).json({ message: "Please check the highlighted details.", errors });
@@ -26,6 +42,9 @@ export function registerEnquiryRoutes({ app, management, db, config, requireAdmi
   management.get("/enquiries", requireAdmin, async (req, res) => {
     if (req.query.archived !== undefined && !["true", "false"].includes(req.query.archived)) throw enquiryError(400, "Choose a valid archive filter.");
     const archived = req.query.archived === "true";
+    const sort = req.query.sort || "newest";
+    if (typeof sort !== "string" || !Object.hasOwn(enquirySorts, sort)) throw enquiryError(400, "Choose a valid enquiry sort order.");
+    const sortOrder = sort === "oldest" ? { receivedAt: 1, _id: 1 } : sort === "updated" ? { updatedAt: -1, _id: -1 } : { receivedAt: -1, _id: -1 };
     const filter = { archivedAt: archived ? { $exists: true } : { $exists: false } }, page = Math.max(1, Math.min(100000, Number.parseInt(req.query.page, 10) || 1)), limit = 20;
     if (req.query.status) { const status = enquiryStatus(req.query.status); if (!status) throw enquiryError(400, "Choose a valid enquiry status."); filter.status = status; }
     if (req.query.source) { if (!Object.hasOwn(enquirySources, req.query.source)) throw enquiryError(400, "Choose a valid enquiry source."); filter.source = req.query.source; }
@@ -33,7 +52,7 @@ export function registerEnquiryRoutes({ app, management, db, config, requireAdmi
     if (search) { const pattern = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); filter.$or = ["name", "email", "phone", "subject", "message", "destination", "reference", "externalMessageId"].map((key) => ({ [key]: { $regex: pattern, $options: "i" } })); }
     const collection = db.collection("enquiries"), visible = { archivedAt: { $exists: false } };
     const [entries, total, groups, sources, archivedCount] = await Promise.all([
-      collection.aggregate([{ $match: filter }, { $sort: { receivedAt: -1, _id: -1 } }, { $skip: (page - 1) * limit }, { $limit: limit }, { $set: { messageTruncated: { $gt: [{ $strLenCP: { $ifNull: ["$message", ""] } }, 2000] }, message: { $substrCP: [{ $ifNull: ["$message", ""] }, 0, 2000] } } }, { $project: { originalPayload: 0, pendingEvents: 0, submissionId: 0, submissionHash: 0 } }]).toArray(),
+      collection.aggregate([{ $match: filter }, { $sort: sortOrder }, { $skip: (page - 1) * limit }, { $limit: limit }, { $set: { messageTruncated: { $gt: [{ $strLenCP: { $ifNull: ["$message", ""] } }, 2000] }, message: { $substrCP: [{ $ifNull: ["$message", ""] }, 0, 2000] } } }, { $project: { originalPayload: 0, pendingEvents: 0, submissionId: 0, submissionHash: 0 } }]).toArray(),
       collection.countDocuments(filter), collection.aggregate([{ $match: visible }, { $group: { _id: "$status", count: { $sum: 1 } } }]).toArray(), collection.aggregate([{ $match: visible }, { $group: { _id: "$source", count: { $sum: 1 } } }]).toArray(), collection.countDocuments({ archivedAt: { $exists: true } }),
     ]);
     const stats = { total: 0, archived: archivedCount, ...Object.fromEntries(Object.keys(enquiryStatusLabels).map((key) => [key, 0])), sources: { WEBSITE: 0, WHATSAPP: 0, GMAIL: 0 } };
@@ -54,7 +73,7 @@ export function registerEnquiryRoutes({ app, management, db, config, requireAdmi
   management.delete("/enquiries/:id", requireAdmin, async (req, res) => { await enquiries.update(req.params.id, { archive: true }, req.admin); res.sendStatus(204); });
   management.delete("/enquiries/:id/permanent", requireAdmin, async (req, res) => { await enquiries.permanentlyDelete(req.params.id, req.admin); res.sendStatus(204); });
   management.get("/enquiry-summary", requireAdmin, async (_req, res) => res.json({ unread: await db.collection("enquiries").countDocuments({ status: "NEW", archivedAt: { $exists: false } }) }));
-  management.get("/enquiry-notification-settings", requireAdmin, async (req, res) => res.json({ ...notificationPreferences(req.admin), unread: await db.collection("enquiries").countDocuments({ status: "NEW", archivedAt: { $exists: false } }) }));
+  management.get("/enquiry-notification-settings", requireAdmin, async (req, res) => res.json({ ...notificationPreferences(req.admin), unread: await notifications.unreadCount(notificationPanel(req), req.admin._id.toString()) }));
   management.patch("/enquiry-notification-settings", requireAdmin, async (req, res) => {
     if (typeof req.body?.popup !== "boolean" || typeof req.body?.sound !== "boolean") throw enquiryError(400, "Choose valid notification settings.");
     const preferences = { popup: req.body.popup, sound: req.body.sound };

@@ -27,6 +27,7 @@ export function createEnquiryService({ db, notifications }) {
           source,
           enquiryId: record._id.toString(),
         });
+        await db.collection("enquiry_events").updateOne({ _id: event.id }, { $set: { notificationCreated: true } });
       }
       notify(saved);
     }

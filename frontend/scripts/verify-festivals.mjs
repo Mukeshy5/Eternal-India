@@ -41,7 +41,9 @@ export async function verifyFestivals(vite) {
   const root = createRoot(container);
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   async function waitFor(check, label) {
-    for (let attempt = 0; attempt < 150; attempt++) { let matched; await act(async () => { matched = await check(); if (!matched) await delay(20); }); if (matched) return; }
+    // Cold Vite imports and real database requests can exceed three seconds on Windows.
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) { let matched; await act(async () => { matched = await check(); if (!matched) await delay(20); }); if (matched) return; }
     assert.fail(`Timed out: ${label}. UI: ${container.textContent.slice(-1400)}`);
   }
   const type = (selector, value) => {

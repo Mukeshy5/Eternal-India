@@ -25,7 +25,7 @@ const safeAccount = ({ _id, email, name, username, roles, status, createdAt, ema
 };
 const sessionFilter = (id) => ({ $or: [{ "session.adminId": id.toString() }, { session: { $regex: `"adminId"\\s*:\\s*"${id}"` } }] });
 
-export function registerAccounts({ app, management, db, requireAdmin, config, sendPasswordReset }) {
+export function registerAccounts({ app, management, db, requireAdmin, config, sendPasswordReset, notifications }) {
   const accounts = db.collection("admins");
   const hasAnotherAdmin = (account) => accounts.findOne({ _id: { $ne: account._id }, status: { $nin: ["pending", "disabled"] }, $or: [{ roles: "admin" }, { roles: { $exists: false } }] }, { projection: { _id: 1 } });
   let pendingChange = Promise.resolve();
@@ -75,6 +75,18 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
     } catch (error) {
       if (error.code === 11000) return res.status(409).json({ message: error.keyPattern?.usernameKey ? "This username is already in use." : "This Gmail already has an account or pending request." });
       throw error;
+    }
+    try {
+      await notifications?.publish({
+        id: `account:${record._id}:created`,
+        category: "New user registration",
+        title: "New panel account created",
+        message: `A new ${role} account was created.`,
+        audience: ["admin", "technical"],
+        ...(req.admin ? { actorId: req.admin._id } : {}),
+      });
+    } catch (error) {
+      console.error("New account notification could not be saved:", error.name);
     }
     return res.status(201).json({ account: safeAccount(record, req.admin, config), message: "Account created successfully. You can now sign in." });
   }

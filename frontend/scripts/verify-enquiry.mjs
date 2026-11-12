@@ -22,6 +22,8 @@ export async function verifyEnquiryInteractions(server) {
   const requests = [];
   let mode = "failure";
   let resolvePending;
+  const handoffs = [];
+  testWindow.location.assign = (url) => { handoffs.push(url); };
   globalThis.fetch = async (url, options) => {
     assert.equal(url, "/api/enquiries");
     requests.push(JSON.parse(options.body));
@@ -49,7 +51,7 @@ export async function verifyEnquiryInteractions(server) {
     assert.equal(plays.length, playedWelcome, "later interactions do not restart a playing welcome");
     const form = container.querySelector("form");
     const submit = container.querySelector(".enquiry-submit");
-    const send = () => form.dispatchEvent(new testWindow.SubmitEvent("submit", { bubbles: true, cancelable: true, submitter: submit }));
+    const send = (button = submit) => form.dispatchEvent(new testWindow.SubmitEvent("submit", { bubbles: true, cancelable: true, submitter: button }));
     await act(async () => send());
     assert.equal(requests.length, 0, "invalid form is not submitted");
     const beforeSuccess = plays.length;
@@ -85,6 +87,35 @@ export async function verifyEnquiryInteractions(server) {
     assert.ok(plays.at(-1).includes("english successfully submited.mp3"));
     assert.ok(decodeURIComponent(container.querySelector("audio").src).includes("english successfully submited.mp3"), "render keeps the active English audio source");
     assert.ok(pauses >= plays.length, "one shared player stops the previous recording before playback");
+
+    const emailButton = form.querySelector('[value="email"]');
+    const fields = { name: "Anu & Family", email: "anu+trip@example.com", phone: "+91 9876543210", destination: "Nepal & Bhutan", travellers: "4", date: "2027-12-15", message: "Temples & mountains\nVegetarian food, please." };
+    for (const [name, value] of Object.entries(fields)) form.elements.namedItem(name).value = value;
+    await act(async () => form.elements.namedItem("name").dispatchEvent(new testWindow.Event("input", { bubbles: true })));
+    mode = "pending";
+    const requestCount = requests.length;
+    await act(async () => send(emailButton));
+    assert.equal(handoffs.length, 1, "email handoff happens before the database responds");
+    const mailto = new URL(handoffs[0]);
+    assert.equal(mailto.protocol, "mailto:");
+    assert.equal(mailto.pathname, "info@eternal-india.com");
+    assert.ok(mailto.searchParams.get("subject").includes("Trip enquiry"));
+    const body = mailto.searchParams.get("body");
+    for (const value of Object.values(fields)) assert.ok(body.includes(value), `email includes ${value}`);
+    assert.equal(requests.at(-1).contactChannel, "email");
+    const emailKey = requests.at(-1).submissionId;
+    await act(async () => send(emailButton));
+    assert.equal(requests.length, requestCount + 1, "double email click saves only once");
+    assert.equal(handoffs.length, 1, "double email click opens the mail app only once");
+    await act(async () => resolvePending(new Response(JSON.stringify({ message: "Database unavailable" }), { status: 503, headers: { "Content-Type": "application/json" } })));
+    assert.equal(container.querySelector('.enquiry-status a').href, handoffs[0], "mail app link remains usable independently after a database failure");
+    assert.ok(container.querySelector('.enquiry-status').textContent.includes("not been saved"));
+    assert.equal(form.elements.namedItem("message").value, fields.message);
+    mode = "success";
+    await act(async () => send(emailButton));
+    assert.equal(requests.at(-1).submissionId, emailKey, "email retry reuses the database idempotency key");
+    assert.ok(container.querySelector('.enquiry-status').textContent.includes("EI-TEST-ENGLISH"));
+    assert.equal(form.elements.namedItem("name").value, "", "successful email save resets required fields to prevent repeated creation");
     const beforeUnmount = pauses;
     await act(async () => root.unmount());
     unmounted = true;
@@ -92,7 +123,7 @@ export async function verifyEnquiryInteractions(server) {
     const playsBeforeLeave = plays.length;
     testWindow.document.dispatchEvent(new testWindow.PointerEvent("pointerdown", { bubbles: true }));
     assert.equal(plays.length, playsBeforeLeave, "leaving the page removes background audio interaction handlers");
-    console.log("PASS hidden background audio, gesture retry, enquiry validation, failed-save recovery, duplicate prevention, Hindi/English confirmation, and cleanup");
+    console.log("PASS synchronous encoded mailto handoff, independent database failure recovery, duplicate prevention, hidden audio, validation, Hindi/English confirmation, and cleanup");
   } finally {
     if (!unmounted) await act(async () => root.unmount());
     testWindow.close();

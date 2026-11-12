@@ -16,7 +16,7 @@ export function buildEnquiryUrl(fields, channel = "whatsapp") {
     "",
     "My travel ideas:",
     clean("message") || "Please help me plan my itinerary.",
-  ].join("\n");
+  ].join("\r\n");
 
   return channel === "email"
     ? `mailto:${supportEmail}?subject=${encodeURIComponent("Trip enquiry — Eternal India")}&body=${encodeURIComponent(message)}`

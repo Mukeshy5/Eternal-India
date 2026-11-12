@@ -11,6 +11,7 @@ export function Icon({ name = "arrow", size = 20, ...props }) {
     info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7v.5" /></>,
     arrow: <path d="M4 12h15M13 5l7 7-7 7" />,
     diagonal: <path d="M6 18 18 6M6 6h12v12" />,
+    plane: <path d="M12 2c-1 0-2 1-2 3v4l-7 4v3l7-2v5l-3 2v1l5-1 5 1v-1l-3-2v-5l7 2v-3l-7-4V5c0-2-1-3-2-3Z" />,
     phone: (
       <path d="m7 3 3 5-2 2a15 15 0 0 0 6 6l2-2 5 3c-1 4-3 5-6 4C8 19 5 16 3 9 2 6 3 4 7 3Z" />
     ),

@@ -19,6 +19,7 @@ import { verifyFestivals } from "./verify-festivals.mjs";
 import { verifyStaff } from "./verify-staff.mjs";
 import { verifyCalendar } from "./verify-calendar.mjs";
 import { verifyOtpGates } from "./verify-otp.mjs";
+import { verifyResponsive } from "./verify-responsive.mjs";
 import { destinations, regions, tourPackages, indiaJourneys, destinationPath, regionPath, packagePath, indiaPath, travelPageTitles } from "../src/Common/travelCatalog.js";
 
 const server = await createServer({
@@ -238,7 +239,7 @@ try {
     "https://wa.me/919319140846",
   );
   const message = whatsapp.searchParams.get("text");
-  assert.ok(message.includes("Name: Anu & Family\n"));
+  assert.ok(message.includes("Name: Anu & Family\r\n"));
   assert.ok(
     message.includes("anu+travel@example.com") &&
       message.includes(fields.message),
@@ -257,6 +258,7 @@ try {
   await verifyPaymentInteractions(server);
   await verifyRazorpayInteractions(server);
   await verifyNavigation(server);
+  await verifyResponsive(server);
   await verifyEnquiryInteractions(server);
   await verifyAdminInteractions(server);
   await verifyAdminInteractions(server, true);

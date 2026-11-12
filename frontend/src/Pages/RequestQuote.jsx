@@ -29,19 +29,28 @@ export default function RequestQuote() {
     const controller = new AbortController();
     pending.current = controller;
     setSubmitting(true);
-    setPrepared(null);
+    const url = channel === "submit" ? null : buildEnquiryUrl(fields, channel);
+    setPrepared(url ? { channel, url } : null);
     setError("");
     setFieldErrors({});
     try {
-      const saved = await api("/enquiries", { method: "POST", body: JSON.stringify({ ...fields, contactChannel: channel, voiceLanguage: language, submissionId: submissionId.current }), signal: controller.signal });
+      // Start persistence first, then hand off during this same user gesture.
+      // Waiting for the database can lose the browser's activation permission.
+      const saving = api("/enquiries", { method: "POST", body: JSON.stringify({ ...fields, contactChannel: channel, voiceLanguage: language, submissionId: submissionId.current }), signal: controller.signal, keepalive: true });
+      if (url) {
+        try {
+          if (channel === "email") window.location.assign(url);
+          else window.open(url, "_blank", "noopener,noreferrer");
+        } catch {
+          // The visible app link stays available even if a browser blocks handoff.
+        }
+      }
+      const saved = await saving;
       if (controller.signal.aborted) return;
       formRef.current?.reset();
       submissionId.current = null;
-      const url = channel === "submit" ? null : buildEnquiryUrl(fields, channel);
       setPrepared({ channel, url, reference: saved.reference });
       voice.play(language);
-      if (channel === "email") window.location.href = url;
-      else if (channel === "whatsapp") window.open(url, "_blank", "noopener,noreferrer");
     } catch (failure) {
       if (controller.signal.aborted) return;
       setError(failure.message);
@@ -190,8 +199,8 @@ export default function RequestQuote() {
         </div>
         <p className="form-note">
           Fields marked * are required. Submit sends your enquiry directly to
-          our team. WhatsApp and email options also save your enquiry before
-          opening your chosen app.
+          our team. WhatsApp and email options open your chosen app and also
+          save your enquiry here. Review and send the message in that app.
         </p>
         <div className="form-actions">
           <button className="button enquiry-submit" type="submit" name="channel" value="submit" disabled={submitting}>
@@ -218,13 +227,13 @@ export default function RequestQuote() {
         {error && <p className="enquiry-error" role="alert">{error} Your details have been kept so you can try again.</p>}
         {prepared && (
           <div className="enquiry-status" role="status">
-            <strong>Your enquiry has been submitted successfully.</strong>
-            <p>Reference: <strong>{prepared.reference}</strong>. Our team will review your travel plans and get in touch.</p>
+            <strong>{prepared.reference ? "Your enquiry has been submitted successfully." : submitting ? "Saving your enquiry…" : "Your enquiry has not been saved yet. Please retry."}</strong>
+            {prepared.reference && <p>Reference: <strong>{prepared.reference}</strong>. Our team will review your travel plans and get in touch.</p>}
             {prepared.url &&
             <p>
-              Send your message in{" "}
+              Review and send your message in{" "}
               {prepared.channel === "email" ? "your email app" : "WhatsApp"} to
-              reach our team. If it didn't open,{" "}
+              reach our team. If it didn't open, check that an app is set up and{" "}
               <a
                 href={prepared.url}
                 target={prepared.channel === "email" ? undefined : "_blank"}

@@ -107,12 +107,24 @@ The exact user-supplied asset `frontend/src/assets/Notification Ring/notificatio
 | `DELETE /api/{admin,technical}/enquiries/:id/permanent` | Permanently delete with an idempotency marker |
 | `GET /api/{admin,technical}/enquiry-summary` | Shared new/unread count |
 | `GET,PATCH /api/{admin,technical}/enquiry-notification-settings` | Authenticated account's sound/popup preferences |
+| `GET /api/{admin,technical}/notifications?limit=&cursor=` | Persisted, cursor-paginated panel notification history |
+| `GET /api/{admin,technical}/notifications/unread-count` | Current account's unread count |
+| `PATCH /api/{admin,technical}/notifications/:id/read` | Mark a notification read across its authorized panels |
+| `PATCH /api/{admin,technical}/notifications/read-all` | Mark all visible notifications read |
+| `DELETE /api/{admin,technical}/notifications/:id` | Delete a notification from both authorized panels |
+| `DELETE /api/{admin,technical}/notifications` | Clear the panel's shared notification history |
 | `GET /api/{admin,technical}/enquiry-assignees` | Active account choices |
 | `GET /api/{admin,technical}/enquiry-integrations` | Safe connection/sync status; no credentials |
 | `POST /api/{admin,technical}/enquiry-integrations/gmail/sync` | Authenticated, rate-limited background sync |
 | `POST /api/admin/enquiry-integrations/gmail/connect` | Account managers only; OAuth authorization URL |
 | `GET /api/integrations/gmail/callback` | One-time, authenticated OAuth callback |
 | `GET,POST /api/integrations/whatsapp/webhook` | Verification challenge / signed raw webhook |
+
+## Shared real-time notifications
+
+Notifications reuse the durable `enquiry_events` collection and authenticated Socket.IO server. Enquiry creation (Website, WhatsApp and Gmail), new panel accounts and successful panel activities persist a deduplicated notification before delivery. Admin and Technical clients receive only notifications whose audience includes their panel. `notification:event` updates the dropdown and full Notifications section without a page reload; reconnects reload the persisted list/count, so missed socket delivery does not lose history or replay old sounds.
+
+Read/unread state is durable and shared across authorized panels. Reading or deleting a record broadcasts the change to its audience; marking all read or clearing history synchronizes both panels. Notification sound and popup preferences remain per account in MongoDB. A fresh unread notification alone can ring or show a toast; the existing MP3 is unlocked after the browser's first user interaction to comply with autoplay restrictions. These preferences and history do not use browser storage.
 
 ## Verification and deployment
 
@@ -121,6 +133,7 @@ Keep the repository root as Render's Root Directory: the backend imports `shared
 ```powershell
 npm --prefix Backend test
 npm --prefix frontend run verify:enquiries
+npm --prefix frontend run verify:responsive
 npm --prefix frontend run verify
 npm --prefix frontend run build
 ```
@@ -128,6 +141,14 @@ npm --prefix frontend run build
 `Backend/test/unified-enquiries.test.js` uses real MongoDB, actual Express requests and two real authenticated Socket.IO client connections. Only external Meta/Gmail deliveries are simulated. Tests cover migration, source/UUID indexes, unauthorized access, signature/challenge rejection, website races, complete messages/sender timestamps, duplicate WhatsApp delivery, paginated/incremental Gmail import, provider failure/retry, expired-history recovery, identical panel records, source filters, assignment/status/unread updates, encrypted PKCE state, archive listing/restoration, permanent deletion and re-import prevention. Existing enquiry tests also verify legacy API status inputs, preserved history and all other panel tools.
 
 `frontend/scripts/verify-unified-enquiries.mjs` checks the real React source/status views in both panels, WhatsApp contact details, complete message rendering, Socket.IO event handling, the supplied MP3 path/playback, persistent mute/popup settings, duplicate suppression and cleanup. Test fixtures exist only inside tests. The product does not contain fake message or success paths.
+
+The quote form starts its MongoDB request and dispatches the encoded `mailto:` or WhatsApp link during the same submit gesture, without waiting for a database response. A save failure keeps the customer's details, idempotency key and app link available for retry. Opening a draft does not send an email: the customer reviews and sends it in their configured app. The confirmation voice and saved reference appear only after persistence succeeds. The mailto includes name, email, phone, destination, departure date, travellers and the complete trip message, with CRLF separators and encoded query values.
+
+Both inboxes use shared dark source/status badges, icons and NEW-row highlighting. Existing canonical statuses remain NEW, IN_PROGRESS, RESOLVED and CLOSED; legacy aliases retain their existing mapping. The shared authenticated list API accepts `sort=newest|oldest|updated` (default newest) before pagination, with stable ID ordering. Search, source, status, archive and sort selections are preserved in the panel URL.
+
+The public navbar contains one persistent Plan Your Trip link outside its navigation dropdown. The left fixed trip shortcut is rendered only by the homepage; the right LINE/WhatsApp links remain available. Mobile panel drawers isolate keyboard focus, lock background scrolling, close with Escape and restore focus. Shared responsive rules cover enquiry cards, payment transaction cards, account/staff forms, calendars, notification controls, reports, profile/security, festival editors and voucher layouts without changing print document measurements.
+
+`verify-responsive.mjs` checks actual React markup and computed CSS at 1920, 1440, 1366, 1024, 768, 430, 390, 375 and 320 pixels, including badge text contrast of at least 4.5:1, visible trip links, contained table scrolling, mobile input/control sizes and both role-based drawers. These are DOM/CSS regression checks; they do not prove pixel layout, launch an installed mail application, or replace real desktop/mobile browser QA. The browser preview host was unavailable during this change, so visual device checks and the installed default mail app remain manual checks.
 
 Real WhatsApp and Gmail credentials were absent locally during implementation. Real-provider delivery and deployed callbacks require the configured business accounts and should be checked after deploying:
 

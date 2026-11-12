@@ -12,12 +12,37 @@ const publicNotification = (record, userId) => ({
   ...(record.enquiryId ? { enquiryId: record.enquiryId } : {}),
   ...(record.href ? { href: record.href } : {}),
   createdAt: record.publishedAt,
-  read: record.legacy === true || record.readBy?.includes(userId) === true,
+  read: record.legacy === true || record.read === true || record.readBy?.includes(userId) === true,
 });
 
 export function createNotificationService({ db }) {
   const events = db.collection("enquiry_events");
   const listeners = new Set();
+  let migration;
+  const ensureLegacyHistory = () => {
+    if (!migration) migration = (async () => {
+      for await (const event of events.find({ type: "created", notification: { $ne: true }, notificationCreated: { $ne: true } }, { projection: { _id: 1, source: 1, name: 1, enquiryId: 1, publishedAt: 1 } }).batchSize(500)) {
+        if (event.enquiryId && await events.findOne({ type: "notification", notification: true, enquiryId: String(event.enquiryId) }, { projection: { _id: 1 } })) continue;
+        const source = event.source || "WEBSITE";
+        const sourceName = source === "WHATSAPP" ? "WhatsApp" : source === "GMAIL" ? "Gmail" : "Website";
+        await events.updateOne({ _id: `notification:legacy:${event._id}` }, { $setOnInsert: {
+          _id: `notification:legacy:${event._id}`,
+          type: "notification",
+          notification: true,
+          legacy: true,
+          category: `${sourceName} enquiry`,
+          title: `New ${sourceName} enquiry`,
+          message: event.name ? `Enquiry from ${event.name}.` : `A ${sourceName} enquiry was received.`,
+          audience: ["admin", "technical"],
+          readBy: [],
+          source,
+          ...(event.enquiryId ? { enquiryId: String(event.enquiryId) } : {}),
+          publishedAt: event.publishedAt || new Date(),
+        } }, { upsert: true });
+      }
+    })();
+    return migration;
+  };
   const emit = (event) => {
     for (const listener of listeners) listener(event);
   };
@@ -42,6 +67,7 @@ export function createNotificationService({ db }) {
       ...(source ? { source } : {}),
       ...(enquiryId ? { enquiryId: String(enquiryId) } : {}),
       ...(href ? { href: String(href).slice(0, 300) } : {}),
+      ...(actorId ? { actorId: String(actorId) } : {}),
       publishedAt: new Date(),
     };
     const result = await events.updateOne({ _id: notification._id }, { $setOnInsert: notification }, { upsert: true });
@@ -54,6 +80,7 @@ export function createNotificationService({ db }) {
   }
 
   async function list(panel, userId, { cursor, limit = 20 } = {}) {
+    await ensureLegacyHistory();
     const filter = panelFilter(panel);
     if (cursor !== undefined) {
       if (typeof cursor !== "string" || cursor.length > 180) throw notificationError(400, "Choose a valid notification page.");
@@ -63,7 +90,7 @@ export function createNotificationService({ db }) {
       if (decoded.length !== 2 || !Number.isFinite(date.getTime()) || !decoded[1]?.startsWith("notification:")) throw notificationError(400, "Choose a valid notification page.");
       filter.$or = [{ publishedAt: { $lt: date } }, { publishedAt: date, _id: { $lt: decoded[1] } }];
     }
-    const records = await events.find(filter, { projection: { readBy: 1, category: 1, title: 1, message: 1, source: 1, enquiryId: 1, href: 1, publishedAt: 1, legacy: 1 } }).sort({ publishedAt: -1, _id: -1 }).limit(limit + 1).toArray();
+    const records = await events.find(filter, { projection: { read: 1, readBy: 1, category: 1, title: 1, message: 1, source: 1, enquiryId: 1, href: 1, publishedAt: 1, legacy: 1 } }).sort({ publishedAt: -1, _id: -1 }).limit(limit + 1).toArray();
     const hasMore = records.length > limit;
     const page = records.slice(0, limit);
     const last = page.at(-1);
@@ -75,24 +102,30 @@ export function createNotificationService({ db }) {
   }
 
   async function unreadCount(panel, userId) {
-    return events.countDocuments({ ...panelFilter(panel), legacy: { $ne: true }, readBy: { $ne: userId } });
+    await ensureLegacyHistory();
+    return events.countDocuments({ ...panelFilter(panel), legacy: { $ne: true }, read: { $ne: true }, readBy: { $ne: userId } });
   }
 
   async function markRead(id, panel, userId) {
     const filter = { ...panelFilter(panel), _id: `notification:${id}` };
-    const result = await events.updateOne(filter, { $addToSet: { readBy: userId } });
-    if (!result.matchedCount) throw notificationError(404, "Notification not found.");
-    if (result.modifiedCount) emit({ action: "read", id: filter._id, userId, audience: [panel] });
+    const record = await events.findOne(filter, { projection: { audience: 1 } });
+    if (!record) throw notificationError(404, "Notification not found.");
+    const result = await events.updateOne({ ...filter, read: { $ne: true } }, { $set: { read: true, readAt: new Date() }, $addToSet: { readBy: userId } });
+    if (result.modifiedCount) emit({ action: "read", id, userId, audience: record.audience });
   }
 
   async function markAllRead(panel, userId) {
-    const filter = { ...panelFilter(panel), legacy: { $ne: true }, readBy: { $ne: userId } };
-    const result = await events.updateMany(filter, { $addToSet: { readBy: userId } });
-    if (result.modifiedCount) emit({ action: "read-all", userId, panel });
+    const filter = { ...panelFilter(panel), legacy: { $ne: true }, read: { $ne: true } };
+    const [audiences, result] = await Promise.all([
+      events.distinct("audience", filter),
+      events.updateMany(filter, { $set: { read: true, readAt: new Date() }, $addToSet: { readBy: userId } }),
+    ]);
+    if (result.modifiedCount) emit({ action: "read-all", userId, panel, audience: [...new Set(audiences.flat())] });
     return result.modifiedCount;
   }
 
   async function remove(id, panel) {
+    if (typeof id !== "string" || !/^[a-zA-Z0-9:_-]{1,180}$/.test(id)) throw notificationError(400, "Choose a valid notification.");
     const filter = { ...panelFilter(panel), _id: `notification:${id}` };
     const record = await events.findOneAndDelete(filter);
     if (!record) throw notificationError(404, "Notification not found.");
@@ -101,12 +134,12 @@ export function createNotificationService({ db }) {
 
   async function clear(panel) {
     const filter = panelFilter(panel);
-    const records = await events.find(filter, { projection: { _id: 1, audience: 1 } }).toArray();
-    if (records.length) {
+    const [audiences, count] = await Promise.all([events.distinct("audience", filter), events.countDocuments(filter)]);
+    if (count) {
       await events.deleteMany(filter);
-      emit({ action: "cleared", ids: records.map((record) => record._id.slice("notification:".length)), audience: [...new Set(records.flatMap((record) => record.audience || []))] });
+      emit({ action: "cleared", panel, audience: [...new Set(audiences.flat())] });
     }
-    return records.length;
+    return count;
   }
 
   return {

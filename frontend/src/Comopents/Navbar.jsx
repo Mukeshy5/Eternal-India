@@ -97,15 +97,6 @@ export default function Navbar() {
               height="76"
             />
           </Link>
-          <button
-            className="menu-button"
-            aria-label={open ? "Close navigation" : "Open navigation"}
-            aria-expanded={open}
-            aria-controls="main-navigation"
-            onClick={() => { if (open) close(); else setOpen(true); }}
-          >
-            <Icon name={open ? "close" : "menu"} size={25} />
-          </button>
           <nav
             id="main-navigation"
             aria-label="Main navigation"
@@ -160,14 +151,19 @@ export default function Navbar() {
             <NavLink to="/online-payment" onClick={close}>
               Online payment
             </NavLink>
-            <Link
-              to="/request-quote"
-              className="button button-small"
-              onClick={close}
-            >
-              Plan your trip <Icon size={17} />
-            </Link>
           </nav>
+          <Link to="/request-quote" className="button button-small nav-plan-trip" onClick={close}>
+            <Icon name="plane" size={18} /><span>Plan Your Trip</span>
+          </Link>
+          <button
+            className="menu-button"
+            aria-label={open ? "Close navigation" : "Open navigation"}
+            aria-expanded={open}
+            aria-controls="main-navigation"
+            onClick={() => { if (open) close(); else setOpen(true); }}
+          >
+            <Icon name={open ? "close" : "menu"} size={25} />
+          </button>
         </div>
       </header>
     </>

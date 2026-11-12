@@ -276,6 +276,9 @@ export default function Home() {
         </div>
       </section>
       <JourneyCTA />
+      <Link className="home-plan-float" to="/request-quote" aria-label="Plan Your Trip">
+        <Icon name="plane" size={24} /><span>Plan Your Trip</span>
+      </Link>
     </>
   );
 }

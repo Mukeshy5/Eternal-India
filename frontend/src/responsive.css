@@ -21,6 +21,14 @@
   :where(.admin-table-wrap, .admin-tool-table-wrap, .staff-table-wrap,
     .payment-admin-table, .attendance-calendar-grid) { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
   .enquiry-message-preview, .dashboard-guest > div, .dashboard-drawer-content { min-width: 0; overflow-wrap: anywhere; }
+  .panel-app { --panel-radius: 9px; --panel-control-height: 44px; --panel-shadow: 0 3px 14px #172c4d08; }
+  .panel-app :is(.admin-tool-card, .dashboard-inbox, .payment-admin-detail, .notification-center > .notification-list) { border-radius: var(--panel-radius); box-shadow: var(--panel-shadow); }
+  .panel-app :is(.admin-tool-grid, .panel-account-form-grid, .staff-stats, .festival-stat-grid, .attendance-readonly) > * { min-width: 0; }
+  .panel-app :is(.technical-profile-card, .payment-admin-detail, .panel-record-row) { overflow-wrap: anywhere; }
+  .panel-app :is(.admin-tool-table, .payment-admin-table table) tbody tr:hover { background-color: #f6f8fc; }
+  .panel-app :is(.dashboard-button, .dashboard-icon-button, .enquiry-source-tabs button) { transition: background-color .15s, border-color .15s, box-shadow .15s; }
+  .panel-app :is(.dashboard-button, .dashboard-icon-button):hover:not(:disabled) { box-shadow: 0 2px 7px #17365714; }
+  body:has(.navigation-open) .home-plan-float { visibility: hidden; }
 }
 
 @media screen and (max-width: 1100px) {
@@ -29,6 +37,10 @@
   .footer-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .home-hero-copy { width: min(590px, 70%); }
   .home-hero-copy h1 { font-size: clamp(38px, 4.8vw, 60px); }
+}
+
+@media screen and (max-width: 1300px) {
+  body:has(.home-plan-float) .decoration-visitor-controls { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); max-width: min(370px, calc(100vw - 105px)); }
 }
 
 @media screen and (max-width: 900px) {
@@ -98,8 +110,10 @@
 @media screen and (max-width: 640px) {
   :root { --font-body: 1rem; --font-h1: clamp(32px, 8vw, 44px); --font-h2: clamp(28px, 7vw, 36px); }
   .container { width: calc(100% - 2 * var(--page-gutter)); }
-  .site-header .nav-inner { min-height: 72px; gap: 16px; }
-  .site-header .brand { width: clamp(130px, 39vw, 165px); }
+  .site-header .nav-inner { min-height: 72px; gap: 8px; }
+  .site-header .brand { width: clamp(104px, 30vw, 165px); }
+  .site-header .nav-plan-trip { min-height: 44px; padding: 9px 10px; gap: 6px; font-size: 11px; border-radius: 6px; }
+  .site-header .nav-plan-trip svg { width: 16px; height: 16px; }
   .site-header .menu-button { min-width: 44px; min-height: 44px; }
   .site-header .navigation { left: calc(-1 * var(--page-gutter)); right: calc(-1 * var(--page-gutter)); max-height: calc(100dvh - 110px); padding: 16px var(--page-gutter) 24px; overscroll-behavior: contain; }
   .site-header .navigation > a:not(.button), .site-header .nav-trigger { min-height: 44px; font-size: 15px; }
@@ -181,6 +195,33 @@
   .panel-app .festival-device-frame { max-width: 100%; }
   .panel-app .payment-admin-pagination { flex-wrap: wrap; }
   .panel-app .attendance-period { max-width: 100%; flex-wrap: wrap; }
+  .panel-app :is(.dashboard-button, .dashboard-icon-button, .panel-menu-button.dashboard-mobile-menu, .notification-card-actions button, .notification-dropdown-actions button, .enquiry-notification-menu > summary) { min-height: var(--panel-control-height); }
+  .panel-app :is(.dashboard-icon-button, .panel-menu-button.dashboard-mobile-menu, .enquiry-notification-menu > summary) { min-width: 44px; }
+  .panel-app .dashboard-status select { min-height: 44px; }
+  .panel-app .dashboard-mobile-card-bottom { align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+  .panel-app .enquiry-detail-meta > div { flex-wrap: wrap; gap: 5px 14px; }
+  .panel-app .enquiry-detail-meta dd { text-align: left; }
+  .panel-app .dashboard-filter select { flex: 1; max-width: none; }
+  .panel-app .staff-card-grid { grid-template-columns: minmax(0, 1fr); }
+  .panel-app .staff-calendar-month-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .panel-app .staff-calendar-summary, .panel-app .attendance-readonly { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .panel-app .attendance-dialog-close { min-width: 44px; min-height: 44px; }
+  .panel-app .attendance-calendar-dialog { max-height: calc(100dvh - 24px); }
+  .panel-app .panel-footer { align-items: flex-start; flex-wrap: wrap; line-height: 1.6; }
+  .panel-app .panel-record-row > .admin-tool-actions { width: 100%; }
+  .panel-app .panel-record-row > .admin-tool-actions button { flex: 1 1 110px; }
+  .panel-app .payment-admin-detail > header { align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+  .panel-app .payment-admin-filters label { flex: 1 1 130px; max-width: 100%; }
+  .panel-app .payment-admin-filters .payment-search { flex-basis: 100%; }
+  .panel-app .payment-admin-table { overflow: visible; border: 0; background: transparent; }
+  .panel-app .payment-admin-table table, .panel-app .payment-admin-table tbody { display: block; width: 100%; min-width: 0; }
+  .panel-app .payment-admin-table caption { display: block; padding: 12px 0; }
+  .panel-app .payment-admin-table thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .panel-app .payment-admin-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 18px 14px; margin-bottom: 14px; border: 1px solid var(--panel-line); border-radius: var(--panel-radius); background: white; }
+  .panel-app .payment-admin-table td { min-width: 0; max-width: none; padding: 0; border: 0; overflow-wrap: anywhere; }
+  .panel-app .payment-admin-table td::before { content: attr(data-label); display: block; color: #52647b; font-size: 11px; font-weight: 600; margin-bottom: 6px; }
+  .panel-app .payment-admin-table td:is(:first-child, :nth-child(4), :last-child) { grid-column: 1 / -1; }
+  .panel-app .payment-admin-table td:last-child button { width: 100%; }
   .enquiry-toasts { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
 }
 
@@ -200,3 +241,7 @@
   .home-hero-photo { height: 230px; }
   .home-hero-copy { padding-block: 24px; }
 }
+@media (prefers-reduced-motion: reduce) {
+  .panel-app :is(.dashboard-button, .dashboard-icon-button, .enquiry-source-tabs button) { transition: none; }
+}
+@media print { .home-plan-float { display: none !important; } }

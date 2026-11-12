@@ -33,6 +33,11 @@ export async function verifyNavigation(server) {
     assert.equal(destinationPanel.hidden, true);
     assert.equal(indiaPanel.hidden, true);
     assert.ok(buddhistToursLink, "navbar links to Buddhist tours");
+    const planTrip = container.querySelector('.nav-plan-trip');
+    assert.equal(planTrip.getAttribute('href'), '/request-quote');
+    assert.equal(planTrip.closest('nav'), null, 'Plan Your Trip stays outside the mobile navigation dropdown');
+    assert.ok(planTrip.querySelector('svg'), 'Plan Your Trip includes a travel icon');
+    assert.equal(container.querySelectorAll('header a[href="/request-quote"]').length, 1);
     assert.equal(container.querySelector('nav > a[href="/tours"]'), null, "Our journeys is removed from the navbar");
 
     await act(async () => packages.click());
