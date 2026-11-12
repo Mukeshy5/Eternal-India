@@ -115,6 +115,11 @@ try {
   assert.ok(goldenTriangle.includes("<summary>Itinerary"), "Golden Triangle itinerary is available as an expandable option");
   assert.ok(goldenTriangle.includes("Winding road illustration with numbered markers for each itinerary day"), "Tour itinerary includes the day-wise map artwork");
   assert.ok(goldenTriangle.includes("Day 4</span><h3>Jaipur – Delhi – Departure"), "Day map markers correspond to the numbered itinerary cards");
+  const buddhistPage = pages.get("/buddhist-tours-in-india");
+  for (const value of ["A 10-day pilgrimage route", "View the day-by-day itinerary", "Day 01", "Arrive in Delhi", "Delhi – Varanasi by flight", "Varanasi – Bodhgaya", "Bodhgaya – Nalanda – Rajgir", "Rajgir – Vaishali – Kushinagar", "Kushinagar – Sravasti", "Sravasti – Lucknow", "Lucknow – Sankisa – Agra", "Agra – Delhi", "Departure by flight", "Mahabodhi Temple", "Ashokan Pillar", "Mahaparinirvana Temple", "Sankisa", "Taj Mahal"]) {
+    assert.ok(buddhistPage.includes(value), `Buddhist pilgrimage itinerary: missing ${value}`);
+  }
+  assert.equal((buddhistPage.match(/class="travel-itinerary-day"/g) || []).length, 10, "Buddhist itinerary contains all ten days");
   const manaliPackage = pages.get(packagePath(tourPackages.find((item) => item.slug === "manali-volvo-package")));
   for (const value of ["Manali is a resort and tourist town", "Manali in the Beas River Valley", "Your 6-day journey.", "Delhi – Manali", "Hadimba Devi Temple", "Solang Valley", "Manikaran", "Arrival in Delhi – Tour ends"]) {
     assert.ok(manaliPackage.includes(value), `Manali Volvo package page: missing ${value}`);

@@ -73,6 +73,98 @@ const history = [
 
 const pilgrimagePlaces = ["Lumbini", "Bodh Gaya", "Sarnath", "Kushinagar"];
 
+const itinerary = [
+  {
+    day: "Day 01",
+    title: "Arrive in Delhi",
+    paragraphs: [
+      "Upon arrival, transfer to your hotel.",
+      "Overnight stay at the hotel in Delhi.",
+    ],
+  },
+  {
+    day: "Day 02",
+    title: "Delhi – Varanasi by flight",
+    paragraphs: [
+      "After breakfast, enjoy a half-day tour of Delhi. Visit Raj Ghat, the memorial to Mahatma Gandhi, designed with a simplicity that reflects his life.",
+      "Drive past the Red Fort, the 17th-century Mughal fort and palace in the historic walled city of Shahjahanabad. See India Gate, designed by Sir Edwin Lutyens and built in 1931 to commemorate soldiers who died in the First World War and the Third Anglo-Afghan War.",
+      "See the President's House and Parliament House from outside, and visit Qutab Minar. After lunch at a restaurant, transfer to the airport for your flight to Varanasi.",
+      "On arrival, transfer to your hotel. Overnight stay at the hotel in Varanasi.",
+    ],
+  },
+  {
+    day: "Day 03",
+    title: "Varanasi – Bodhgaya (240 km / approx. 6 hours)",
+    paragraphs: [
+      "Begin early with a boat ride on the holy River Ganga. After breakfast, visit Bharat Mata Temple, built in 1936 at the Kashi Vidyapeeth campus and inaugurated by Mahatma Gandhi. The temple houses a marble relief map of undivided India.",
+      "Continue to Banaras Hindu University (BHU), one of Asia's largest residential universities, and Durga Mandir in Ramnagar.",
+      "Take an excursion to Sarnath, about 10 km from Varanasi. This ancient pilgrimage city is known for its ghats, temples and long history. After lunch at the hotel, drive to Bodhgaya and transfer to your hotel on arrival.",
+      "Overnight stay at the hotel in Bodhgaya.",
+    ],
+  },
+  {
+    day: "Day 04",
+    title: "Bodhgaya – Nalanda – Rajgir",
+    paragraphs: [
+      "After breakfast, visit Bodhgaya's Mahabodhi Temple, which stands near the Bodhi Tree where Buddhist tradition says Gautama Buddha attained enlightenment. The temple rises approximately 170 feet.",
+      "Visit the Mahabodhi Tree, revered as the place of the Buddha's awakening and a setting for meditation.",
+      "Drive to Rajgir and visit the historic city, once the capital of Magadha and an important centre in the 6th century BCE. Continue to Nalanda, the site of the renowned ancient residential university where, according to historical accounts, thousands of teachers and students gathered from across the Buddhist world.",
+      "Return to Rajgir in the evening. Overnight stay at the hotel in Rajgir.",
+    ],
+  },
+  {
+    day: "Day 05",
+    title: "Rajgir – Vaishali – Kushinagar",
+    paragraphs: [
+      "After breakfast, drive to Kushinagar, visiting Vaishali en route. See the Ashokan Pillar, a single-piece red sandstone column approximately 18.3 metres high, topped by a lion.",
+      "Visit Fort Vishal, associated with the ancient republic of Vaishali, and the museum, which houses antiquities discovered at sites in the area.",
+      "Continue to Kushinagar. Overnight stay at the hotel.",
+    ],
+  },
+  {
+    day: "Day 06",
+    title: "Kushinagar – Sravasti (230 km / approx. 6 hours)",
+    paragraphs: [
+      "After breakfast, visit Kushinagar's Nirvana Stupa and temple. The brick stupa was excavated by Carlleyle in 1867. The site is important to Buddhist pilgrims, and the temple is home to a large reclining Buddha statue.",
+      "Visit the Mahaparinirvana Temple and its more-than-six-metre-long reclining Buddha image, carved from Chunar sandstone and discovered during excavations in 1876.",
+      "Continue to Sravasti. Overnight stay at the hotel in Sravasti.",
+    ],
+  },
+  {
+    day: "Day 07",
+    title: "Sravasti – Lucknow (170 km / approx. 5 hours)",
+    paragraphs: [
+      "After breakfast, visit Sravasti. See the Ananda Bodhi Tree, associated with the Buddha's meditation, and Jetavana, the monastery and park where Buddhist tradition remembers the Buddha and his followers staying. The site includes remains and sculptures associated with the ancient monastery.",
+      "Visit Shobhanath Temple, revered by Jain pilgrims as the birthplace of Sambhavnath.",
+      "Continue to Lucknow. Overnight stay at the hotel in Lucknow.",
+    ],
+  },
+  {
+    day: "Day 08",
+    title: "Lucknow – Sankisa – Agra (approx. 200 km / 5 hours)",
+    paragraphs: [
+      "After breakfast, drive towards Agra and visit Sankisa en route. Sankisa is associated with Buddhist traditions about the Buddha's return from heaven and is a quiet pilgrimage destination.",
+      "After your visit, continue to Agra. Overnight stay at the hotel in Agra.",
+    ],
+  },
+  {
+    day: "Day 09",
+    title: "Agra – Delhi",
+    paragraphs: [
+      "After breakfast, enjoy sightseeing in Agra, visiting the Taj Mahal and Agra Fort. Built by Emperor Shah Jahan between 1631 and 1648, the Taj Mahal is a celebrated marble monument commissioned in memory of his wife Mumtaz Mahal.",
+      "Explore Agra Fort, whose towers, ramparts and gateways reflect the power of the Mughal Empire. Construction began under Emperor Akbar and was continued by his grandson Shah Jahan.",
+      "Drive to Delhi. Overnight stay at the hotel in Delhi.",
+    ],
+  },
+  {
+    day: "Day 10",
+    title: "Departure by flight",
+    paragraphs: [
+      "After breakfast, transfer to the airport for your onward flight.",
+    ],
+  },
+];
+
 export default function BuddhistToursInIndia() {
   return <>
     <nav className="container travel-breadcrumbs" aria-label="Breadcrumb">
@@ -109,6 +201,33 @@ export default function BuddhistToursInIndia() {
           </div>
         </article>)}
       </div>
+    </section>
+    <section className="container buddhist-itinerary-section" aria-labelledby="buddhist-itinerary-heading">
+      <div className="buddhist-tour-intro">
+        <Eyebrow>A 10-day pilgrimage route</Eyebrow>
+        <h2 id="buddhist-itinerary-heading">Delhi, Varanasi &amp; the Buddhist circuit.</h2>
+        <p>
+          A suggested journey through Delhi, Varanasi, Bodhgaya, Nalanda,
+          Rajgir, Vaishali, Kushinagar, Sravasti, Sankisa and Agra. Travel
+          times and visits can be adjusted to suit your dates and confirmed
+          arrangements.
+        </p>
+      </div>
+      <details className="travel-itinerary buddhist-itinerary">
+        <summary>View the day-by-day itinerary <span>10 days</span></summary>
+        <ol className="travel-itinerary-days">
+          {itinerary.map((day, index) => (
+            <li key={day.day}>
+              <span className="travel-itinerary-day">{String(index + 1).padStart(2, "0")}</span>
+              <div>
+                <span className="travel-itinerary-kicker">{day.day}</span>
+                <h3>{day.title}</h3>
+                {day.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </details>
     </section>
     <section className="container buddhist-tour-cta">
       <div><Eyebrow>Make it your own</Eyebrow><h2>Plan a thoughtful pilgrimage.</h2><p>Share your dates, group size and the places you hope to visit. Our team can help shape a route around your interests and pace.</p></div>
