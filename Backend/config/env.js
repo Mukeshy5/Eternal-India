@@ -15,7 +15,7 @@ export function readConfig(env = process.env) {
   const frontendOrigin = "https://eternal-india-phi.vercel.app";
   const origins = [...new Set([
     ...(onRender ? [frontendOrigin] : []),
-    ...(env.FRONTEND_ORIGIN || (production ? frontendOrigin : "http://localhost:5173")).split(",").map((origin) => new URL(origin.trim()).origin),
+    ...(env.FRONTEND_URL || env.FRONTEND_ORIGIN || (production ? frontendOrigin : "http://localhost:5173")).split(",").map((origin) => new URL(origin.trim()).origin),
   ])];
   const smtpUser = (env.SMTP_USER || env.GMAIL_USER || "").trim();
   const smtpHost = (env.SMTP_HOST || (smtpUser ? "smtp.gmail.com" : "")).trim().toLowerCase();
@@ -38,6 +38,13 @@ export function readConfig(env = process.env) {
   const brevoSenderEmailValue = (env.BREVO_SENDER_EMAIL || "").trim();
   if (brevoSenderEmailValue && !/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(brevoSenderEmailValue)) throw new Error("BREVO_SENDER_EMAIL must be an email address or a display name followed by <email-address>.");
   if (env.OTP_HASH_SECRET && env.OTP_HASH_SECRET.length < 32) throw new Error("OTP_HASH_SECRET must contain at least 32 characters.");
+  const paymentMin = Number(env.PAYMENT_MIN_AMOUNT_INR || 1);
+  const paymentMax = Number(env.PAYMENT_MAX_AMOUNT_INR || 500000);
+  if (![paymentMin, paymentMax].every((n) => Number.isFinite(n) && n > 0 && Number.isSafeInteger(Math.round(n * 100)) && Math.abs(n * 100 - Math.round(n * 100)) < 0.00001) || paymentMin > paymentMax) throw new Error("Configure valid PAYMENT_MIN_AMOUNT_INR and PAYMENT_MAX_AMOUNT_INR limits (up to two decimals).");
+  const paymentMode = env.RAZORPAY_MODE || "test";
+  if (!["test", "live"].includes(paymentMode)) throw new Error("RAZORPAY_MODE must be test or live.");
+  const paymentKeyId = (env.RAZORPAY_KEY_ID || "").trim();
+  if (paymentKeyId && !paymentKeyId.startsWith(`rzp_${paymentMode}_`)) throw new Error("RAZORPAY_KEY_ID must match RAZORPAY_MODE. Test mode is the default.");
   return {
     port,
     host: onRender ? "0.0.0.0" : env.HOST || (production ? "0.0.0.0" : "127.0.0.1"),
@@ -53,6 +60,7 @@ export function readConfig(env = process.env) {
     technicalEmail: (env.TECHNICAL_EMAIL || "").trim().toLowerCase(),
     companyName: env.COMPANY_NAME || "Eternal India",
     otpSecret: env.OTP_HASH_SECRET || env.SESSION_SECRET,
+    payments: { keyId: paymentKeyId, keySecret: (env.RAZORPAY_KEY_SECRET || "").trim(), webhookSecret: (env.RAZORPAY_WEBHOOK_SECRET || "").trim(), mode: paymentMode, minAmount: Math.round(paymentMin * 100), maxAmount: Math.round(paymentMax * 100) },
     email: { provider: emailProvider, apiKey: resendApiKey, from: emailFrom, brevoApiKey, brevoSenderEmail: (env.BREVO_SENDER_EMAIL || "").trim(), brevoSenderName: (env.BREVO_SENDER_NAME || "").trim() },
     smtp: { host: smtpHost, port: smtpPort, secure: env.SMTP_SECURE ? env.SMTP_SECURE === "true" : smtpPort === 465, user: smtpUser, password: smtpHost === "smtp.gmail.com" ? (env.SMTP_PASSWORD || env.GMAIL_APP_PASSWORD || "").replace(/\s/g, "") : env.SMTP_PASSWORD || "", from: smtpFrom || smtpUser || env.ADMIN_EMAIL },
   };

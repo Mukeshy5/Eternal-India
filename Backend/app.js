@@ -21,13 +21,14 @@ import { adminPanelAccess } from "./lib/panel-access.js";
 import { sessionLifecycle } from "./lib/session-lifecycle.js";
 import { canManageAccounts, registerAccounts } from "./lib/accounts.js";
 import { gmailAccountFilter, gmailIdentity } from "./lib/email-identity.js";
+import { registerPaymentRoutes } from "./payments/routes.js";
 
-export function createApp({ client, db, config, schedulerOptions, sendPasswordReset }) {
+export function createApp({ client, db, config, schedulerOptions, sendPasswordReset, paymentGateway }) {
   const app = express();
   app.disable("x-powered-by");
   if (config.render) app.set("trust proxy", 1);
   app.use(compression());
-  app.use(helmet({ strictTransportSecurity: config.production ? undefined : false, contentSecurityPolicy: { directives: { mediaSrc: ["'self'", "https:"] } } }));
+  app.use(helmet({ strictTransportSecurity: config.production ? undefined : false, contentSecurityPolicy: { directives: { mediaSrc: ["'self'", "https:"], scriptSrc: ["'self'", "https://checkout.razorpay.com"], frameSrc: ["'self'", "https://*.razorpay.com", "https://*.razorpay.in"], connectSrc: ["'self'", "https://*.razorpay.com", "https://*.razorpay.in"], imgSrc: ["'self'", "data:", "https:"] } } }));
   app.use("/api", (req, res, next) => {
     res.set("Cache-Control", "no-store");
     const origin = req.get("Origin");
@@ -47,14 +48,11 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
       res.set("Access-Control-Allow-Credentials", "true");
       res.vary("Origin");
     }
-    if (req.method === "OPTIONS") return res.set({ "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" }).sendStatus(204);
+    if (req.method === "OPTIONS") return res.set({ "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" }).sendStatus(204);
     const imageUpload = req.is("multipart/form-data") && ((req.method === "POST" && (/^\/(admin|technical)\/offer-images$/.test(req.path) || req.path === "/technical/festival-assets")) || (["POST", "PATCH"].includes(req.method) && /^\/(admin|technical)\/staff(?:\/[a-f\d]{24})?$/i.test(req.path)));
     if (["POST", "PUT", "PATCH"].includes(req.method) && !imageUpload && !req.is("application/json")) return res.status(415).json({ message: "Use JSON to submit this request." });
     next();
   });
-  app.use(["/api/admin/staff-attendance/bulk", "/api/technical/staff-attendance/bulk"], express.json({ limit: "128kb" }));
-  app.use(express.json({ limit: "16kb" }));
-
   const store = MongoStore.create({ client, dbName: config.databaseName, collectionName: "admin_sessions", ttl: 8 * 60 * 60 });
   const drainSessions = sessionLifecycle(store);
   store.on("error", () => console.error("Admin session storage is unavailable."));
@@ -63,6 +61,12 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   const management = express.Router();
   app.use(cookieParser());
   app.use(["/api/admin", "/api/technical", "/api/auth"], session({ name: "eternal_india.sid", secret: config.sessionSecret, store, resave: false, saveUninitialized: false, rolling: true, cookie }));
+
+  // JSON is parsed for ordinary routes after the raw Razorpay webhook route.
+  // Payment admin handlers use the same cookie/JWT authentication as the panel.
+  registerPaymentRoutes({ app, db, config, requireAdmin, gateway: paymentGateway });
+  app.use(["/api/admin/staff-attendance/bulk", "/api/technical/staff-attendance/bulk"], express.json({ limit: "128kb" }));
+  app.use(express.json({ limit: "16kb" }));
 
   const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
   const enquiryLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many enquiries. Please try again shortly." } });

@@ -8,6 +8,7 @@ import { StaticRouter } from "react-router-dom";
 import { buildEnquiryUrl } from "../src/Common/enquiries.js";
 import { bankDetails, QR_DISPLAY_MS, qrSecondsRemaining, formatQrTime } from "../src/Common/payments.js";
 import { verifyPaymentInteractions } from "./verify-payment.mjs";
+import { verifyRazorpayInteractions } from "./verify-razorpay.mjs";
 import { verifyNavigation } from "./verify-navigation.mjs";
 import { verifyEnquiryInteractions } from "./verify-enquiry.mjs";
 import { verifyAdminInteractions } from "./verify-admin.mjs";
@@ -226,6 +227,7 @@ try {
     "PASS contact information, destination prefill, form constraints, and WhatsApp/email message encoding",
   );
   await verifyPaymentInteractions(server);
+  await verifyRazorpayInteractions(server);
   await verifyNavigation(server);
   await verifyEnquiryInteractions(server);
   await verifyAdminInteractions(server);

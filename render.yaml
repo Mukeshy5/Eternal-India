@@ -1,0 +1,37 @@
+# Optional Render Blueprint for the existing Express service. Configure secrets
+# privately in Render; do not replace a working service with a second service.
+services:
+  - type: web
+    name: eternal-india-1
+    runtime: node
+    # The repository root keeps ../shared available to Backend imports.
+    buildCommand: npm --prefix Backend ci
+    startCommand: npm --prefix Backend start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB
+        value: eternal_india
+      - key: SESSION_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: FRONTEND_URL
+        value: https://eternal-india-phi.vercel.app
+      - key: RAZORPAY_MODE
+        value: test
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: PAYMENT_MIN_AMOUNT_INR
+        value: "1"
+      - key: PAYMENT_MAX_AMOUNT_INR
+        value: "500000"

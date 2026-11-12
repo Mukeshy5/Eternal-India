@@ -5,6 +5,7 @@ import bankTransferImage from "../assets/paymentpng/banktrasfer.png";
 import generateQrAnimation from "../assets/paymentpng/Generate QR.gif";
 import paymentQrImage from "../assets/paymentpng/payment-QR.png";
 import "./PaymentPage.css";
+import RazorpayCheckout from "./RazorpayCheckout";
 
 export default function OnlinePayment() {
   const [expiresAt, setExpiresAt] = useState(null);
@@ -71,7 +72,7 @@ export default function OnlinePayment() {
               and let us take care of the journey.
             </p>
             <div className="payment-hero-actions">
-              <a className="button button-light" href="#payment-options">Explore payment options <Icon size={18} /></a>
+              <a className="button button-light" href="#secure-checkout">Make a secure payment <Icon size={18} /></a>
               <a href="#payment-help" className="payment-hero-support"><Icon name="phone" size={17} />Here to help you</a>
             </div>
           </div>
@@ -81,6 +82,8 @@ export default function OnlinePayment() {
           </div>
         </div>
       </section>
+
+      <RazorpayCheckout />
 
       <section className="payment-section" id="payment-options" aria-labelledby="payment-options-title">
         <div className="container">
@@ -105,7 +108,7 @@ export default function OnlinePayment() {
           <div className="payment-section-heading">
             <div>
               <Eyebrow>However you choose to pay</Eyebrow>
-              <h2>One journey. <em>Your way to pay.</em></h2>
+              <h2 id="payment-options-title">One journey. <em>Your way to pay.</em></h2>
             </div>
             <p><Icon name="globe" size={18} />Pay from anywhere.<br />We’re right here for you.</p>
           </div>
@@ -211,7 +214,3 @@ export default function OnlinePayment() {
     </div>
   );
 }
-
-
-
-// 

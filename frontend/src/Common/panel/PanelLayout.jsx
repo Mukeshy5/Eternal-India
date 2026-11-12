@@ -19,7 +19,7 @@ export default function PanelLayout({ admin, technical, section, busy, onNavigat
   const [collapsed, setCollapsed] = useState(false);
   const navigation = usePanelNavigation();
   const guardLink = (event) => { if (navigation && !navigation.confirmNavigation()) event.preventDefault(); };
-  const visible = Object.entries(panelSections).filter(([, item]) => (!item.technical || technical) && (!item.adminOnly || !technical && admin.canManageAccounts) && (!item.permission || admin.staffPermissions?.includes(item.permission)) && (item !== panelSections.festivals || !Array.isArray(admin.technicalPermissions) || admin.technicalPermissions.length));
+  const visible = Object.entries(panelSections).filter(([, item]) => (!item.adminPanelOnly || !technical) && (!item.technical || technical) && (!item.adminOnly || !technical && admin.canManageAccounts) && (!item.permission || admin.staffPermissions?.includes(item.permission)) && (item !== panelSections.festivals || !Array.isArray(admin.technicalPermissions) || admin.technicalPermissions.length));
   const groups = [...new Set(visible.map(([, item]) => item.group))];
   const current = panelSections[section];
   useEffect(() => { setMenuOpen(false); }, [section]);

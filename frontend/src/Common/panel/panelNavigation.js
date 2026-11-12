@@ -1,5 +1,6 @@
 export const panelSections = {
   enquiries: { label: "All enquiries", title: "Enquiries", group: "Workspace", icon: "inbox" },
+  payments: { label: "Online Payments", title: "Online Payments", group: "Operations", icon: "archive", adminPanelOnly: true },
   staff: { label: "Staff Management", title: "Staff Management", group: "People", icon: "people", permission: "view" },
   "staff-attendance": { label: "Staff Attendance", title: "Attendance Calendar", group: "People", icon: "calendar", permission: "view" },
   "staff-cards": { label: "Download ID Card", title: "Employee ID Cards", group: "People", icon: "archive", permission: "export" },

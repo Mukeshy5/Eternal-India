@@ -1,5 +1,6 @@
 import { MongoClient } from "mongodb";
 import { ensureStaffModels } from "../staff/models.js";
+import { ensurePaymentModels } from "../payments/model.js";
 
 const MAX_CONNECT_RETRIES = 5;
 const RETRY_BASE_DELAY_MS = 3000;
@@ -47,6 +48,7 @@ export async function connectDatabase(config) {
         db.collection("enquiries").createIndex({ status: 1, createdAt: -1 }),
       ]);
       await ensureStaffModels(db);
+      await ensurePaymentModels(db);
 
       // Runtime connection monitoring (credentials never logged).
       client.on("close", () => {

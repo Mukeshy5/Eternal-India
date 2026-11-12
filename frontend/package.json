@@ -8,6 +8,7 @@
     "dev:frontend": "vite",
     "build": "vite build",
     "verify": "node scripts/verify.mjs",
+    "verify:payments": "node scripts/verify-razorpay.mjs",
     "verify:accounts": "node scripts/verify-accounts.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
