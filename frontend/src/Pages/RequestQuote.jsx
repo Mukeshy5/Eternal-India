@@ -36,7 +36,7 @@ export default function RequestQuote() {
     try {
       // Start persistence first, then hand off during this same user gesture.
       // Waiting for the database can lose the browser's activation permission.
-      const saving = api("/enquiries", { method: "POST", body: JSON.stringify({ ...fields, contactChannel: channel, voiceLanguage: language, submissionId: submissionId.current }), signal: controller.signal, keepalive: true });
+      const saving = api("/enquiries", { method: "POST", body: JSON.stringify({ ...fields, enquiryKind: params.get("source") === "contact" ? "CONTACT" : "PLAN_TRIP", contactChannel: channel, voiceLanguage: language, submissionId: submissionId.current }), signal: controller.signal, keepalive: true });
       if (url) {
         try {
           if (channel === "email") window.location.assign(url);

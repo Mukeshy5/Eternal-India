@@ -270,12 +270,22 @@ export default function Blog() {
 
   return (
     <>
-      <PageIntro label="Travel journal · India" title="Stories & sacred places" />
-      <nav className="blog-topic-nav container" aria-label="Choose a travel story">
+      <PageIntro
+        label="Travel journal · India"
+        title="Stories & sacred places"
+      />
+      <nav
+        className="blog-topic-nav container"
+        aria-label="Choose a travel story"
+      >
         {topics.map((topic) => (
           <button
             aria-pressed={activeTopic === topic.id}
-            className={activeTopic === topic.id ? "blog-topic-option is-active" : "blog-topic-option"}
+            className={
+              activeTopic === topic.id
+                ? "blog-topic-option is-active"
+                : "blog-topic-option"
+            }
             key={topic.id}
             onClick={() => setActiveTopic(topic.id)}
             type="button"
@@ -285,253 +295,327 @@ export default function Blog() {
           </button>
         ))}
       </nav>
-      <p className="blog-topic-hint container">Choose a topic to explore its guide.</p>
+      <p className="blog-topic-hint container">
+        Choose a topic to explore its guide.
+      </p>
       <div className="blog-topic-panel" hidden={activeTopic !== "parsili"}>
-      <article className="blog-article container">
-        <header className="blog-article-intro">
-          <Eyebrow>A riverside escape</Eyebrow>
-          <p>
-            Parsili is an idyllic place in Sidhi district with more to discover
-            than first meets the eye. Situated on the bank of the Banas River,
-            this unspoilt destination is 10 km from Sanjay-Dubri National Park,
-            where a passion for wildlife can be paired with a leisurely break.
-            Parsili is also a haven for bird lovers. Herons, egrets, white-necked
-            storks, white ibises, whistling teals, kites, eagles, harriers,
-            kingfishers and orioles are among the birds found here.
-          </p>
-          <div className="blog-article-facts" aria-label="About Parsili">
-            <div><span>District</span><strong>Sidhi, Madhya Pradesh</strong></div>
-            <div><span>By the river</span><strong>Banas River</strong></div>
-            <div><span>Nearby</span><strong>Sanjay-Dubri National Park · 10 km</strong></div>
-          </div>
-        </header>
-
-        <div className="blog-article-body">
-          <section aria-labelledby="barefoot-trek-heading">
-            <Eyebrow>Walk, watch, wander</Eyebrow>
-            <h2 id="barefoot-trek-heading">The barefoot trek</h2>
+        <article className="blog-article container">
+          <header className="blog-article-intro">
+            <Eyebrow>A riverside escape</Eyebrow>
             <p>
-              The walk starts at around 6:00 a.m., amid magnificent green
-              surroundings and the mellow rays of the rising sun, led by a
-              naturalist. Parsili Resort provides a small backpack with a water
-              bottle, fruit and sandwiches for an en-route breakfast as you
-              explore the surrounding flora and birdlife at your own pace.
+              Parsili is an idyllic place I Sidhi district and offers more than
+              eye can see. Situated on the bank of river Banas, this unspoilt
+              destination is 10 km away from Sanjay-Dubri National Park where
+              your passion for wildlife can be coupled with a leisurelu break.
+              Parsili is an exotic paradise for the bird lovers. Birds like
+              Herons, Egrets, White-Necked Stock, White Lbis, Whistling teal,
+              Kites, Eagles, Harrier, King Fishers, Oriole are part of the rich
+              avifauna.
             </p>
-            <p>
-              The landscape is dotted with sand dunes and lush green vegetation.
-              Sunlight filters through hillocks, clouds and trees, making you
-              reach for your camera again and again. The 4 km trek takes about
-              two to three hours and ends at the rustic Kathbungalow, an old
-              wooden haveli with a sprawling garden and mango trees along the
-              river. Spend some time at this charming place, then walk back or
-              take a vehicle to the resort.
-            </p>
-          </section>
-
-          <aside className="blog-article-note">
-            <Icon name="compass" size={22} />
-            <div>
-              <h3>What to wear and bring</h3>
-              <p>
-                Wear comfortable trousers or pants that are easy to move in and
-                suitable for wading through water. Bring a cap and binoculars.
-              </p>
+            <div className="blog-article-facts" aria-label="About Parsili">
+              <div>
+                <span>District</span>
+                <strong>Sidhi, Madhya Pradesh</strong>
+              </div>
+              <div>
+                <span>By the river</span>
+                <strong>Banas River</strong>
+              </div>
+              <div>
+                <span>Nearby</span>
+                <strong>Sanjay-Dubri National Park · 10 km</strong>
+              </div>
             </div>
-          </aside>
+          </header>
 
-          <section aria-labelledby="national-park-heading">
-            <Eyebrow>Wildlife &amp; forests</Eyebrow>
-            <h2 id="national-park-heading">Sanjay-Dubri National Park</h2>
+          <div className="blog-article-body">
+            <section aria-labelledby="barefoot-trek-heading">
+              <Eyebrow>Walk, watch, wander</Eyebrow>
+              <h2 id="barefoot-trek-heading">The barefoot trek</h2>
+              <p>
+                The walk starts at mooring 0600hrs, in a magnificent green
+                surroundings in the mellow rays of the rising sun and is led by
+                a naturalist. A small backpack containing water bottle, fruits
+                and sandwiches is provided by the Parsili Resort, for an
+                en-route breakfast at your diligent pace learning the
+                surrounding flora and avifauna.
+              </p>
+              <p>
+                The entire topography is sent with sand dunes, lush and green
+                vegetation, Spectacular sun shine defused through hillocks,
+                clouds and trees, making you reach for your camera repeatedly.
+                The 4 Km trek takes 2 to 3 hours ending at rustic Kathbungalow-
+                an old wooden haveli with Sprawling garden and mango trees
+                bordering the river. After spending some time at this charming
+                place you may either back or take a vehicle to the resort.
+              </p>
+             
+            </section>
+
+            <aside className="blog-article-note">
+              <Icon name="compass" size={22} />
+              <div>
+                <h3>What to wear and bring</h3>
+                <p>
+                  Wear comfortable trousers or pants that are easy to move in
+                  and suitable for wading through water. Bring a cap and
+                  binoculars.
+                </p>
+              </div>
+            </aside>
+
+            <section aria-labelledby="national-park-heading">
+              <Eyebrow>Wildlife &amp; forests</Eyebrow>
+              <h2 id="national-park-heading">Sanjay-Dubri National Park</h2>
+              <p>
+                The park is only 10 km from Parsili. With a little luck, you may
+                spot a chital, jackal or peacock. The reserve includes Dubri
+                Sanctuary and Sanjay National Park, with Guru Ghasidas National
+                Park forming its southern boundary. These luxuriant forests,
+                dominated by sal, dhawda and semal trees, merge with the forests
+                of Bandhavgarh National Park.
+              </p>
+              <p>
+                The forests of Sanjay-Dubri protect the watershed formed by the
+                Son River and its tributaries, and provide a home to many
+                species of waterbirds. Spread across Sidhi and Singrauli
+                districts, the forests are home to approximately 300 varieties
+                of birds. Gopad Darshan, Ram Daha Kund, Giddha Pahad and Barchar
+                Dam are among the places to visit inside the national park.
+                Nature walks and cycling trails offer other ways to explore.
+              </p>
+            </section>
+
+            <blockquote className="blog-article-quote">
+              “Each time my feet touched the earth, I knew my mother was there
+              with me. I knew this body was not mine, but a living continuation
+              of my mother and all my ancestors. These feet I saw as ‘my feet’
+              were actually ‘our’ feet. Together, my mother and I were leaving
+              footprints on damp soil.”
+            </blockquote>
+          </div>
+
+          <footer className="blog-article-footer">
             <p>
-              The park is only 10 km from Parsili. With a little luck, you may
-              spot a chital, jackal or peacock. The reserve includes Dubri
-              Sanctuary and Sanjay National Park, with Guru Ghasidas National
-              Park forming its southern boundary. These luxuriant forests,
-              dominated by sal, dhawda and semal trees, merge with the forests
-              of Bandhavgarh National Park.
+              Discover more places and journeys across India with our local
+              team.
             </p>
-            <p>
-              The forests of Sanjay-Dubri protect the watershed formed by the
-              Son River and its tributaries, and provide a home to many species
-              of waterbirds. Spread across Sidhi and Singrauli districts, the
-              forests are home to approximately 300 varieties of birds. Gopad
-              Darshan, Ram Daha Kund, Giddha Pahad and Barchar Dam are among
-              the places to visit inside the national park. Nature walks and
-              cycling trails offer other ways to explore.
-            </p>
-          </section>
-
-          <blockquote className="blog-article-quote">
-            “Each time my feet touched the earth, I knew my mother was there
-            with me. I knew this body was not mine, but a living continuation
-            of my mother and all my ancestors. These feet I saw as ‘my feet’
-            were actually ‘our’ feet. Together, my mother and I were leaving
-            footprints on damp soil.”
-          </blockquote>
-        </div>
-
-        <footer className="blog-article-footer">
-          <p>Discover more places and journeys across India with our local team.</p>
-          <Link className="text-link" to="/destinations-in-india">
-            Explore destinations <Icon />
-          </Link>
-        </footer>
-      </article>
+            <Link className="text-link" to="/destinations-in-india">
+              Explore destinations <Icon />
+            </Link>
+          </footer>
+        </article>
       </div>
       <div className="blog-topic-panel" hidden={activeTopic !== "chitrakoot"}>
-      <article className="blog-article blog-article-secondary container" aria-labelledby="chitrakoot-heading">
-        <header className="blog-article-intro">
-          <Eyebrow>Pilgrimage · Uttar Pradesh &amp; Madhya Pradesh</Eyebrow>
-          <h2 id="chitrakoot-heading">Chitrakoot: a landscape of faith and legend</h2>
-          <p>
-            Chitrakoot is a revered pilgrimage destination whose name is often
-            understood through the words “chitra” (colourful) and “koot” (hill).
-            The Mandakini and Payaswini rivers shape its natural setting. The
-            region is deeply connected with the Ramayana: tradition says Lord
-            Shri Ram spent part of his fourteen-year exile here. Sages including
-            Maharishi Atri are also associated with its forests and ashrams.
-          </p>
-          <div className="blog-article-facts" aria-label="Chitrakoot travel information">
-            <div><span>Area</span><strong>38.2 sq km</strong></div>
-            <div><span>Elevation</span><strong>About 207 metres</strong></div>
-            <div><span>Best season</span><strong>July to March</strong></div>
-            <div><span>Languages</span><strong>Hindi, Bundeli and English</strong></div>
-            <div><span>Local transport</span><strong>Rickshaw, auto and taxi</strong></div>
-            <div><span>Clothing</span><strong>Cottons in summer; woollens in winter</strong></div>
-          </div>
-          <p className="blog-article-smallprint">
-            Population: 990,526 (2011 census figure supplied with the source
-            material; the administrative area for this figure may differ from
-            the destination itself). STD codes listed in the source:
-            05198 (Uttar Pradesh) and 07670 (Madhya Pradesh).
-          </p>
-        </header>
-
-        <div className="blog-article-body">
-          <section aria-labelledby="chitrakoot-getting-there">
-            <Eyebrow>Plan your route</Eyebrow>
-            <h2 id="chitrakoot-getting-there">Getting to Chitrakoot</h2>
-            <div className="blog-article-transport">
-              <div>
-                <h3>By air</h3>
-                <p>Bamrauli Airport, Prayagraj (Allahabad), is approximately 145 km away.</p>
-              </div>
-              <div>
-                <h3>By rail</h3>
-                <p>Chitrakoot Dham–Karwi is about 10 km away. Other railheads listed in the source are Manikpur (35 km), Banda (70 km), Mahoba (127 km), Prayagraj (127 km) and Khajuraho (185 km).</p>
-              </div>
-              <div>
-                <h3>By road</h3>
-                <p>Karvi bus station is about 8 km away. The source also lists Satna (70 km), Banda (70 km), Kalinjar (88 km), Prayagraj (130 km), Khajuraho (135 km), Jhansi (274 km) and Lucknow (285 km).</p>
-              </div>
-            </div>
-          </section>
-
-          <section aria-labelledby="chitrakoot-places">
-            <Eyebrow>Temples, riverbanks &amp; forest paths</Eyebrow>
-            <h2 id="chitrakoot-places">Places to visit</h2>
-            <div className="blog-article-place-grid">
-              {chitrakootHighlights.map((place) => (
-                <article key={place.title}>
-                  <h3>{place.title}</h3>
-                  <p>{place.text}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section aria-labelledby="chitrakoot-nearby">
-            <Eyebrow>Extend your journey</Eyebrow>
-            <h2 id="chitrakoot-nearby">Places near Chitrakoot Dham</h2>
-            <div className="blog-article-place-grid blog-article-nearby-grid">
-              {nearbyChitrakootPlaces.map((place) => (
-                <article key={place.title}>
-                  <h3>{place.title}</h3>
-                  <p>{place.text}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section aria-labelledby="chitrakoot-when-to-visit">
-            <Eyebrow>Local calendar</Eyebrow>
-            <h2 id="chitrakoot-when-to-visit">Fairs and festivals</h2>
-            <div className="blog-article-festival-list">
-              {chitrakootFestivals.map(([name, season]) => (
-                <div key={name}><strong>{name}</strong><span>{season}</span></div>
-              ))}
-            </div>
-          </section>
-
-          <aside className="blog-article-note">
-            <Icon name="pin" size={22} />
-            <div>
-              <h3>Medical services</h3>
-              <ul>
-                <li>Upgraded Health Centre, Sitapur</li>
-                <li>U.P. Sadguru Seva Sangh, Janaki Kund, Madhya Pradesh</li>
-                <li>District Hospital, Karvi–Tejipur</li>
-                <li>Ramkripa Chikitsalaya, Handicapped University, Chitrakoot</li>
-              </ul>
-            </div>
-          </aside>
-
-          <section aria-labelledby="chitrakoot-stays">
-            <Eyebrow>Stay in the pilgrimage area</Eyebrow>
-            <h2 id="chitrakoot-stays">Accommodation</h2>
+        <article
+          className="blog-article blog-article-secondary container"
+          aria-labelledby="chitrakoot-heading"
+        >
+          <header className="blog-article-intro">
+            <Eyebrow>Pilgrimage · Uttar Pradesh &amp; Madhya Pradesh</Eyebrow>
+            <h2 id="chitrakoot-heading">
+              Chitrakoot: a landscape of faith and legend
+            </h2>
             <p>
-              The following guest houses and lodges were listed in the supplied
-              information. Please confirm current availability, facilities and
-              contact details directly before travel.
+              Chitrakoot is a revered pilgrimage destination whose name is often
+              understood through the words “chitra” (colourful) and “koot”
+              (hill). The Mandakini and Payaswini rivers shape its natural
+              setting. The region is deeply connected with the Ramayana:
+              tradition says Lord Shri Ram spent part of his fourteen-year exile
+              here. Sages including Maharishi Atri are also associated with its
+              forests and ashrams.
             </p>
-            <ul className="blog-article-lodging-list">
-              {chitrakootLodging.map((place) => <li key={place}>{place}</li>)}
-            </ul>
-            <a className="text-link" href="tel:+919319140846">
-              Call Eternal India for travel assistance · +91 93191 40846 <Icon />
-            </a>
-          </section>
-        </div>
-      </article>
-      </div>
-      <div className="blog-topic-panel" hidden={activeTopic !== "jain"}>
-      <section className="blog-sacred-section" aria-labelledby="bihar-sacred-heading">
-        <div className="blog-sacred-inner container blog-sacred-single">
-          <div className="blog-sacred-heading">
-            <Eyebrow>Sacred routes · Bihar</Eyebrow>
-            <h2 id="bihar-sacred-heading">Jain pilgrimage in Bihar</h2>
-            <p>
-              Bihar is closely connected with Jain history and pilgrimage.
-              Tradition associates Pawapuri with Mahavira's nirvana and
-              Champapuri with the birth of the 12th Tirthankara, Vasupujya.
+            <div
+              className="blog-article-facts"
+              aria-label="Chitrakoot travel information"
+            >
+              <div>
+                <span>Area</span>
+                <strong>38.2 sq km</strong>
+              </div>
+              <div>
+                <span>Elevation</span>
+                <strong>About 207 metres</strong>
+              </div>
+              <div>
+                <span>Best season</span>
+                <strong>July to March</strong>
+              </div>
+              <div>
+                <span>Languages</span>
+                <strong>Hindi, Bundeli and English</strong>
+              </div>
+              <div>
+                <span>Local transport</span>
+                <strong>Rickshaw, auto and taxi</strong>
+              </div>
+              <div>
+                <span>Clothing</span>
+                <strong>Cottons in summer; woollens in winter</strong>
+              </div>
+            </div>
+            <p className="blog-article-smallprint">
+              Population: 990,526 (2011 census figure supplied with the source
+              material; the administrative area for this figure may differ from
+              the destination itself). STD codes listed in the source: 05198
+              (Uttar Pradesh) and 07670 (Madhya Pradesh).
             </p>
-          </div>
+          </header>
 
-          <div className="blog-sacred-disclosures">
-            <details className="blog-sacred-disclosure" open>
-              <summary>
-                <span>
-                  <strong>Jain pilgrimage in Bihar</strong>
-                  <small>From Pawapuri and Rajgir to Champapuri and Lachhuar</small>
-                </span>
-                <span className="blog-sacred-count">{biharJainPlaces.length} places</span>
-              </summary>
-              <div className="blog-sacred-place-grid">
-                {biharJainPlaces.map((place) => (
+          <div className="blog-article-body">
+            <section aria-labelledby="chitrakoot-getting-there">
+              <Eyebrow>Plan your route</Eyebrow>
+              <h2 id="chitrakoot-getting-there">Getting to Chitrakoot</h2>
+              <div className="blog-article-transport">
+                <div>
+                  <h3>By air</h3>
+                  <p>
+                    Bamrauli Airport, Prayagraj (Allahabad), is approximately
+                    145 km away.
+                  </p>
+                </div>
+                <div>
+                  <h3>By rail</h3>
+                  <p>
+                    Chitrakoot Dham–Karwi is about 10 km away. Other railheads
+                    listed in the source are Manikpur (35 km), Banda (70 km),
+                    Mahoba (127 km), Prayagraj (127 km) and Khajuraho (185 km).
+                  </p>
+                </div>
+                <div>
+                  <h3>By road</h3>
+                  <p>
+                    Karvi bus station is about 8 km away. The source also lists
+                    Satna (70 km), Banda (70 km), Kalinjar (88 km), Prayagraj
+                    (130 km), Khajuraho (135 km), Jhansi (274 km) and Lucknow
+                    (285 km).
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section aria-labelledby="chitrakoot-places">
+              <Eyebrow>Temples, riverbanks &amp; forest paths</Eyebrow>
+              <h2 id="chitrakoot-places">Places to visit</h2>
+              <div className="blog-article-place-grid">
+                {chitrakootHighlights.map((place) => (
                   <article key={place.title}>
                     <h3>{place.title}</h3>
                     <p>{place.text}</p>
                   </article>
                 ))}
               </div>
-            </details>
+            </section>
 
+            <section aria-labelledby="chitrakoot-nearby">
+              <Eyebrow>Extend your journey</Eyebrow>
+              <h2 id="chitrakoot-nearby">Places near Chitrakoot Dham</h2>
+              <div className="blog-article-place-grid blog-article-nearby-grid">
+                {nearbyChitrakootPlaces.map((place) => (
+                  <article key={place.title}>
+                    <h3>{place.title}</h3>
+                    <p>{place.text}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            <section aria-labelledby="chitrakoot-when-to-visit">
+              <Eyebrow>Local calendar</Eyebrow>
+              <h2 id="chitrakoot-when-to-visit">Fairs and festivals</h2>
+              <div className="blog-article-festival-list">
+                {chitrakootFestivals.map(([name, season]) => (
+                  <div key={name}>
+                    <strong>{name}</strong>
+                    <span>{season}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <aside className="blog-article-note">
+              <Icon name="pin" size={22} />
+              <div>
+                <h3>Medical services</h3>
+                <ul>
+                  <li>Upgraded Health Centre, Sitapur</li>
+                  <li>U.P. Sadguru Seva Sangh, Janaki Kund, Madhya Pradesh</li>
+                  <li>District Hospital, Karvi–Tejipur</li>
+                  <li>
+                    Ramkripa Chikitsalaya, Handicapped University, Chitrakoot
+                  </li>
+                </ul>
+              </div>
+            </aside>
+
+            <section aria-labelledby="chitrakoot-stays">
+              <Eyebrow>Stay in the pilgrimage area</Eyebrow>
+              <h2 id="chitrakoot-stays">Accommodation</h2>
+              <p>
+                The following guest houses and lodges were listed in the
+                supplied information. Please confirm current availability,
+                facilities and contact details directly before travel.
+              </p>
+              <ul className="blog-article-lodging-list">
+                {chitrakootLodging.map((place) => (
+                  <li key={place}>{place}</li>
+                ))}
+              </ul>
+              <a className="text-link" href="tel:+919319140846">
+                Call Eternal India for travel assistance · +91 93191 40846{" "}
+                <Icon />
+              </a>
+            </section>
           </div>
-        </div>
-      </section>
+        </article>
+      </div>
+      <div className="blog-topic-panel" hidden={activeTopic !== "jain"}>
+        <section
+          className="blog-sacred-section"
+          aria-labelledby="bihar-sacred-heading"
+        >
+          <div className="blog-sacred-inner container blog-sacred-single">
+            <div className="blog-sacred-heading">
+              <Eyebrow>Sacred routes · Bihar</Eyebrow>
+              <h2 id="bihar-sacred-heading">Jain pilgrimage in Bihar</h2>
+              <p>
+                Bihar is closely connected with Jain history and pilgrimage.
+                Tradition associates Pawapuri with Mahavira's nirvana and
+                Champapuri with the birth of the 12th Tirthankara, Vasupujya.
+              </p>
+            </div>
+
+            <div className="blog-sacred-disclosures">
+              <details className="blog-sacred-disclosure" open>
+                <summary>
+                  <span>
+                    <strong>Jain pilgrimage in Bihar</strong>
+                    <small>
+                      From Pawapuri and Rajgir to Champapuri and Lachhuar
+                    </small>
+                  </span>
+                  <span className="blog-sacred-count">
+                    {biharJainPlaces.length} places
+                  </span>
+                </summary>
+                <div className="blog-sacred-place-grid">
+                  {biharJainPlaces.map((place) => (
+                    <article key={place.title}>
+                      <h3>{place.title}</h3>
+                      <p>{place.text}</p>
+                    </article>
+                  ))}
+                </div>
+              </details>
+            </div>
+          </div>
+        </section>
       </div>
       <div className="blog-topic-panel" hidden={activeTopic !== "ramayana"}>
-        <section className="blog-sacred-section" aria-labelledby="bihar-ramayana-heading">
+        <section
+          className="blog-sacred-section"
+          aria-labelledby="bihar-ramayana-heading"
+        >
           <div className="blog-sacred-inner container blog-sacred-single">
             <div className="blog-sacred-heading">
               <Eyebrow>Sacred routes · Bihar</Eyebrow>
@@ -546,9 +630,13 @@ export default function Blog() {
                 <summary>
                   <span>
                     <strong>Places &amp; legends</strong>
-                    <small>From Sitamarhi and Darbhanga to Buxar and Munger</small>
+                    <small>
+                      From Sitamarhi and Darbhanga to Buxar and Munger
+                    </small>
                   </span>
-                  <span className="blog-sacred-count">{biharRamayanaPlaces.length} places</span>
+                  <span className="blog-sacred-count">
+                    {biharRamayanaPlaces.length} places
+                  </span>
                 </summary>
                 <div className="blog-sacred-place-grid">
                   {biharRamayanaPlaces.map((place) => (

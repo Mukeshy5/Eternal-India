@@ -15,8 +15,8 @@ export async function verifyResponsive(vite) {
   const { default: Layout } = await vite.ssrLoadModule("/src/Common/panel/PanelLayout.jsx");
   const cssFiles = ["index.css", "Comopents/Navbar.css", "Common/FloatingWhatsApp.css", "Common/festivals/PublicDecorations.css", "Common/AdminDashboard.css", "Common/UnifiedEnquiries.css", "Common/AdminTools.css", "Common/GmailVerification.css", "Common/staff/staff.css", "Common/staff/calendar.css", "Common/festivals/FestivalManagement.css", "Common/PaymentManagement.css", "Common/panel/PanelLayout.css", "responsive.css"];
   const css = cssFiles.map((path) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8").replace(/@import\s+[^;]+;/g, "")).join("\n");
-  const entries = ["NEW", "IN_PROGRESS", "RESOLVED", "CLOSED"].map((status, index) => ({ _id: String(index), name: "Responsive test guest", email: "guest@example.com", reference: `TEST-${index}`, message: "Message with a long address guest@example.com", source: ["WEBSITE", "WHATSAPP", "GMAIL"][index % 3], status, receivedAt: "2026-11-01T10:00:00Z" }));
-  const data = { enquiries: entries, total: 4, pages: 1, stats: { total: 4, NEW: 1, IN_PROGRESS: 1, RESOLVED: 1, CLOSED: 1 } };
+  const entries = ["NEW", "PENDING", "IN_PROGRESS", "FOLLOW_UP", "RESOLVED", "CANCELLED", "CLOSED"].map((status, index) => ({ _id: String(index), name: "Responsive test guest", email: "guest@example.com", reference: `TEST-${index}`, message: "Message with a long address guest@example.com", source: index < 3 ? ["WEBSITE", "WHATSAPP", "GMAIL"][index] : "WEBSITE", ...(index === 3 ? { contactChannel: "email" } : index === 4 ? { enquiryKind: "CONTACT" } : index === 5 ? { enquiryKind: "PLAN_TRIP" } : {}), status, receivedAt: "2026-11-01T10:00:00Z" }));
+  const data = { enquiries: entries, total: entries.length, pages: 1, stats: { total: entries.length, NEW: 1, IN_PROGRESS: 1, RESOLVED: 1, CLOSED: 1 } };
   const admin = { email: "admin@example.com", canManageAccounts: true };
   const panel = renderToStaticMarkup(createElement(MemoryRouter, null, createElement(Layout, { admin, section: "enquiries" }, createElement(Dashboard, { data, loaded: true, page: 1, searchInput: "", status: "" }))));
   const home = renderToStaticMarkup(createElement(MemoryRouter, null, createElement(Navbar), createElement(Home), createElement(FloatingContact)));
@@ -56,12 +56,13 @@ export async function verifyResponsive(vite) {
         assert.equal(computed(".panel-menu-button").minHeight, "44px");
       }
       const sourceColours = new Set(), statusColours = new Set();
-      for (const selector of [".enquiry-source-website", ".enquiry-source-whatsapp", ".enquiry-source-gmail", ".dashboard-status-new", ".dashboard-status-in_progress", ".dashboard-status-resolved", ".dashboard-status-closed"]) {
+      for (const selector of [".enquiry-source-website", ".enquiry-source-whatsapp", ".enquiry-source-gmail", ".enquiry-source-email", ".enquiry-source-contact", ".enquiry-source-plan", ".dashboard-status-new", ".dashboard-status-pending", ".dashboard-status-in_progress", ".dashboard-status-follow_up", ".dashboard-status-resolved", ".dashboard-status-cancelled", ".dashboard-status-closed"]) {
         const badge = computed(selector), foreground = luminance(badge.color), background = luminance(badge.backgroundColor);
         assert.ok((Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05) >= 4.5, `${width}: ${selector} meets normal text contrast`);
         (selector.includes("source") ? sourceColours : statusColours).add(badge.backgroundColor);
       }
-      assert.equal(sourceColours.size, 3); assert.equal(statusColours.size, 4);
+      assert.equal(sourceColours.size, 5); assert.equal(statusColours.size, 6);
+      if (width <= 680) assert.equal(computed('.enquiry-filter-row input[type="date"]').fontSize, "16px", "mobile date inputs avoid zoom");
     } finally { win.close(); }
   }
 

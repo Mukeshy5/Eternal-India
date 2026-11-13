@@ -1,4 +1,4 @@
-export const enquiryStatuses = ["NEW", "IN_PROGRESS", "RESOLVED", "CLOSED", "new", "pending", "confirmed", "cancelled", "contacted", "closed"];
+export const enquiryStatuses = ["NEW", "PENDING", "IN_PROGRESS", "FOLLOW_UP", "RESOLVED", "CANCELLED", "CLOSED", "new", "pending", "confirmed", "cancelled", "contacted", "closed"];
 export function validateEnquiry(body) {
   const errors = {};
   const fields = {};

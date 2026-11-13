@@ -69,7 +69,8 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
     if (await accounts.findOne(gmailAccountFilter(identity), { projection: { _id: 1 } })) return res.status(409).json({ message: "This Gmail already has an account or pending request. Sign in or use Forgot password." });
     if (username && await accounts.findOne({ usernameKey: username }, { projection: { _id: 1 } })) return res.status(409).json({ message: "This username is already in use." });
     const passwordHash = await hashPassword(password);
-    const record = { ...identity, ...(name ? { name } : {}), ...(username ? { username, usernameKey: username } : {}), passwordHash, roles: [role], status: "active", emailVerified: false, version: 1, createdAt: new Date(), ...(managed ? { createdBy: req.admin._id } : {}) };
+    const record = { _id: new ObjectId(), ...identity, ...(name ? { name } : {}), ...(username ? { username, usernameKey: username } : {}), passwordHash, roles: [role], status: "active", emailVerified: false, version: 1, createdAt: new Date(), ...(managed ? { createdBy: req.admin._id } : {}) };
+    record.notificationPending = { id: `account:${record._id}:created`, category: "New user registration", source: "REGISTRATION", title: "New panel account created", message: `A new ${role} account was created.`, audience: ["admin", "technical"], ...(req.admin ? { actorId: req.admin._id.toString() } : {}) };
     try {
       record._id = (await accounts.insertOne(record)).insertedId;
     } catch (error) {
@@ -77,14 +78,8 @@ export function registerAccounts({ app, management, db, requireAdmin, config, se
       throw error;
     }
     try {
-      await notifications?.publish({
-        id: `account:${record._id}:created`,
-        category: "New user registration",
-        title: "New panel account created",
-        message: `A new ${role} account was created.`,
-        audience: ["admin", "technical"],
-        ...(req.admin ? { actorId: req.admin._id } : {}),
-      });
+      await notifications?.publish(record.notificationPending);
+      if (notifications) await accounts.updateOne({ _id: record._id }, { $unset: { notificationPending: "" } });
     } catch (error) {
       console.error("New account notification could not be saved:", error.name);
     }

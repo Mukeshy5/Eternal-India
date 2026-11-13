@@ -42,7 +42,7 @@ export default function AccountManager({ apiBase, onUnauthorized }) {
         setEditing((current) => current?._id === result.account._id ? result.account : current);
       }
       setNotice(result?.message || message);
-      if (result?.reauthenticate) onUnauthorized(result.message);
+      if (result?.reauthenticate) onUnauthorized(result.message, { notice: true });
     }
     catch (failure) { setError(failure.message); if (failure.status === 401) onUnauthorized(); }
     finally { lock.current = false; setBusy(false); }

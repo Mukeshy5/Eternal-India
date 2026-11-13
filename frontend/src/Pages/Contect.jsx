@@ -40,6 +40,7 @@ export default function Contact() {
               We're here for both.
             </p>
           </div>
+          <Link className="button" to="/request-quote?source=contact">Send a contact enquiry <Icon name="arrow" /></Link>
           <div className="support-grid">
             <a
               className="support-option"

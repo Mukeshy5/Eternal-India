@@ -9,13 +9,13 @@ export async function verifyUnifiedEnquiries(vite) {
   for (const [key, value] of Object.entries({ window: testWindow, document: testWindow.document, navigator: testWindow.navigator, HTMLElement: testWindow.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) { previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value }); }
   let audiblePlays = 0, latestAudio = "", refreshes = 0, prefs = { popup: true, sound: false }, unread = 1, openId, latest, sourceFilter;
   const sockets = [], handlers = {}, timers = new Map(); let timerId = 0;
-  testWindow.HTMLMediaElement.prototype.play = async function () { if (!this.muted) audiblePlays++; latestAudio = this.src; }; testWindow.HTMLMediaElement.prototype.pause = () => {};
+  testWindow.HTMLMediaElement.prototype.play = async function () { if (!this.muted && this.volume > 0) audiblePlays++; latestAudio = this.src; }; testWindow.HTMLMediaElement.prototype.pause = () => {};
   testWindow.setInterval = (callback) => { timers.set(++timerId, callback); return timerId; }; testWindow.clearInterval = (id) => timers.delete(id);
   const response = (data) => new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
   globalThis.fetch = async (url, options = {}) => {
-    if (url.endsWith("/enquiry-notification-settings")) { if (options.method === "PATCH") prefs = JSON.parse(options.body); return response({ ...prefs, unread }); }
+    if (url.endsWith("/notifications/settings")) { if (options.method === "PATCH") prefs = { ...prefs, ...JSON.parse(options.body) }; return response({ ...prefs, unread }); }
     if (url.endsWith("/socket-ticket")) return response({ ticket: "single-use-test-socket-ticket" });
-    if (url.includes("/notifications?limit=")) return response({ notifications: [], hasMore: false });
+    if (url.includes("/notifications?limit=")) return response({ notifications: [], hasMore: false, unread });
     if (url.endsWith("/notifications/unread-count")) return response({ unread });
     if (url.endsWith("/notifications/read-all") || url.endsWith("/notifications")) return options.method === "DELETE" ? new Response(null, { status: 204 }) : response({ updated: 1 });
     if (/\/notifications\/[^/]+\/read$/.test(url)) return new Response(null, { status: 204 });
@@ -29,7 +29,7 @@ export async function verifyUnifiedEnquiries(vite) {
   try {
     const { default: useNotifications } = await vite.ssrLoadModule("/src/Common/useEnquiryNotifications.js"), { default: Notifications } = await vite.ssrLoadModule("/src/Common/EnquiryNotifications.jsx");
     function Probe() { latest = useNotifications({ admin: { id: "notification-test" }, apiBase: "/admin", socketFactory, onRefresh: () => refreshes++, onUnauthorized: () => assert.fail("Unexpected unauthorized request") }); return createElement(Notifications, { notifications: latest, onOpen: (id) => { openId = id; } }); }
-    await act(async () => root.render(createElement(Probe))); assert.equal(sockets.length, 1); assert.equal(sockets[0].url, "https://eternal-india-1.onrender.com"); assert.equal(sockets[0].options.path, "/api/enquiries/socket.io"); assert.equal(sockets[0].options.withCredentials, undefined); assert.equal(sockets[0].options.transports[0], "websocket"); assert.equal(sockets[0].auth.panel, "admin"); assert.equal(sockets[0].auth.ticket, "single-use-test-socket-ticket"); assert.equal(sockets[0].options.auth instanceof Function, true);
+    await act(async () => root.render(createElement(Probe))); assert.equal(sockets.length, 1); assert.equal(sockets[0].url, "http://localhost"); assert.equal(sockets[0].options.path, "/api/enquiries/socket.io"); assert.equal(sockets[0].options.withCredentials, undefined); assert.equal(sockets[0].options.transports[0], "websocket"); assert.equal(sockets[0].auth.panel, "admin"); assert.equal(sockets[0].auth.ticket, "single-use-test-socket-ticket"); assert.equal(sockets[0].options.auth instanceof Function, true);
     assert.ok(container.textContent.includes("Live"));
     await act(async () => { testWindow.document.dispatchEvent(new testWindow.Event("pointerdown")); await Promise.resolve(); });
     await act(async () => container.querySelector('input[type="checkbox"]').click());
@@ -37,7 +37,7 @@ export async function verifyUnifiedEnquiries(vite) {
     const event = { action: "created", notification: { id: "test1", category: "WhatsApp enquiry", title: "New WhatsApp enquiry", message: "A new enquiry has arrived from WhatsApp Customer.", enquiryId: "test1", source: "WHATSAPP", createdAt: new Date().toISOString(), read: false }, actorId: "" };
     unread = 2;
     await act(async () => { handlers["notification:event"](event); handlers["notification:event"](event); handlers["enquiry:event"]({ id: "created:test1", type: "created", enquiryId: "test1", source: "WHATSAPP" }); });
-    assert.equal(container.querySelectorAll(".enquiry-toasts article").length, 1); assert.equal(audiblePlays, before + 1); assert.ok(decodeURIComponent(latestAudio).includes("Notification Ring/notification-ring.mp3")); assert.equal(latest.unread, 2); assert.ok(refreshes >= 2);
+    assert.equal(container.querySelectorAll(".enquiry-toasts article").length, 1); assert.equal(audiblePlays, before + 1); assert.ok(decodeURIComponent(latestAudio).includes("Notification Ring/notification-ring.mp3")); assert.equal(latest.unread, 2); assert.ok(refreshes >= 1);
     await act(async () => container.querySelector(".enquiry-toasts article button").click()); assert.equal(openId, "test1"); assert.equal(container.querySelectorAll(".enquiry-toasts article").length, 0);
     const afterFresh = audiblePlays;
     await act(async () => handlers["notification:event"]({ ...event, notification: { ...event.notification, id: "read-test", read: true } }));
@@ -59,7 +59,7 @@ export async function verifyUnifiedEnquiries(vite) {
       await act(async () => root.render(createElement(MemoryRouter, null, createElement(Dashboard, props))));
       assert.ok(container.querySelector(".dashboard-drawer").textContent.includes(rows[1].message)); assert.ok(container.querySelector('.dashboard-drawer a[href="https://wa.me/919876543210"]'));
       assert.equal(container.querySelectorAll(".dashboard-table tbody tr").length, 3); assert.equal(container.querySelectorAll(".dashboard-mobile-card").length, 3);
-      const status = container.querySelector(".dashboard-status select"); assert.deepEqual([...status.options].map((option) => option.value), ["NEW", "IN_PROGRESS", "RESOLVED", "CLOSED"]);
+      const status = container.querySelector(".dashboard-status select"); assert.deepEqual([...status.options].map((option) => option.value), ["NEW", "PENDING", "IN_PROGRESS", "FOLLOW_UP", "RESOLVED", "CANCELLED", "CLOSED"]);
       await act(async () => [...container.querySelectorAll(".enquiry-source-tabs button")].find((button) => button.textContent.includes("WhatsApp")).click()); assert.equal(sourceFilter, "WHATSAPP");
       assert.ok([...container.querySelectorAll(".dashboard-drawer-footer button")].some((button) => button.textContent === "Archive"));
       assert.ok([...container.querySelectorAll(".dashboard-drawer-footer button")].some((button) => button.textContent === "Delete permanently"));

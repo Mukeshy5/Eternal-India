@@ -16,8 +16,9 @@ export async function verifyOtpGates(vite) {
   const legacy = await ensureAdmin(db, { ...config, adminEmail: "existing.ui.account@gmail.com" });
   const backend = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await backend.decorationsReady;
   const server = backend.app.listen(0, "127.0.0.1"); await once(server, "listening");
+  backend.enquirySystem.realtime.attach(server);
   const base = `http://127.0.0.1:${server.address().port}`;
-  const browser = new Window({ url: "http://localhost/admin/register" }), previous = new Map();
+  const browser = new Window({ url: `${base}/admin/register` }), previous = new Map();
   for (const [key, value] of Object.entries({ window: browser, document: browser.document, navigator: browser.navigator, HTMLElement: browser.HTMLElement, FormData: browser.FormData, IS_REACT_ACT_ENVIRONMENT: true })) { previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value }); }
   const originalFetch = globalThis.fetch; let cookie = "";
   globalThis.fetch = async (url, options = {}) => {
@@ -71,7 +72,7 @@ export async function verifyOtpGates(vite) {
     await act(async () => { type('[name="accountEmail"]', config.adminEmail); type('[name="accountPassword"]', "UpdatedOwnerUiPassword9"); });
     await act(async () => type('[name="accountConfirmPassword"]', "UpdatedOwnerUiPassword9"));
     await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new browser.Event("submit", { bubbles: true, cancelable: true })));
-    await waitFor(() => container.querySelector(".admin-login-form"), "editing your own account returns to sign in");
+    await waitFor(() => container.querySelector(".admin-login-form") && container.querySelector(".admin-success")?.textContent.includes("updated"), "editing your own account returns to sign in with its confirmation");
     assert.ok(container.querySelector(".admin-success")?.textContent.includes("updated"));
     await act(async () => { type("#admin-email", config.adminEmail); type("#admin-password", "UpdatedOwnerUiPassword9"); });
     await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new browser.Event("submit", { bubbles: true, cancelable: true })));
@@ -98,7 +99,7 @@ export async function verifyOtpGates(vite) {
     assert.ok(await db.collection("admins").findOne({ _id: legacy._id }), "cancelling deletion keeps the account");
     browser.confirm = () => true;
     await act(async () => [...row.querySelectorAll("button")].find((button) => button.textContent === "Delete account").click());
-    await waitFor(async () => await db.collection("admins").findOne({ _id: legacy._id }) === null && container.querySelectorAll(".panel-record-row").length === 2, "account deletion updates MongoDB and UI");
+    await waitFor(async () => await db.collection("admins").findOne({ _id: legacy._id }) === null && container.querySelectorAll(".panel-record-row").length === 1, "account deletion leaves the one remaining owner in MongoDB and UI");
     await waitForAccountAction();
     assert.equal(container.querySelector('[name="accountEmail"]').value, "", "deleting the edited account clears the editor");
     await act(async () => accountButton(config.adminEmail, "Delete account").click());
@@ -166,7 +167,7 @@ export async function verifyOtpGates(vite) {
   } finally {
     await act(async () => root.unmount()); globalThis.fetch = originalFetch; await browser.happyDOM.close();
     for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
-    await backend.decorationScheduler.stop(); await backend.drainSessions(); await new Promise((resolve) => server.close(resolve));
+    await backend.enquirySystem.stop(); await backend.decorationScheduler.stop(); await backend.drainSessions(); if (server.listening) await new Promise((resolve) => server.close(resolve));
     if (!db.databaseName.startsWith("eternal_india_test_")) throw Error("Refusing to delete a non-test database.");
     await db.dropDatabase(); await client.close();
   }

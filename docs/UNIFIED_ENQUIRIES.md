@@ -1,5 +1,7 @@
 # Unified enquiry inbox
 
+For current notification behavior, repaired failure paths, per-user state, APIs and verification limits, see [Notification repairs](NOTIFICATION_REPAIR.md). This supersedes the older notification and status descriptions below.
+
 The existing `enquiries` MongoDB collection now receives direct website submissions, signed WhatsApp Business Cloud API messages and Gmail API imports. Both `/admin` and `/technical` use the same protected endpoints and records. No second enquiry database or browser storage is used.
 
 ## Records and existing data

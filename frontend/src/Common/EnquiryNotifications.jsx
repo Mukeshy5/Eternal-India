@@ -5,7 +5,7 @@ import "./UnifiedEnquiries.css";
 
 export default function EnquiryNotifications({ notifications, onOpen, onOpenAll }) {
   function clearAll() {
-    if (notifications.items.length && window.confirm("Clear all notifications from both panels?")) void notifications.clearAll();
+    if (notifications.items.length && window.confirm("Clear your notification history in both panels? Other users keep their notifications.")) void notifications.clearAll();
   }
   return <>
     <details className="enquiry-notification-menu">
@@ -22,15 +22,18 @@ export default function EnquiryNotifications({ notifications, onOpen, onOpenAll 
           <button type="button" disabled={!notifications.unread} onClick={() => void notifications.markAllRead()}>Mark all as read</button>
           <button type="button" disabled={!notifications.items.length} onClick={clearAll}>Clear all</button>
         </div>
-        <p>{notifications.connected ? "Real-time updates are connected." : "Updates will resume when you reconnect."}</p>
+        <p role="status">{notifications.connected ? "Real-time updates are connected." : notifications.connectionNotice || "Updates will resume when you reconnect."}</p>
         <div className="notification-preferences">
-          <label><input type="checkbox" checked={notifications.preferences.sound} onChange={() => void notifications.toggleSound()} />Notification sound</label>
-          <label><input type="checkbox" checked={notifications.preferences.popup} onChange={notifications.togglePopup} />Show new-alert popups</label>
+          <label><input type="checkbox" disabled={notifications.savingPreferences || notifications.loading} checked={notifications.preferences.sound} onChange={() => void notifications.toggleSound()} />Notification sound</label>
+          <label><input type="checkbox" disabled={notifications.savingPreferences || notifications.loading} checked={notifications.preferences.popup} onChange={notifications.togglePopup} />Show new-alert popups</label>
         </div>
+        {notifications.preferences.sound && !notifications.soundReady && <button type="button" className="notification-enable-sound" onClick={notifications.unlockSound}>Enable sound in this browser</button>}
+        {notifications.soundNotice && <p role="status">{notifications.soundNotice}</p>}
         {notifications.error && <p className="notification-error" role="alert">{notifications.error}</p>}
+        {notifications.error && <button type="button" onClick={() => void notifications.refresh()}>Retry notifications</button>}
         <div className="notification-dropdown-list">
           <NotificationList
-            items={notifications.items.slice(0, 5)}
+            items={notifications.items}
             notifications={notifications}
             onOpen={onOpen}
           />
@@ -42,7 +45,7 @@ export default function EnquiryNotifications({ notifications, onOpen, onOpenAll 
     <div className="enquiry-toasts" aria-live="polite" aria-label="New notifications">{notifications.toasts.map((event) => (
       <article key={event.id}>
         <div>
-          <span>{event.source ? `${enquirySources[event.source] || event.source} enquiry` : event.category}</span>
+          <span>{event.enquiryId && event.source ? `${enquirySources[event.source] || event.source} enquiry` : event.category}</span>
           <strong>{event.title}</strong>
           <p>{event.message}</p>
         </div>

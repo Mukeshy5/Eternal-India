@@ -3,7 +3,7 @@ import NotificationList from "./NotificationList";
 
 export default function NotificationCenter({ notifications, onOpenEnquiry }) {
   function clearAll() {
-    if (notifications.items.length && window.confirm("Clear all notifications? This removes them from both panels.")) {
+    if (notifications.items.length && window.confirm("Clear your notifications in both panels? Other users keep their notifications.")) {
       void notifications.clearAll();
     }
   }
@@ -19,6 +19,12 @@ export default function NotificationCenter({ notifications, onOpenEnquiry }) {
         <button type="button" className="dashboard-button" disabled={!notifications.items.length} onClick={clearAll}>Clear all</button>
       </div>
     </header>
+    <div className="notification-preferences">
+      <label><input type="checkbox" checked={notifications.preferences.sound} disabled={notifications.savingPreferences || notifications.loading} onChange={notifications.toggleSound} />Notification sound</label>
+      <label><input type="checkbox" checked={notifications.preferences.popup} disabled={notifications.savingPreferences || notifications.loading} onChange={notifications.togglePopup} />Show popups</label>
+      {notifications.preferences.sound && !notifications.soundReady && <button type="button" className="notification-enable-sound" onClick={notifications.unlockSound}>Enable sound in this browser</button>}
+    </div>
+    {notifications.soundNotice && <p role="status">{notifications.soundNotice}</p>}
     {notifications.error && <p className="notification-error" role="alert">{notifications.error}</p>}
     {notifications.loading && !notifications.items.length ? <p className="notification-empty" role="status">Loading notifications…</p> : <NotificationList items={notifications.items} notifications={notifications} onOpen={onOpenEnquiry} />}
     {notifications.hasMore && <button type="button" className="dashboard-button notification-load-more" disabled={notifications.loading} onClick={() => void notifications.loadMore()}>{notifications.loading ? "Loading…" : "Load more"}</button>}

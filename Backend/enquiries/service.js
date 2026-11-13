@@ -15,20 +15,21 @@ export function createEnquiryService({ db, notifications }) {
     for (const event of record.pendingEvents || []) {
       const saved = await db.collection("enquiry_events").findOneAndUpdate({ _id: event.id }, { $setOnInsert: { ...event, enquiryId: record._id.toString(), name: record.name, source: record.source, publishedAt: new Date() } }, { upsert: true, returnDocument: "after" });
       await db.collection("enquiry_history").updateOne({ _id: event.id }, { $setOnInsert: { enquiryId: record._id, reference: record.reference, action: event.type === "created" ? "created" : event.type === "archived" ? "archived" : event.type === "restored" ? "restored" : "updated", status: event.status || record.status, from: event.from, changedAt: event.at } }, { upsert: true });
-      await collection.updateOne({ _id: record._id }, { $pull: { pendingEvents: { id: event.id } } });
       if (event.type === "created") {
         const source = record.source || "WEBSITE";
-        const sourceName = source === "WHATSAPP" ? "WhatsApp" : source === "GMAIL" ? "Gmail" : "Website";
+        const sourceName = source === "WHATSAPP" ? "WhatsApp" : source === "GMAIL" ? "Gmail" : record.contactChannel === "email" ? "Email" : record.contactChannel === "whatsapp" ? "WhatsApp" : record.enquiryKind === "CONTACT" ? "Contact" : record.enquiryKind === "PLAN_TRIP" ? "Plan your trip" : "Website";
         await notifications?.publish({
           id: `enquiry:${record._id}`,
           category: `${sourceName} enquiry`,
           title: `New ${sourceName} enquiry`,
-          message: `A new enquiry has arrived from ${record.name}.`,
+          message: `A new enquiry has arrived from ${record.name.slice(0, 240)}.`,
           source,
           enquiryId: record._id.toString(),
         });
         await db.collection("enquiry_events").updateOne({ _id: event.id }, { $set: { notificationCreated: true } });
       }
+      // Keep the durable retry marker until the notification has also saved.
+      await collection.updateOne({ _id: record._id }, { $pull: { pendingEvents: { id: event.id } } });
       notify(saved);
     }
   }

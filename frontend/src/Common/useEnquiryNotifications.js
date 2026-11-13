@@ -1,326 +1,171 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { api, socketServerUrl } from "./api";
-import notificationRing from "../assets/Notification Ring/notification-ring.mp3";
+import { createNotificationSound } from "./notificationSound";
 
 const initialPreferences = { popup: true, sound: true };
 const maxNotifications = 20;
 
 export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onUnauthorized, socketFactory = io }) {
   const adminId = admin?.id || admin?._id;
-  const [items, setItems] = useState([]);
-  const [unread, setUnread] = useState(0);
-  const [preferences, setPreferences] = useState(initialPreferences);
-  const [toasts, setToasts] = useState([]);
-  const [connected, setConnected] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [loadedAccount, setLoadedAccount] = useState("");
-  const loading = Boolean(adminId && loadedAccount !== adminId) || loadingMore;
-  const [hasMore, setHasMore] = useState(false);
-  const [error, setError] = useState("");
-  const cursor = useRef("");
-  const seen = useRef(new Set());
-  const itemsRef = useRef(items);
-  const preferencesRef = useRef(preferences);
-  const sound = useRef(null);
-  const soundUnlocked = useRef(false);
-  const queuedSound = useRef(false);
-  const loaded = useRef(false);
-  const notificationReceivedDuringLoad = useRef(false);
-  const mounted = useRef(false);
+  const [items, setItems] = useState([]), [unread, setUnread] = useState(0);
+  const [preferences, setPreferences] = useState(initialPreferences), [toasts, setToasts] = useState([]);
+  const [connected, setConnected] = useState(false), [loading, setLoading] = useState(false), [hasMore, setHasMore] = useState(false);
+  const [error, setError] = useState(""), [connectionNotice, setConnectionNotice] = useState("");
+  const [soundReady, setSoundReady] = useState(false), [soundNotice, setSoundNotice] = useState(""), [savingPreferences, setSavingPreferences] = useState(false);
+  const runtime = useRef(null), itemsRef = useRef([]), preferencesRef = useRef(initialPreferences);
   const callbacks = useRef({ onRefresh, onUnauthorized });
+  useEffect(() => { callbacks.current = { onRefresh, onUnauthorized }; }, [onRefresh, onUnauthorized]);
   const updateItems = useCallback((update) => {
     const next = typeof update === "function" ? update(itemsRef.current) : update;
-    itemsRef.current = next;
-    setItems(next);
+    itemsRef.current = next; setItems(next);
   }, []);
-  const updatePreferences = useCallback((update) => {
-    const next = typeof update === "function" ? update(preferencesRef.current) : update;
-    preferencesRef.current = next;
-    setPreferences(next);
+  const updatePreferences = useCallback((next) => {
+    preferencesRef.current = next; setPreferences(next);
+    if (!next.sound) runtime.current?.audio.stop();
   }, []);
-
-  useEffect(() => { callbacks.current = { onRefresh, onUnauthorized }; }, [onRefresh, onUnauthorized]);
-
-  const handleFailure = useCallback((failure) => {
-    if (failure?.name === "AbortError") return;
-    setError(failure?.message || "Notifications could not be updated.");
-    if (failure?.status === 401) callbacks.current.onUnauthorized?.(failure.message);
+  const failure = useCallback((err) => {
+    if (err.name === "AbortError") return;
+    setError(err.message || "Notifications could not be updated.");
+    if (err.status === 401) callbacks.current.onUnauthorized?.(err.message);
   }, []);
-
-  const refreshUnread = useCallback(async () => {
-    const result = await api(`${apiBase}/notifications/unread-count`);
-    setUnread(result.unread);
-  }, [apiBase]);
-
-  const loadFirstPage = useCallback(async () => {
-    const [page, count] = await Promise.all([
-      api(`${apiBase}/notifications?limit=${maxNotifications}`),
-      api(`${apiBase}/notifications/unread-count`),
-    ]);
-    cursor.current = page.cursor || "";
-    setHasMore(Boolean(page.hasMore));
-    setUnread(count.unread);
-    for (const item of page.notifications) seen.current.add(item.id);
-    const live = itemsRef.current.filter((item) => !page.notifications.some((loaded) => loaded.id === item.id));
-    updateItems([...live, ...page.notifications].slice(0, maxNotifications));
-    loaded.current = true;
-    if (notificationReceivedDuringLoad.current) {
-      notificationReceivedDuringLoad.current = false;
-      void refreshUnread().catch(handleFailure);
-    }
-    setError("");
-  }, [apiBase, handleFailure, refreshUnread, updateItems]);
+  const dismiss = useCallback((id) => setToasts((current) => current.filter((item) => item.id !== id)), []);
+  const request = useCallback((path, options = {}) => api(`${apiBase}${path}`, { ...options, signal: runtime.current?.controller.signal }), [apiBase]);
+  const refresh = useCallback(() => runtime.current?.refresh().catch(failure), [failure]);
 
   const loadMore = useCallback(async () => {
-    if (!cursor.current || loadingMore) return;
-    setLoadingMore(true);
+    const current = runtime.current;
+    if (!current?.cursor || current.loadingMore) return;
+    current.loadingMore = true; setLoading(true);
     try {
-      const page = await api(`${apiBase}/notifications?limit=${maxNotifications}&cursor=${encodeURIComponent(cursor.current)}`);
-      cursor.current = page.cursor || "";
-      setHasMore(Boolean(page.hasMore));
-      for (const item of page.notifications) seen.current.add(item.id);
+      const page = await request(`/notifications?limit=${maxNotifications}&cursor=${encodeURIComponent(current.cursor)}`);
+      if (runtime.current !== current) return;
+      current.cursor = page.cursor || ""; setHasMore(page.hasMore);
       const ids = new Set(itemsRef.current.map((item) => item.id));
-      updateItems([...itemsRef.current, ...page.notifications.filter((item) => !ids.has(item.id))]);
-      setError("");
-    } catch (failure) {
-      handleFailure(failure);
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [apiBase, handleFailure, loadingMore, updateItems]);
-
-  const markRead = useCallback(async (id) => {
+      updateItems((items) => [...items, ...page.notifications.filter((item) => !ids.has(item.id))]); setError("");
+    } catch (err) { if (runtime.current === current) failure(err); }
+    finally { current.loadingMore = false; if (runtime.current === current) setLoading(false); }
+  }, [request, failure, updateItems]);
+  const mutate = useCallback(async (path, method) => {
+    const current = runtime.current;
+    if (!current) return;
     try {
-      await api(`${apiBase}/notifications/${encodeURIComponent(id)}/read`, { method: "PATCH" });
-      const changed = itemsRef.current.some((item) => item.id === id && !item.read);
-      updateItems((current) => current.map((item) => {
-        if (item.id !== id || item.read) return item;
-        return { ...item, read: true };
-      }));
-      if (changed) setUnread((value) => Math.max(0, value - 1));
-      setError("");
-    } catch (failure) {
-      handleFailure(failure);
-    }
-  }, [apiBase, handleFailure, updateItems]);
-
-  const markAllRead = useCallback(async () => {
-    try {
-      await api(`${apiBase}/notifications/read-all`, { method: "PATCH" });
-      updateItems((current) => current.map((item) => ({ ...item, read: true })));
-      setUnread(0);
-      setError("");
-    } catch (failure) {
-      handleFailure(failure);
-    }
-  }, [apiBase, handleFailure, updateItems]);
-
-  const remove = useCallback(async (id) => {
-    try {
-      await api(`${apiBase}/notifications/${encodeURIComponent(id)}`, { method: "DELETE" });
-      const wasUnread = itemsRef.current.some((item) => item.id === id && !item.read);
-      updateItems((current) => current.filter((item) => item.id !== id));
-      if (wasUnread) setUnread((value) => Math.max(0, value - 1));
-      setError("");
-    } catch (failure) {
-      handleFailure(failure);
-    }
-  }, [apiBase, handleFailure, updateItems]);
-
-  const clearAll = useCallback(async () => {
-    try {
-      await api(`${apiBase}/notifications`, { method: "DELETE" });
-      updateItems([]);
-      setUnread(0);
-      setHasMore(false);
-      cursor.current = "";
-      setError("");
-    } catch (failure) {
-      handleFailure(failure);
-    }
-  }, [apiBase, handleFailure, updateItems]);
-
-  const dismiss = useCallback((id) => setToasts((current) => current.filter((item) => item.id !== id)), []);
-
+      await request(path, { method });
+      if (runtime.current !== current) return;
+      await current.refresh(); setError("");
+    } catch (err) { if (runtime.current === current) failure(err); }
+  }, [request, failure]);
+  const markRead = useCallback((id) => { dismiss(id); return mutate(`/notifications/${encodeURIComponent(id)}/read`, "PATCH"); }, [mutate, dismiss]);
+  const markAllRead = useCallback(() => mutate("/notifications/read-all", "PATCH"), [mutate]);
+  const remove = useCallback((id) => { dismiss(id); return mutate(`/notifications/${encodeURIComponent(id)}`, "DELETE"); }, [mutate, dismiss]);
+  const clearAll = useCallback(() => mutate("/notifications", "DELETE"), [mutate]);
+  const unlockSound = useCallback(() => runtime.current?.audio.unlock(), []);
   const savePreference = useCallback(async (key, value) => {
+    const current = runtime.current;
+    if (!current || current.savingPreferences) return;
+    current.savingPreferences = true; setSavingPreferences(true);
     const previous = preferencesRef.current;
-    const next = { ...previous, [key]: value };
-    updatePreferences(next);
+    updatePreferences({ ...previous, [key]: value });
     try {
-      await api(`${apiBase}/enquiry-notification-settings`, { method: "PATCH", body: JSON.stringify(next) });
-      setError("");
-      return true;
-    } catch (failure) {
-      if (preferencesRef.current[key] === value) updatePreferences(previous);
-      handleFailure(failure);
-      return false;
-    }
-  }, [apiBase, handleFailure, updatePreferences]);
-
-  const unlockSound = useCallback(async () => {
-    const player = sound.current;
-    if (!player || soundUnlocked.current) return;
-    player.muted = true;
-    try {
-      await player.play();
-      player.pause();
-      player.currentTime = 0;
-      player.muted = false;
-      soundUnlocked.current = true;
-      const shouldPlay = queuedSound.current && preferencesRef.current.sound;
-      queuedSound.current = false;
-      if (shouldPlay) {
-        player.currentTime = 0;
-        await player.play();
-      }
-    } catch {
-      player.muted = false;
-    }
-  }, []);
-
-  const toggleSound = useCallback(async () => {
+      const saved = await request("/notifications/settings", { method: "PATCH", body: JSON.stringify({ [key]: value }) });
+      if (runtime.current === current) { updatePreferences(saved); setError(""); }
+    } catch (err) { if (runtime.current === current) { updatePreferences(previous); failure(err); } }
+    finally { current.savingPreferences = false; if (runtime.current === current) setSavingPreferences(false); }
+  }, [request, updatePreferences, failure]);
+  const toggleSound = useCallback(() => {
     const enabled = !preferencesRef.current.sound;
-    await savePreference("sound", enabled);
-  }, [savePreference]);
-
-  const togglePopup = useCallback(() => { void savePreference("popup", !preferencesRef.current.popup); }, [savePreference]);
+    if (enabled) void unlockSound();
+    return savePreference("sound", enabled);
+  }, [savePreference, unlockSound]);
+  const togglePopup = useCallback(() => savePreference("popup", !preferencesRef.current.popup), [savePreference]);
 
   useEffect(() => {
     if (!adminId) return undefined;
-    mounted.current = true;
-    const startedAt = Date.now();
-    seen.current.clear();
-    loaded.current = false;
-    notificationReceivedDuringLoad.current = false;
-    updateItems([]);
-    setUnread(0);
-    setToasts([]);
-    setHasMore(false);
-    setConnected(false);
-    setError("");
-    updatePreferences(initialPreferences);
-    cursor.current = "";
-    soundUnlocked.current = false;
-    queuedSound.current = false;
-    const player = document.createElement("audio");
-    player.src = notificationRing;
-    player.preload = "auto";
-    player.volume = 0.55;
-    sound.current = player;
-    const prime = () => { void unlockSound(); };
-    document.addEventListener("pointerdown", prime, { passive: true });
-    document.addEventListener("keydown", prime);
-    Promise.all([
-      api(`${apiBase}/enquiry-notification-settings`),
-      api(`${apiBase}/notifications?limit=${maxNotifications}`),
-    ]).then(([settings, page]) => {
-      if (!mounted.current) return;
-      updatePreferences({ popup: settings.popup, sound: settings.sound });
-      cursor.current = page.cursor || "";
-      setHasMore(Boolean(page.hasMore));
-      setUnread(settings.unread);
-      for (const item of page.notifications) seen.current.add(item.id);
-      const live = itemsRef.current.filter((item) => !page.notifications.some((loaded) => loaded.id === item.id));
-      updateItems([...live, ...page.notifications].slice(0, maxNotifications));
-      setError("");
-    }).catch(handleFailure).finally(() => {
-      if (mounted.current) {
-        loaded.current = true;
-        setLoadedAccount(adminId);
-      }
-    });
-
-    const socket = socketFactory(socketServerUrl(), {
-      path: "/api/enquiries/socket.io",
-      auth: (done) => {
-        void api(`${apiBase}/socket-ticket`, { method: "POST", body: "{}" })
-          .then(({ ticket }) => done({ panel: apiBase.slice(1), ticket }))
-          .catch((failure) => { handleFailure(failure); done({ panel: apiBase.slice(1) }); });
-      },
-      transports: ["websocket", "polling"],
-      reconnection: true,
-    });
-    const refreshData = () => {
-      callbacks.current.onRefresh?.();
-      if (loaded.current) void loadFirstPage().catch(handleFailure);
+    const current = { controller: new AbortController(), liveSeen: new Set(), cursor: "", revision: 0, startedAt: Date.now(), settingsLoaded: false, retries: 0 };
+    const active = () => runtime.current === current && !current.controller.signal.aborted;
+    current.audio = createNotificationSound({ onState: (ready) => { if (active()) setSoundReady(ready); }, onNotice: (notice) => { if (active()) setSoundNotice(notice); } });
+    runtime.current = current;
+    updateItems([]); setUnread(0); setToasts([]); setHasMore(false); setConnected(false); setError(""); setConnectionNotice(""); setSoundNotice(""); setSoundReady(false); setLoading(true); setSavingPreferences(false); updatePreferences(initialPreferences);
+    const prime = () => { void current.audio.unlock(); };
+    document.addEventListener("pointerdown", prime, { passive: true }); document.addEventListener("keydown", prime); document.addEventListener("touchend", prime, { passive: true });
+    const call = (path, options = {}) => api(`${apiBase}${path}`, { ...options, signal: current.controller.signal });
+    const report = (err) => { if (active()) failure(err); };
+    current.loadSettings = async () => {
+      const settings = await call("/notifications/settings");
+      if (active() && !current.savingPreferences) { updatePreferences({ popup: settings.popup, sound: settings.sound }); current.settingsLoaded = true; }
     };
-    const receiveNotification = (event) => {
-      if (event.action === "created" && event.notification) {
+    // Coalesce activity bursts. Discard a snapshot overtaken by live mutations.
+    current.refresh = () => {
+      current.refreshAgain = true;
+      if (current.refreshing) return current.refreshing;
+      current.refreshing = (async () => {
+        while (active() && current.refreshAgain) {
+          current.refreshAgain = false;
+          const revision = current.revision;
+          const page = await call(`/notifications?limit=${maxNotifications}`);
+          if (!active()) return;
+          if (revision !== current.revision) { current.refreshAgain = true; continue; }
+          current.cursor = page.cursor || ""; setHasMore(Boolean(page.hasMore));
+          updateItems(page.notifications); setUnread(page.unread); setError("");
+        }
+      })().finally(() => { current.refreshing = null; });
+      return current.refreshing;
+    };
+    const socket = socketFactory(socketServerUrl(), {
+      autoConnect: false, path: "/api/enquiries/socket.io",
+      auth: (done) => { void call("/socket-ticket", { method: "POST", body: "{}" }).then(({ ticket }) => {
+        if (active()) done({ panel: apiBase.slice(1), ticket, since: new Date(current.startedAt).toISOString() });
+      }).catch((err) => { report(err); if (active()) done({ panel: apiBase.slice(1) }); }); },
+      transports: ["websocket", "polling"], tryAllTransports: true, reconnection: true,
+    });
+    const receive = (event) => {
+      if (!active() || event.userId && event.userId !== adminId) return;
+      current.revision++;
+      if (event.action === "settings") { updatePreferences(event.preferences); return; }
+      if (event.action === "created" && event.notification?.id) {
         const item = { ...event.notification, read: Boolean(event.notification.read || event.actorId === adminId) };
-        if (seen.current.has(item.id)) return;
-        seen.current.add(item.id);
-        if (!loaded.current) notificationReceivedDuringLoad.current = true;
-        updateItems((current) => [item, ...current.filter((entry) => entry.id !== item.id)].slice(0, maxNotifications));
-        if (!item.read) {
-          setUnread((value) => value + 1);
-          const createdAt = new Date(item.createdAt).getTime();
-          if (createdAt >= startedAt) {
-            if (preferencesRef.current.sound) {
-              if (soundUnlocked.current) {
-                player.currentTime = 0;
-                void player.play().catch(() => setError("A new notification arrived, but your browser blocked the sound."));
-              } else queuedSound.current = true;
-            }
-            if (preferencesRef.current.popup) setToasts((current) => [item, ...current.filter((entry) => entry.id !== item.id)].slice(0, 3));
-          }
+        if (current.liveSeen.has(item.id)) return;
+        current.liveSeen.add(item.id);
+        updateItems((items) => [item, ...items.filter((entry) => entry.id !== item.id)].slice(0, maxNotifications));
+        if (!item.read) setUnread((count) => count + 1);
+        // Initial loads and recovered history never produce audio or popups.
+        if (!event.replay && !item.read && current.settingsLoaded && (event.fresh === true || Date.parse(item.createdAt) >= current.startedAt)) {
+          if (preferencesRef.current.sound) void current.audio.play(item.id, () => active() && preferencesRef.current.sound && itemsRef.current.some((entry) => entry.id === item.id && !entry.read));
+          if (preferencesRef.current.popup) setToasts((items) => [item, ...items].slice(0, 3));
         }
       } else if (event.action === "read") {
-        const wasUnread = itemsRef.current.some((item) => item.id === event.id && !item.read);
-        updateItems((current) => current.map((item) => item.id === event.id ? { ...item, read: true } : item));
-        if (wasUnread) setUnread((value) => Math.max(0, value - 1));
-      } else if (event.action === "read-all") {
-        updateItems((current) => current.map((item) => ({ ...item, read: true })));
-        setUnread(0);
+        const unreadItem = itemsRef.current.some((item) => item.id === event.id && !item.read);
+        updateItems((items) => items.map((item) => item.id === event.id ? { ...item, read: true } : item));
+        if (unreadItem) setUnread((count) => Math.max(0, count - 1)); dismiss(event.id);
       } else if (event.action === "deleted") {
-        const wasUnread = itemsRef.current.some((item) => item.id === event.id && !item.read);
-        updateItems((current) => current.filter((item) => item.id !== event.id));
-        if (wasUnread) setUnread((value) => Math.max(0, value - 1));
-        dismiss(event.id);
-      } else if (event.action === "cleared") {
-        updateItems([]);
-        setUnread(0);
-        setHasMore(false);
-        cursor.current = "";
-        setToasts([]);
+        updateItems((items) => items.filter((item) => item.id !== event.id)); dismiss(event.id);
+      } else if (["read-all", "cleared"].includes(event.action)) {
+        const affected = (item) => (!event.panel || !item.audience || item.audience.includes(event.panel)) && (!event.before || Date.parse(item.createdAt) <= Date.parse(event.before));
+        updateItems((items) => event.action === "cleared" ? items.filter((item) => !affected(item)) : items.map((item) => affected(item) ? { ...item, read: true } : item));
+        setToasts((items) => items.filter((item) => !affected(item)));
       }
+      void current.refresh().catch(report);
     };
-    const onConnect = () => setConnected(true);
-    const onReady = () => { setConnected(true); refreshData(); };
-    const onDisconnect = () => setConnected(false);
-    const onOnline = () => { if (!socket.connected) socket.connect(); else refreshData(); };
-    const onFocus = () => refreshData();
-    const onEnquiry = () => refreshData();
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-    socket.on("enquiry:ready", onReady);
-    socket.on("enquiry:event", onEnquiry);
-    socket.on("notification:event", receiveNotification);
-    window.addEventListener("online", onOnline);
-    window.addEventListener("focus", onFocus);
-    const interval = window.setInterval(() => { if (!document.hidden) void refreshUnread().catch(handleFailure); }, 30000);
-    socket.connect();
+    const onConnect = () => { if (active()) { current.retries = 0; window.clearTimeout(current.retry); setConnected(true); setConnectionNotice(""); void current.refresh().catch(report); if (!current.settingsLoaded) void current.loadSettings().catch(report); } };
+    const reconnect = () => {
+      if (!active()) return;
+      setConnected(false); window.clearTimeout(current.retry);
+      current.retry = window.setTimeout(() => { if (active() && !socket.connected) socket.connect(); }, Math.min(30000, 1000 * 2 ** Math.min(current.retries++, 5)));
+    };
+    const onError = (err) => { if (active()) { setConnectionNotice(err.message || "Live connection interrupted. Reconnecting…"); reconnect(); } };
+    const onDisconnect = () => { if (active()) reconnect(); };
+    const refreshData = () => { if (active()) { callbacks.current.onRefresh?.(); void current.refresh().catch(report); if (!current.settingsLoaded) void current.loadSettings().catch(report); } };
+    const onOnline = () => { if (!socket.connected) socket.connect(); refreshData(); };
+    socket.on("connect", onConnect); socket.on("connect_error", onError); socket.on("disconnect", onDisconnect); socket.on("enquiry:event", refreshData); socket.on("notification:event", receive);
+    window.addEventListener("online", onOnline); window.addEventListener("focus", refreshData);
+    const interval = window.setInterval(() => { if (!document.hidden) refreshData(); }, 30000);
+    Promise.all([current.loadSettings(), current.refresh()]).catch(report).finally(() => { if (active()) { setLoading(false); socket.connect(); } });
     return () => {
-      mounted.current = false;
-      document.removeEventListener("pointerdown", prime);
-      document.removeEventListener("keydown", prime);
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("focus", onFocus);
-      window.clearInterval(interval);
-      socket.off("connect", onConnect);
-      socket.off("disconnect", onDisconnect);
-      socket.off("enquiry:ready", onReady);
-      socket.off("enquiry:event", onEnquiry);
-      socket.off("notification:event", receiveNotification);
-      socket.disconnect();
-      player.pause();
-      sound.current = null;
-      setConnected(false);
+      current.controller.abort(); runtime.current = null;
+      document.removeEventListener("pointerdown", prime); document.removeEventListener("keydown", prime); document.removeEventListener("touchend", prime);
+      window.removeEventListener("online", onOnline); window.removeEventListener("focus", refreshData); window.clearInterval(interval); window.clearTimeout(current.retry);
+      socket.off("connect", onConnect); socket.off("connect_error", onError); socket.off("disconnect", onDisconnect); socket.off("enquiry:event", refreshData); socket.off("notification:event", receive); socket.disconnect(); current.audio.dispose();
     };
-  }, [adminId, apiBase, dismiss, handleFailure, loadFirstPage, refreshUnread, socketFactory, unlockSound, updateItems, updatePreferences]);
-
-  return {
-    items, unread, preferences, toasts, connected, loading, hasMore, error,
-    loadMore, markRead, markAllRead, remove, clearAll, dismiss, toggleSound, togglePopup,
-  };
+  }, [adminId, apiBase, socketFactory, dismiss, failure, updateItems, updatePreferences]);
+  return { items, unread, preferences, toasts, connected, loading, hasMore, error, connectionNotice, soundReady, soundNotice, savingPreferences, loadMore, markRead, markAllRead, remove, clearAll, dismiss, toggleSound, togglePopup, unlockSound, refresh };
 }

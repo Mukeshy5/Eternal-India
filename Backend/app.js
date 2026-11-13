@@ -91,7 +91,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     res.once("finish", () => {
       if (res.statusCode < 200 || res.statusCode >= 300 || !req.admin) return;
       const path = req.path;
-      if (/^\/(?:notifications(?:\/|$)|enquiry-notification-settings|accounts(?:\/|$)|register(?:\/|$)|login(?:\/|$)|logout(?:\/|$))/.test(path)) return;
+      if (/^\/(?:notifications(?:\/|$)|socket-ticket|enquiry-notification-settings|accounts(?:\/|$)|register(?:\/|$)|login(?:\/|$)|logout(?:\/|$))/.test(path)) return;
       const panel = req.originalUrl.startsWith("/api/technical/") ? "technical" : "admin";
       const label = path.includes("staff-attendance") || path.includes("staff-calendar")
         ? "staff attendance"
@@ -281,7 +281,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     }));
     app.get("/{*path}", (_req, res) => res.sendFile(`${frontend}/index.html`));
   }
-  app.use((error, _req, res, next) => {
+  app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     if (error.type === "entity.parse.failed") return res.status(400).json({ message: "Invalid JSON request." });
     if (error.type === "entity.too.large") return res.status(413).json({ message: "This request is too large." });
@@ -289,8 +289,9 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
       if (error.details?.retryAfter) res.set("Retry-After", String(error.details.retryAfter));
       return res.status(error.status).json({ message: error.message, ...error.details });
     }
-    console.error("Request failed:", error.name);
-    res.status(503).json({ message: "We couldn't save your request. Please try again shortly." });
+    console.error("Request failed:", req.method, req.path, error.name, Number.isInteger(error.code) ? error.code : "");
+    const unavailable = /^Mongo(?:Network|ServerSelection|TopologyClosed|NotConnected)/.test(error.name);
+    res.status(unavailable ? 503 : 500).json({ message: "We couldn't complete your request. Please try again shortly." });
   });
   return { app, store, drainSessions, enquirySystem, decorationScheduler: festivals.scheduler, decorationsReady: festivals.ready };
 }

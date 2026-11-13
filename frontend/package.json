@@ -10,6 +10,7 @@
     "verify": "node scripts/verify.mjs",
     "verify:payments": "node scripts/verify-razorpay.mjs",
     "verify:enquiries": "node scripts/verify-unified-enquiries.mjs",
+    "verify:notifications": "node scripts/verify-notification-integration.mjs",
     "verify:responsive": "node scripts/verify-responsive.mjs",
     "verify:accounts": "node scripts/verify-accounts.mjs",
     "lint": "oxlint",

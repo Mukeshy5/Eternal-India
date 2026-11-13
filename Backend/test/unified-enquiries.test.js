@@ -11,6 +11,8 @@ import { createApp } from "../app.js";
 import { ensureEnquiryModels } from "../enquiries/model.js";
 import { parseGmailMessage, tokenVault } from "../enquiries/gmail.js";
 import { whatsappMessages } from "../enquiries/whatsapp.js";
+import { createNotificationService } from "../enquiries/notifications.js";
+import { createEnquiryService } from "../enquiries/service.js";
 
 const { io } = createRequire(new URL("../../frontend/package.json", import.meta.url))("socket.io-client");
 const business = "business@example.com";
@@ -67,10 +69,10 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       adminCookie = await login("admin"); technicalCookie = await login("technical");
       for (const [panel, cookie, events] of [["admin", adminCookie, adminEvents], ["technical", technicalCookie, technicalEvents]]) {
         const ticketReply = await request(`/${panel}/socket-ticket`, { method: "POST", cookie });
-        assert.equal(ticketReply.status, 200);
+        assert.equal(ticketReply.status, 200, await ticketReply.clone().text());
         const { ticket } = await ticketReply.json();
         assert.equal(typeof ticket, "string");
-        assert.ok(!ticketReply.headers.get("set-cookie"), "socket ticket is returned without creating a browser cookie");
+        assert.ok(!ticketReply.headers.get("set-cookie")?.includes(ticket), "socket ticket is never exposed in a browser cookie");
         const socket = io(base, { path: "/api/enquiries/socket.io", transports: ["polling"], extraHeaders: { Origin: "http://localhost:5173" }, reconnection: false, auth: { panel, ticket, since: new Date().toISOString() } }); sockets.push(socket); socket.on("enquiry:event", (event) => events.push(event)); socket.on("notification:event", (event) => (panel === "admin" ? adminNotifications : technicalNotifications).push(event)); await once(socket, "connect");
       }
     });
@@ -126,7 +128,7 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       assert.equal((await request("/admin/enquiries?sort=invalid", { cookie: adminCookie })).status, 400);
       assert.equal((await request("/technical/enquiries?sort=oldest&sort=newest", { cookie: technicalCookie })).status, 400);
     });
-    await t.test("notification history, global read state, deletion and panel synchronization", async () => {
+    await t.test("notification history, per-account read state, deletion and panel synchronization", async () => {
       assert.equal((await request("/admin/notifications")).status, 401);
       const adminPage = await (await request("/admin/notifications?limit=50", { cookie: adminCookie })).json();
       const technicalPage = await (await request("/technical/notifications?limit=50", { cookie: technicalCookie })).json();
@@ -144,7 +146,8 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       const gmailNotification = enquiryItems.find((item) => item.source === "GMAIL");
       assert.equal((await request(`/admin/notifications/${gmailNotification.id}`, { method: "DELETE", cookie: adminCookie })).status, 204);
       await waitFor(() => adminNotifications.some((event) => event.action === "deleted" && event.id === gmailNotification.id) && technicalNotifications.some((event) => event.action === "deleted" && event.id === gmailNotification.id));
-      assert.equal(await db.collection("enquiry_events").countDocuments({ _id: `notification:${gmailNotification.id}` }), 0);
+      assert.ok((await db.collection("enquiry_events").findOne({ _id: `notification:${gmailNotification.id}` })).deletedBy.includes(owner._id.toString()));
+      assert.ok(!(await (await request("/admin/notifications?limit=50", { cookie: adminCookie })).json()).notifications.some((item) => item.id === gmailNotification.id));
       assert.equal((await request("/technical/notifications/read-all", { method: "PATCH", cookie: technicalCookie })).status, 200);
       await waitFor(() => adminNotifications.some((event) => event.action === "read-all") && technicalNotifications.some((event) => event.action === "read-all"));
       assert.equal((await (await request("/admin/notifications/unread-count", { cookie: adminCookie })).json()).unread, 0);
@@ -175,11 +178,96 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       await webhook(waPayload());
       assert.equal(await db.collection("enquiries").countDocuments({ externalMessageId: "wamid.Integration1" }), 0);
     });
-    await t.test("clear all notifications persists deletion and broadcasts to both panels", async () => {
+    await t.test("clear all notifications persists account dismissal and broadcasts to both panels", async () => {
       const response = await request("/technical/notifications", { method: "DELETE", cookie: technicalCookie });
       assert.equal(response.status, 200);
       await waitFor(() => adminNotifications.some((event) => event.action === "cleared") && technicalNotifications.some((event) => event.action === "cleared"));
-      assert.equal(await db.collection("enquiry_events").countDocuments({ type: "notification" }), 0);
+      assert.equal(await db.collection("enquiry_events").countDocuments({ type: "notification", audience: "technical", deletedBy: { $ne: owner._id.toString() } }), 0);
+      assert.equal((await (await request("/admin/notifications", { cookie: adminCookie })).json()).notifications.length, 0);
+    });
+    await t.test("notification CRUD, roles, settings, pagination and independent user state use real HTTP and MongoDB", async () => {
+      const other = { name: "Technical Operator", email: "notification-operator@example.com", roles: ["technical"], status: "active", passwordHash: owner.passwordHash, createdAt: new Date() };
+      const inserted = await db.collection("admins").insertOne(other), otherId = inserted.insertedId.toString();
+      const signedIn = await request("/technical/login", { method: "POST", body: { email: other.email, password: config.adminPassword } });
+      assert.equal(signedIn.status, 200); const otherCookie = cookieHeader(signedIn);
+      assert.equal((await request("/admin/notifications", { cookie: otherCookie })).status, 403);
+      assert.equal((await request("/technical/notifications", { method: "POST", cookie: otherCookie, body: { title: "Denied", message: "Denied" } })).status, 403);
+      const otherEvents = [], ticket = await (await request("/technical/socket-ticket", { method: "POST", cookie: otherCookie })).json();
+      const socket = io(base, { path: "/api/enquiries/socket.io", auth: { panel: "technical", ticket: ticket.ticket }, transports: ["websocket"], reconnection: false });
+      sockets.push(socket); socket.on("notification:event", (event) => otherEvents.push(event)); await once(socket, "connect");
+      const beforeTickets = await db.collection("enquiry_events").countDocuments({ type: "notification" });
+      await request("/technical/socket-ticket", { method: "POST", cookie: otherCookie });
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      assert.equal(await db.collection("enquiry_events").countDocuments({ type: "notification" }), beforeTickets, "connection tickets never create activity notifications");
+      const result = await request("/admin/notifications", { method: "POST", cookie: adminCookie, body: { title: "Operations update", message: "A saved workspace notification.", audience: ["admin", "technical"] } });
+      assert.equal(result.status, 201); const item = (await result.json()).notification;
+      assert.equal(item.read, true); assert.equal(item.source, "MANUAL"); assert.ok(item.createdAt);
+      await waitFor(() => otherEvents.some((event) => event.notification?.id === item.id));
+      const listed = (await (await request("/technical/notifications?limit=1", { cookie: otherCookie })).json());
+      assert.equal(listed.notifications[0].read, false); assert.ok(listed.unread > 0); assert.ok(listed.hasMore);
+      const next = await request(`/technical/notifications?limit=1&cursor=${encodeURIComponent(listed.cursor)}`, { cookie: otherCookie }); assert.equal(next.status, 200);
+      assert.notEqual((await next.json()).notifications[0].id, listed.notifications[0].id);
+      assert.equal((await request("/technical/notifications?cursor=invalid", { cookie: otherCookie })).status, 400);
+      assert.equal((await request("/admin/notifications", { method: "POST", cookie: adminCookie, body: { title: "Missing message" } })).status, 400);
+      assert.equal((await request("/admin/notifications/not-found/read", { method: "PATCH", cookie: adminCookie })).status, 404);
+      const otherBefore = (await (await request("/technical/notifications/unread-count", { cookie: otherCookie })).json()).unread;
+      await request(`/admin/notifications/${item.id}`, { method: "DELETE", cookie: adminCookie });
+      assert.equal((await (await request("/technical/notifications/unread-count", { cookie: otherCookie })).json()).unread, otherBefore, "another account keeps its unread notification");
+      await request(`/technical/notifications/${item.id}/read`, { method: "PATCH", cookie: otherCookie });
+      assert.ok((await db.collection("enquiry_events").findOne({ _id: `notification:${item.id}` })).readBy.includes(otherId));
+      const privateReply = await request("/admin/notifications", { method: "POST", cookie: adminCookie, body: { title: "Admin only", message: "Role restricted", audience: ["admin"] } });
+      const privateItem = (await privateReply.json()).notification;
+      assert.equal((await request(`/technical/notifications/${privateItem.id}/read`, { method: "PATCH", cookie: otherCookie })).status, 404);
+      assert.equal((await request(`/technical/notifications/${privateItem.id}`, { method: "DELETE", cookie: otherCookie })).status, 404);
+      assert.ok(!otherEvents.some((event) => event.notification?.id === privateItem.id));
+      assert.equal((await request("/technical/notifications/settings", { method: "PATCH", cookie: otherCookie, body: { sound: false } })).status, 200);
+      await waitFor(() => otherEvents.some((event) => event.action === "settings" && event.preferences.sound === false));
+      assert.equal((await (await request("/technical/notifications/settings", { cookie: otherCookie })).json()).sound, false);
+      assert.equal((await request("/technical/notifications/settings", { method: "PATCH", cookie: otherCookie, body: { sound: "false" } })).status, 400);
+      await request("/technical/logout", { method: "POST", cookie: otherCookie });
+      const again = await request("/technical/login", { method: "POST", body: { email: other.email, password: config.adminPassword } });
+      assert.equal((await (await request("/technical/notifications/settings", { cookie: cookieHeader(again) })).json()).sound, false, "MongoDB preference survives logout and login");
+      const longId = "x".repeat(180);
+      await instance.enquirySystem.notifications.publish({ id: longId, title: "Long stable ID", message: "Cursor must round trip", category: "Activity" });
+      const longPage = await (await request("/admin/notifications?limit=1", { cookie: adminCookie })).json();
+      assert.equal(longPage.notifications[0].id, longId); assert.ok(longPage.cursor.length > 180);
+      assert.equal((await request(`/admin/notifications?limit=1&cursor=${encodeURIComponent(longPage.cursor)}`, { cookie: adminCookie })).status, 200);
+      await db.command({ collMod: "enquiry_events", validator: { title: { $ne: "Reject DB write" } } });
+      try {
+        const rejected = await request("/admin/notifications", { method: "POST", cookie: adminCookie, body: { title: "Reject DB write", message: "Test the real MongoDB write failure" } });
+        assert.equal(rejected.status, 500); assert.equal(typeof (await rejected.json()).message, "string");
+        assert.equal(await db.collection("enquiry_events").countDocuments({ title: "Reject DB write" }), 0);
+      } finally { await db.command({ collMod: "enquiry_events", validator: {} }); }
+    });
+    await t.test("outbox retries notification failures and cross-instance changes without losing enquiries", async () => {
+      const real = instance.enquirySystem.notifications;
+      let fail = true;
+      const service = createEnquiryService({ db, notifications: { async publish(event) { if (fail) { fail = false; throw new Error("Delivery interrupted"); } return real.publish(event); } } });
+      const externalMessageId = `retry-${randomUUID()}`;
+      await assert.rejects(service.create({ name: "Long name ".repeat(32), message: "Saved before notification", source: "WHATSAPP", externalMessageId }));
+      const saved = await db.collection("enquiries").findOne({ externalMessageId });
+      assert.equal(saved.pendingEvents.length, 1);
+      await service.reconcile();
+      assert.equal((await db.collection("enquiries").findOne({ _id: saved._id })).pendingEvents.length, 0);
+      assert.equal(await db.collection("enquiry_events").countDocuments({ type: "notification", enquiryId: saved._id.toString() }), 1);
+      const remote = createNotificationService({ db });
+      const remoteId = `remote:${randomUUID()}`;
+      await remote.publish({ id: remoteId, title: "Other instance", message: "Persisted before socket delivery", category: "Activity" });
+      await waitFor(() => adminNotifications.some((event) => event.notification?.id === remoteId));
+      await remote.markRead(remoteId, "admin", owner._id.toString());
+      await waitFor(() => adminNotifications.some((event) => event.action === "read" && event.id === remoteId));
+      assert.equal(adminNotifications.filter((event) => event.action === "created" && event.notification?.id === remoteId).length, 1);
+    });
+    await t.test("category, date and status sorting filters preserve source data", async () => {
+      const fields = { name: "Plan Customer", email: "plan@example.com", destination: "Jaipur", phone: "", travellers: 2, date: "", message: "Plan a visit", voiceLanguage: "en", enquiryKind: "PLAN_TRIP", submissionId: randomUUID() };
+      assert.equal((await request("/enquiries", { method: "POST", body: fields })).status, 201);
+      const plans = await (await request("/admin/enquiries?kind=PLAN_TRIP", { cookie: adminCookie })).json();
+      assert.equal(plans.total, 1); assert.equal(plans.enquiries[0].source, "WEBSITE");
+      for (const status of ["PENDING", "FOLLOW_UP", "CANCELLED"]) assert.equal((await request(`/admin/enquiries/${plans.enquiries[0]._id}`, { method: "PATCH", cookie: adminCookie, body: { status } })).status, 200);
+      assert.equal((await request("/admin/enquiries?sort=status", { cookie: adminCookie })).status, 200);
+      assert.equal((await request("/admin/enquiries?from=2026-02-30", { cookie: adminCookie })).status, 400);
+      assert.equal((await request("/admin/enquiries?from=2026-12-01&to=2026-01-01", { cookie: adminCookie })).status, 400);
+      const historical = await (await request("/technical/enquiries?to=2000-01-01", { cookie: technicalCookie })).json(); assert.equal(historical.total, 0);
     });
   } finally {
     for (const socket of sockets) socket.disconnect(); await instance.enquirySystem.stop(); await instance.decorationScheduler.stop(); await instance.drainSessions();

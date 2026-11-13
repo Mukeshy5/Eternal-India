@@ -128,6 +128,8 @@ npm --prefix Backend run db:clean -- --apply
 
 ## Enquiries and recordings
 
+Notification repairs, per-user history and sound settings, the shared dark enquiry interface, and integration verification are documented in [Notification repairs](docs/NOTIFICATION_REPAIR.md).
+
 The existing inbox now unifies **Website, WhatsApp Business and Gmail** enquiries in both Admin and Technical Panels, with source/status filters, assignment, complete-message details, permanent archiving and authenticated realtime notifications using the supplied **Notification Ring** MP3. Configure the business WhatsApp webhook and Gmail OAuth connection on the backend; existing website/contact handoffs continue working. See [Unified enquiry setup, API and verification](docs/UNIFIED_ENQUIRIES.md).
 
 The form has a direct **Submit enquiry** button plus WhatsApp/email options. Every option first validates and saves to MongoDB. A reference is displayed and the selected Hindi or English recording plays only after the save succeeds. Retries of the same unchanged submission reuse an idempotency key to prevent duplicates. The admin inbox supports search, filters, pagination and New / Contacted / Closed statuses.
