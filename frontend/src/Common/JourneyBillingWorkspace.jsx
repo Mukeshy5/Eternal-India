@@ -17,20 +17,23 @@ export default function JourneyBillingWorkspace({ apiBase = "/admin", initialCre
   useEffect(() => { alive.current = true; return () => { alive.current = false; operation.current?.abort(); }; }, []);
   const fail = useCallback((failure) => { if (!alive.current || failure.name === "AbortError") return; setError(failure.message || "The request failed. Please retry."); if (failure.status === 401) onUnauthorized?.(); }, [onUnauthorized]);
   useEffect(() => {
-    const controller = new AbortController(); let inFlight = false;
+    const controller = new AbortController(); let inFlight = false, pending = false;
     async function load() {
-      if (inFlight) return; inFlight = true; setLoading(true);
+      if (inFlight) { pending = true; return; } inFlight = true; setLoading(true);
       try {
-        const params = new URLSearchParams({ ...query, page: String(page), pageSize: String(pageSize) });
-        const [result, config] = await Promise.all([api(`${apiBase}/vouchers?${params}`, { signal: controller.signal }), api(`${apiBase}/vouchers/options`, { signal: controller.signal })]);
-        if (!controller.signal.aborted) { setData(result); setOptions(config); if (page !== result.page) setPage(result.page); }
+        do {
+          pending = false;
+          const params = new URLSearchParams({ ...query, page: String(page), pageSize: String(pageSize) });
+          const [result, config] = await Promise.all([api(`${apiBase}/vouchers?${params}`, { signal: controller.signal }), api(`${apiBase}/vouchers/options`, { signal: controller.signal })]);
+          if (!controller.signal.aborted) { setData(result); setOptions(config); if (page !== result.page) setPage(result.page); }
+        } while (pending && !controller.signal.aborted);
       } catch (failure) { if (!controller.signal.aborted) fail(failure); }
       finally { inFlight = false; if (!controller.signal.aborted) setLoading(false); }
     }
     const refreshHistory = () => { if (document.visibilityState !== "hidden") void load(); };
     void load(); const timer = window.setInterval(refreshHistory, 15000);
-    window.addEventListener("focus", refreshHistory); window.addEventListener("journey-vouchers-changed", refreshHistory);
-    return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener("focus", refreshHistory); window.removeEventListener("journey-vouchers-changed", refreshHistory); };
+    window.addEventListener("focus", refreshHistory); window.addEventListener("journey-vouchers-changed", refreshHistory); window.addEventListener("journey-voucher-options-changed", refreshHistory);
+    return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener("focus", refreshHistory); window.removeEventListener("journey-vouchers-changed", refreshHistory); window.removeEventListener("journey-voucher-options-changed", refreshHistory); };
   }, [apiBase, query, page, pageSize, refresh, fail]);
   async function run(action) {
     if (lock.current) return; lock.current = true; setBusy(true); setError("");

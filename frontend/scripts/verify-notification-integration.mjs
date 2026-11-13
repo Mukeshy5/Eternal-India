@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
-import { act, createElement } from "react";
+import { act, createElement, Fragment } from "react";
 import { Window } from "happy-dom";
 import { io } from "socket.io-client";
 import { readConfig } from "../../Backend/config/env.js";
@@ -15,7 +15,7 @@ import { createApp } from "../../Backend/app.js";
 // Real HTTP, MongoDB and Socket.IO with actual React components. Audio hardware
 // and autoplay policy are instrumented; device playback needs browser QA.
 export async function verifyNotificationIntegration(vite) {
-  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "notification-ui@example.com", adminPassword: "NotificationUiTest9", technicalEmail: "" };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "notification-ui@example.com", adminPassword: "NotificationUiTest9", technicalEmail: "" };
   const { db, client } = await connectDatabase(config);
   const owner = await ensureAdmin(db, config);
   const instance = createApp({ db, client, config, schedulerOptions: { intervalMs: 0 } });
@@ -48,10 +48,11 @@ export async function verifyNotificationIntegration(vite) {
   const { createRoot } = await import("react-dom/client");
   const { default: useNotifications } = await vite.ssrLoadModule("/src/Common/useEnquiryNotifications.js");
   const { default: Notifications } = await vite.ssrLoadModule("/src/Common/EnquiryNotifications.jsx");
+  const { default: VoucherEditor } = await vite.ssrLoadModule("/src/Common/VoucherEditor.jsx");
   const socketFactory = (url, options) => { assert.equal(url, base); const socket = io(url, { ...options, extraHeaders: { Origin: "http://localhost:5173" } }); sockets.push(socket); return socket; };
   function Probe({ panel }) {
     latest[panel] = useNotifications({ admin: { id: owner._id.toString() }, apiBase: `/${panel}`, socketFactory });
-    return createElement(Notifications, { notifications: latest[panel], onOpen() {} });
+    return createElement(Fragment, null, createElement(Notifications, { notifications: latest[panel], onOpen() {} }), createElement(VoucherEditor, { apiBase: `/${panel}` }));
   }
   const waitFor = async (check, label) => {
     for (let attempt = 0; attempt < 160; attempt++) { if (check()) return; await act(async () => { await new Promise((resolve) => setTimeout(resolve, 25)); }); }
@@ -69,6 +70,21 @@ export async function verifyNotificationIntegration(vite) {
       await act(async () => root.render(createElement(Probe, { panel })));
     }
     await waitFor(() => latest.admin.connected && latest.technical.connected && latest.admin.items.length === 1 && latest.technical.items.length === 1, "both panels load persisted notifications");
+    const editors = () => [...win.document.querySelectorAll(".billing-editor")];
+    const mutateGst = async (path, method, body) => {
+      let reply;
+      await act(async () => { reply = await nativeFetch(`${base}/api${path}`, { method, headers: { "Content-Type": "application/json", Cookie: cookie }, ...(body ? { body: JSON.stringify(body) } : {}) }); });
+      assert.ok(reply.ok, `GST ${method}: ${reply.status}`);
+      return reply.status === 204 ? null : reply.json();
+    };
+    const gstBody = { name: "Live company GST", gstNumber: "07ABCDE1234F1Z5", rate: 18 };
+    const { gstRate } = await mutateGst("/admin/gst", "POST", gstBody);
+    const option = (editor) => editor.querySelector(`[name="gstId"] option[value="${gstRate._id}"]`);
+    await waitFor(() => editors().length === 2 && editors().every((editor) => option(editor)?.textContent.includes(gstBody.gstNumber)), "new GST appears immediately in both voucher selectors over Socket.IO");
+    await mutateGst(`/technical/gst/${gstRate._id}`, "PATCH", { ...gstBody, rate: 5 });
+    await waitFor(() => editors().every((editor) => option(editor)?.textContent.includes("5%")), "GST edits from Technical panel update both voucher selectors");
+    await mutateGst(`/admin/gst/${gstRate._id}`, "DELETE");
+    await waitFor(() => editors().every((editor) => !option(editor)), "deleted GST disappears from both selectors");
     assert.equal(sounds.length, 0, "no AudioContext is created before a gesture");
     await act(async () => { win.document.dispatchEvent(new win.Event("pointerdown")); });
     assert.equal(sounds.length, 2); assert.equal(sounds.reduce((sum, sound) => sum + sound.plays, 0), 0, "initial history is silent");
@@ -106,7 +122,7 @@ export async function verifyNotificationIntegration(vite) {
     await waitFor(() => latest.admin.unread === 0 && latest.technical.unread === 0, "authoritative unread badges synchronize");
     assert.deepEqual(errors, [], "no notification, settings or ticket API fails");
     assert.equal(win.localStorage.length, 0); assert.equal(win.sessionStorage.length, 0);
-    console.log("PASS real React → HTTP → MongoDB → Socket.IO integration in Admin and Technical panels: five website categories, read/delete/unread sync, saved mute, silent history/reconnect, fresh-event audio calls and no API errors (audio hardware instrumented)");
+    console.log("PASS real React → HTTP → MongoDB → Socket.IO integration in Admin and Technical panels: live voucher GST create/edit/delete, five website categories, read/delete/unread sync, saved mute, silent history/reconnect, fresh-event audio calls and no API errors (audio hardware instrumented)");
   } finally {
     await act(async () => { for (const root of roots) root.unmount(); });
     sockets.forEach((socket) => socket.disconnect()); globalThis.fetch = nativeFetch; win.close();

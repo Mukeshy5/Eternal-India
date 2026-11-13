@@ -4,7 +4,7 @@ Both `/admin/vouchers` and `/technical/vouchers` open the new billing editor and
 
 ## Setup and retained data
 
-Use the existing **Hotel inventory** and **GST management** sections. Hotels supply the initial base amount; staff can enter the agreed voucher amount. A GST record must contain the company's actual 15-character GSTIN and a rate to appear in the voucher selector. Existing rate-only GST records remain valid for GST management; edit them to supply the company number. No GST numbers or prices are seeded into the application.
+Use the existing **Hotel inventory** and **GST management** sections. Hotels supply the initial base amount; staff can enter the agreed voucher amount. A GST record must contain the company's actual 15-character GSTIN and a rate to be selected for billing. Existing numbers saved in the old GST name field are recognized automatically, without modifying those records. Rate-only records appear as disabled choices with a message to add the company number in GST management. No GST numbers or prices are seeded into the application.
 
 The old itinerary editor, validation, route handlers, artwork, print components and voucher-specific styles were removed. The public travel pages retain their shared road illustration. Historic itinerary documents in `journey_vouchers` are retained untouched: they have no verifiable invoice price, company GSTIN or billing dates, so the new application does not fabricate billing records from them. The rebuilt register contains all new billing vouchers in `journey_billing_vouchers`. There is no automatic destructive migration and no new API exposing the legacy schema.
 
@@ -47,7 +47,7 @@ PDFKit generates the portrait A4 voucher with the existing aspect-preserved logo
 
 **Print** opens the generated PDF in an isolated browser viewer. Its **Print voucher** action prints that PDF frame, so the preview, downloaded PDF and printed content are identical and contain no dashboard navigation. Chrome's built-in PDF viewer also provides its own print control. Generated object URLs are revoked on close. The backend CSP permits the blob frame.
 
-Successful create/update/delete operations immediately refresh the local register; navigation reloads data. Open registers also refresh on focus and every 15 seconds, keeping separate tabs and panels in sync. Inventory and GST options refresh on focus and every 30 seconds. Unsaved edits and in-flight operations participate in the existing panel navigation guard.
+Successful create/update/delete operations immediately refresh the local register; navigation reloads data. Open registers also refresh on focus and every 15 seconds. GST create/update/delete events use the authenticated Socket.IO connection to refresh open voucher selectors and history filters across both panels immediately; the existing MongoDB event outbox also carries them between server instances. Reconnecting refreshes the current options. Options also refresh on focus, coming online, opening the GST selector and every 30 seconds as a fallback. Background refresh preserves unsaved voucher fields, selected GST and manually entered prices, keeps the form enabled and reuses its invoice reservation. Changes received during a request queue another refresh. Unsaved edits and in-flight operations participate in the existing panel navigation guard.
 
 ## Verification
 

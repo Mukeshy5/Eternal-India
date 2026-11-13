@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { ObjectId } from "mongodb";
 import { Server } from "socket.io";
 import { adminPanelAccess } from "../lib/panel-access.js";
@@ -58,7 +58,18 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     for (const panel of event.audience || []) io.to(`panel:${panel}`).emit("notification:event", event);
   }
   const unsubscribe = notifications.onEvent(emitNotification);
+  function emitGstChange(event) {
+    if (!io || !remember(`gst:${event._id}`)) return;
+    io.to("enquiries").emit("gst:changed", { action: event.action, gstId: event.gstId });
+  }
+  async function gstChanged(action, id) {
+    const event = { _id: randomUUID(), type: "gst-change", action, gstId: id.toString(), publishedAt: new Date() };
+    emitGstChange(event);
+    try { await db.collection("enquiry_events").insertOne(event); }
+    catch (error) { console.error("GST live refresh recovery could not be saved:", error.name); }
+  }
   function emitRecord(event) {
+    if (event.type === "gst-change") return emitGstChange(event);
     if (event.type === "notification-change") return emitNotification({ ...event.event, eventId: event._id });
     if (event.notification) return emitNotification({ action: "created", notification: notifications.publicNotification(event, ""), audience: event.audience, actorId: event.actorId || "" }, event);
     emit(event);
@@ -100,7 +111,9 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
       const since = Date.parse(socket.handshake.auth?.since || "");
       if (Number.isFinite(since) && since <= Date.now() && since > Date.now() - 86400000) void db.collection("enquiry_events").find({ publishedAt: { $gte: new Date(since - 5000) } }).sort({ publishedAt: 1 }).limit(5000).toArray().then((events) => {
         for (const event of events) {
-          if (event.type === "notification-change") {
+          if (event.type === "gst-change") {
+            socket.emit("gst:changed", { action: event.action, gstId: event.gstId });
+          } else if (event.type === "notification-change") {
             if (event.event.userId === socket.data.accountId) socket.emit("notification:event", { ...event.event, eventId: event._id, replay: true });
           } else if (event.notification) {
             if (event.audience?.includes(socket.data.panel) && !event.deletedBy?.includes(socket.data.accountId)) socket.emit("notification:event", { action: "created", notification: notifications.publicNotification(event, socket.data.accountId), audience: event.audience, actorId: event.actorId || "", replay: true });
@@ -128,5 +141,5 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     poller.unref?.();
     return io;
   }
-  return { attach, issueTicket, async stop() { clearInterval(poller); unsubscribe(); if (io) await new Promise((resolve) => io.close(resolve)); } };
+  return { attach, issueTicket, gstChanged, async stop() { clearInterval(poller); unsubscribe(); if (io) await new Promise((resolve) => io.close(resolve)); } };
 }

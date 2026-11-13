@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { api, socketServerUrl } from "./api";
 import { createNotificationSound } from "./notificationSound";
+import { voucherOptionsChanged } from "./voucherClient";
 
 const initialPreferences = { popup: true, sound: true };
 const maxNotifications = 20;
@@ -146,7 +147,7 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onU
       }
       void current.refresh().catch(report);
     };
-    const onConnect = () => { if (active()) { current.retries = 0; window.clearTimeout(current.retry); setConnected(true); setConnectionNotice(""); void current.refresh().catch(report); if (!current.settingsLoaded) void current.loadSettings().catch(report); } };
+    const onConnect = () => { if (active()) { current.retries = 0; window.clearTimeout(current.retry); setConnected(true); setConnectionNotice(""); voucherOptionsChanged(); void current.refresh().catch(report); if (!current.settingsLoaded) void current.loadSettings().catch(report); } };
     const reconnect = () => {
       if (!active()) return;
       setConnected(false); window.clearTimeout(current.retry);
@@ -156,7 +157,8 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onU
     const onDisconnect = () => { if (active()) reconnect(); };
     const refreshData = () => { if (active()) { callbacks.current.onRefresh?.(); void current.refresh().catch(report); if (!current.settingsLoaded) void current.loadSettings().catch(report); } };
     const onOnline = () => { if (!socket.connected) socket.connect(); refreshData(); };
-    socket.on("connect", onConnect); socket.on("connect_error", onError); socket.on("disconnect", onDisconnect); socket.on("enquiry:event", refreshData); socket.on("notification:event", receive);
+    const onGstChanged = () => { if (active()) voucherOptionsChanged(); };
+    socket.on("connect", onConnect); socket.on("connect_error", onError); socket.on("disconnect", onDisconnect); socket.on("enquiry:event", refreshData); socket.on("notification:event", receive); socket.on("gst:changed", onGstChanged);
     window.addEventListener("online", onOnline); window.addEventListener("focus", refreshData);
     const interval = window.setInterval(() => { if (!document.hidden) refreshData(); }, 30000);
     Promise.all([current.loadSettings(), current.refresh()]).catch(report).finally(() => { if (active()) { setLoading(false); socket.connect(); } });
@@ -164,7 +166,7 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onU
       current.controller.abort(); runtime.current = null;
       document.removeEventListener("pointerdown", prime); document.removeEventListener("keydown", prime); document.removeEventListener("touchend", prime);
       window.removeEventListener("online", onOnline); window.removeEventListener("focus", refreshData); window.clearInterval(interval); window.clearTimeout(current.retry);
-      socket.off("connect", onConnect); socket.off("connect_error", onError); socket.off("disconnect", onDisconnect); socket.off("enquiry:event", refreshData); socket.off("notification:event", receive); socket.disconnect(); current.audio.dispose();
+      socket.off("connect", onConnect); socket.off("connect_error", onError); socket.off("disconnect", onDisconnect); socket.off("enquiry:event", refreshData); socket.off("notification:event", receive); socket.off("gst:changed", onGstChanged); socket.disconnect(); current.audio.dispose();
     };
   }, [adminId, apiBase, socketFactory, dismiss, failure, updateItems, updatePreferences]);
   return { items, unread, preferences, toasts, connected, loading, hasMore, error, connectionNotice, soundReady, soundNotice, savingPreferences, loadMore, markRead, markAllRead, remove, clearAll, dismiss, toggleSound, togglePopup, unlockSound, refresh };

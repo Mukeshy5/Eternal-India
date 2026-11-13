@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import { usePanelNavigationGuard } from "./panel/PanelNavigationContext";
+import { voucherOptionsChanged } from "./voucherClient";
 import "./AdminTools.css";
 
 const blank = { name: "", rate: "", gstNumber: "" };
@@ -48,6 +49,7 @@ export default function GstManager({ apiBase, onUnauthorized }) {
         body: JSON.stringify({ name: form.name, rate: Number(form.rate), gstNumber: form.gstNumber }),
       });
       setGstRates((current) => sortedRates([...current.filter((item) => item._id !== result.gstRate._id), result.gstRate]));
+      voucherOptionsChanged();
       reset();
       setNotice(editingId ? "GST rate updated." : "GST rate added.");
     } catch (failure) {
@@ -64,6 +66,7 @@ export default function GstManager({ apiBase, onUnauthorized }) {
     try {
       await api(`${apiBase}/gst/${gstRate._id}`, { method: "DELETE" });
       setGstRates((current) => current.filter((item) => item._id !== gstRate._id));
+      voucherOptionsChanged();
       if (editingId === gstRate._id) reset();
       setNotice("GST rate deleted.");
     } catch (failure) {

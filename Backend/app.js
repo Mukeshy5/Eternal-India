@@ -213,7 +213,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   registerAccounts({ app, management, db, requireAdmin, config, sendPasswordReset, notifications: enquirySystem.notifications });
   const festivals = registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions });
   registerPromotions({ app, management, db, requireAdmin });
-  registerGstRoutes({ management, db, requireAdmin });
+  registerGstRoutes({ management, db, requireAdmin, realtime: enquirySystem.realtime });
   registerStaffRoutes({ management, db, requireAdmin, config });
   app.use(["/api/admin", "/api/technical"], management);
   app.use("/api", (_req, res) => res.status(404).json({ message: "API endpoint not found." }));

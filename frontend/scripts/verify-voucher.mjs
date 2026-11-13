@@ -14,14 +14,21 @@ export async function verifyVoucher(server) {
   const originalFetch = globalThis.fetch;
   const hotel = { _id: "000000000000000000000012", name: "Heritage Stay", address: "12 Heritage Road, Jaipur", amount: 5000.25 };
   const gst = { _id: "000000000000000000000013", name: "Company GST", gstNumber: "07ABCDE1234F1Z5", rate: 18 };
+  const rateOnly = { _id: "000000000000000000000014", name: "Rate without GSTIN", rate: 5 };
+  let gstRates = [gst, rateOnly];
   let vouchers = [], creates = 0, updates = 0, prints = 0;
   const calls = [], downloads = [];
+  let holdOptions = false;
+  const heldOptions = [];
   testWindow.confirm = () => true;
   testWindow.HTMLAnchorElement.prototype.click = function () { downloads.push(this.download); };
   globalThis.fetch = async (url, options = {}) => {
     calls.push({ url, options });
     const body = options.body ? JSON.parse(options.body) : {};
-    if (url === "/api/admin/vouchers/options") return Response.json({ hotels: [hotel], gstRates: [gst], usedHotels: [], usedGst: [] });
+    if (url === "/api/admin/vouchers/options") {
+      const response = Response.json({ hotels: [hotel], gstRates, usedHotels: [], usedGst: [] });
+      return holdOptions ? new Promise((resolve) => heldOptions.push(() => resolve(response))) : response;
+    }
     if (url === "/api/admin/vouchers/invoice") return Response.json({ invoice: { reservationId: "000000000000000000000022", invoiceNumber: "10001" } });
     if (url === "/api/admin/vouchers/quote") return Response.json({ pricing: calculateVoucherPrice(body.basePrice, gst.rate), gst, hotel });
     if (url === "/api/admin/vouchers" && options.method === "POST") {
@@ -70,6 +77,9 @@ export async function verifyVoucher(server) {
       } finally { sizeWindow.close(); }
     }
     assert.ok(button("Create voucher").disabled);
+    const gstOption = (id) => container.querySelector(`[name="gstId"] option[value="${id}"]`);
+    assert.ok(gstOption(rateOnly._id)?.disabled, "rate-only records remain visible with a missing GSTIN explanation");
+    assert.match(gstOption(rateOnly._id).textContent, /Company GST number required/);
     await act(async () => { input("hotelId", hotel._id); input("gstId", gst._id); });
     await waitFor(() => container.textContent.includes("Price verified"));
     assert.equal(container.querySelector('[name="basePrice"]').value, "5000.25");
@@ -77,6 +87,33 @@ export async function verifyVoucher(server) {
     await act(async () => input("basePrice", "100.10"));
     assert.ok(container.querySelector(".billing-price-total").textContent.includes("118.12"), "price changes immediately");
     assert.ok(button("Create voucher").disabled, "waits for matching server quote");
+    const liveGst = { _id: "000000000000000000000015", name: "New company GST", gstNumber: "29ABCDE1234F1Z5", rate: 12 };
+    await act(async () => {
+      input("guestName", "Unsaved guest");
+      gstRates = [...gstRates, liveGst];
+      testWindow.dispatchEvent(new testWindow.Event("journey-voucher-options-changed"));
+    });
+    await waitFor(() => gstOption(liveGst._id));
+    assert.equal(container.querySelector('[name="guestName"]').value, "Unsaved guest", "live GST updates preserve unsaved fields");
+    assert.equal(container.querySelector('[name="gstId"]').value, gst._id, "live refresh preserves the chosen GST");
+    assert.equal(container.querySelector('[name="basePrice"]').value, "100.10", "live refresh preserves manual prices");
+    assert.equal(container.querySelector(".billing-editor fieldset").disabled, false, "background refresh keeps the form usable");
+    await act(async () => { holdOptions = true; testWindow.dispatchEvent(new testWindow.Event("journey-voucher-options-changed")); });
+    await waitFor(() => heldOptions.length === 2);
+    const queuedGst = { ...liveGst, _id: "000000000000000000000016", name: "GST added during refresh" };
+    await act(async () => {
+      gstRates = [...gstRates, queuedGst];
+      testWindow.dispatchEvent(new testWindow.Event("journey-voucher-options-changed"));
+      holdOptions = false;
+      heldOptions.splice(0).forEach((resolve) => resolve());
+    });
+    await waitFor(() => gstOption(queuedGst._id));
+    await act(async () => { gst.rate = 5; testWindow.dispatchEvent(new testWindow.Event("journey-voucher-options-changed")); });
+    await waitFor(() => container.querySelector(".billing-price-total").textContent.includes("105.11"));
+    await waitFor(() => container.textContent.includes("Price verified"));
+    await act(async () => { gst.rate = 18; gstRates = [gst, rateOnly]; testWindow.dispatchEvent(new testWindow.Event("journey-voucher-options-changed")); });
+    await waitFor(() => !gstOption(liveGst._id) && !gstOption(queuedGst._id) && container.querySelector(".billing-price-total").textContent.includes("118.12"));
+    assert.equal(calls.filter((call) => call.url === "/api/admin/vouchers/invoice").length, 1, "live GST refresh reuses the original invoice reservation");
     await act(async () => { for (const [key, value] of Object.entries({ guestName: "Billing Guest", requirement: "Two rooms and transfers.\nVegetarian meals.", checkInDate: "2026-12-01", checkOutDate: "2026-12-03", arrivalDate: "2026-12-01", departureDate: "2026-12-03", arrivalPlace: "Delhi airport", departurePlace: "Jaipur station" })) input(key, value); });
     await waitFor(() => !button("Create voucher").disabled);
     container.querySelector('[name="basePrice"]').step = "any"; // happy-dom has a floating-point stepMismatch bug; API tests enforce two decimals.

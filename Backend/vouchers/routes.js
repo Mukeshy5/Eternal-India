@@ -4,6 +4,7 @@ import { rateLimit } from "express-rate-limit";
 import { adminPanelAccess } from "../lib/panel-access.js";
 import { technicalAccess } from "../festivals/permissions.js";
 import { calculateVoucherPrice } from "../../shared/voucherBilling.js";
+import { normalizeGstRecord } from "../../shared/gst.js";
 import { ensureVoucherModels, voucherCollection } from "./model.js";
 import { billingError, validObjectId, validateVoucher, voucherFilter } from "./validation.js";
 import { historyExcel, historyPdf, voucherPdf } from "./documents.js";
@@ -31,7 +32,7 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config }) 
       db.collection("gst_rates").findOne({ _id: new ObjectId(body.gstId) }),
     ]);
     const hotel = hotelRecord ? { name: hotelRecord.name, address: hotelRecord.address, starRating: hotelRecord.starRating, amount: hotelRecord.amount } : previous?.hotelId === body.hotelId ? previous.hotel : null;
-    const gst = gstRecord ? { name: gstRecord.name, gstNumber: gstRecord.gstNumber, rate: gstRecord.rate } : previous?.gstId === body.gstId ? previous.gst : null;
+    const gst = gstRecord ? { name: gstRecord.name, gstNumber: normalizeGstRecord(gstRecord).gstNumber, rate: gstRecord.rate } : previous?.gstId === body.gstId ? previous.gst : null;
     if (!hotel || !gst || !gst.gstNumber) throw billingError("Choose an existing hotel and a GST record with a company GST number.");
     const pricing = calculateVoucherPrice(body.basePrice, gst.rate);
     if (!pricing) throw billingError("Enter a valid base price with up to two decimal places.", 400, { basePrice: "Invalid amount." });
@@ -45,7 +46,7 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config }) 
       records().aggregate([{ $group: { _id: "$hotelId", name: { $first: "$hotel.name" } } }, { $limit: 500 }]).toArray(),
       records().aggregate([{ $group: { _id: "$gstId", gstNumber: { $first: "$gst.gstNumber" } } }, { $limit: 500 }]).toArray(),
     ]);
-    res.json({ hotels, gstRates, usedHotels, usedGst });
+    res.json({ hotels, gstRates: gstRates.map(normalizeGstRecord), usedHotels, usedGst });
   });
   management.post("/vouchers/invoice", ...guard, rateLimit({ windowMs: 60000, limit: 60, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Please wait before reserving another invoice." } }), async (req, res) => {
     if (typeof req.body?.requestId !== "string" || !/^[a-f\d-]{36}$/i.test(req.body.requestId)) throw billingError("Supply a valid invoice request ID.");

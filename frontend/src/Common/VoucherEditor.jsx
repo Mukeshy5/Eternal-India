@@ -9,23 +9,30 @@ export default function VoucherEditor({ apiBase, voucher, onSaved, onCancel, onU
   const [form, setForm] = useState(() => voucher ? formFrom(voucher) : blankForm()), [options, setOptions] = useState(null), [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(""), [errors, setErrors] = useState({}), [quoteError, setQuoteError] = useState(""), [checking, setChecking] = useState(false), [quote, setQuote] = useState(null), [retry, setRetry] = useState(0);
   const initial = useRef(JSON.stringify(form)), manualPrice = useRef(Boolean(voucher)), saveLock = useRef(false), requestId = useRef(crypto.randomUUID()), saveController = useRef(null);
+  const reloadOptions = useRef(null);
   const dirty = JSON.stringify(form) !== initial.current;
   usePanelNavigationGuard(dirty, busy, "Discard unsaved voucher changes?");
   useEffect(() => () => saveController.current?.abort(), []);
   useEffect(() => {
-    const controller = new AbortController(); let inFlight = false;
+    const controller = new AbortController(); let inFlight = false, pending = false, reservationRequest;
     setLoading(true); setError("");
     const load = async () => {
-      if (inFlight) return; inFlight = true;
+      if (inFlight) { pending = true; return; } inFlight = true;
       try {
-        const [result, reservation] = await Promise.all([api(`${apiBase}/vouchers/options`, { signal: controller.signal }), voucher ? Promise.resolve(null) : api(`${apiBase}/vouchers/invoice`, { method: "POST", body: JSON.stringify({ requestId: requestId.current }), signal: controller.signal })]);
-        if (controller.signal.aborted) return;
-        setOptions(result); if (reservation) setInvoice(reservation.invoice);
+        do {
+          pending = false;
+          reservationRequest ??= voucher ? Promise.resolve(null) : api(`${apiBase}/vouchers/invoice`, { method: "POST", body: JSON.stringify({ requestId: requestId.current }), signal: controller.signal }).catch((failure) => { reservationRequest = undefined; throw failure; });
+          const [result, reservation] = await Promise.all([api(`${apiBase}/vouchers/options`, { signal: controller.signal }), reservationRequest]);
+          if (controller.signal.aborted) return;
+          setOptions(result); if (reservation) setInvoice(reservation.invoice);
+          setForm((current) => current.gstId && voucher?.gstId !== current.gstId && !result.gstRates.some((item) => item._id === current.gstId && item.gstNumber) ? { ...current, gstId: "" } : current);
+        } while (pending && !controller.signal.aborted);
       } catch (failure) { if (!controller.signal.aborted) { setError(failure.message); if (failure.status === 401) onUnauthorized?.(); } }
       finally { inFlight = false; if (!controller.signal.aborted) setLoading(false); }
     };
-    void load(); const timer = window.setInterval(load, 30000); window.addEventListener("focus", load);
-    return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener("focus", load); };
+    reloadOptions.current = load;
+    void load(); const timer = window.setInterval(load, 30000); window.addEventListener("focus", load); window.addEventListener("online", load); window.addEventListener("journey-voucher-options-changed", load);
+    return () => { controller.abort(); reloadOptions.current = null; window.clearInterval(timer); window.removeEventListener("focus", load); window.removeEventListener("online", load); window.removeEventListener("journey-voucher-options-changed", load); };
   }, [apiBase, voucher, retry, onUnauthorized]);
   const hotel = options?.hotels.find((item) => item._id === form.hotelId) || (voucher?.hotelId === form.hotelId ? { _id: voucher.hotelId, ...voucher.hotel } : null);
   const gst = options?.gstRates.find((item) => item._id === form.gstId) || (voucher?.gstId === form.gstId ? { _id: voucher.gstId, ...voucher.gst } : null);
@@ -56,17 +63,17 @@ export default function VoucherEditor({ apiBase, voucher, onSaved, onCancel, onU
   function field(label, key, type = "text", extra = {}) {
     return <label className="billing-field"><span>{label} <i>*</i></span><input name={key} type={type} required value={form[key]} aria-invalid={Boolean(errors[key])} onChange={(event) => update(key, event.target.value)} {...extra} />{errors[key] && <small role="alert">{errors[key]}</small>}</label>;
   }
-  const hotels = options?.hotels || [], gstRates = (options?.gstRates || []).filter((item) => item.gstNumber);
+  const hotels = options?.hotels || [], gstRates = options?.gstRates || [], missingGstNumbers = gstRates.some((item) => !item.gstNumber);
   return <form className="billing-editor" onSubmit={save} aria-label={voucher ? "Edit journey voucher" : "Create journey voucher"}>
     <header className="billing-editor-heading"><div><span className="billing-eyebrow">{voucher ? "EDIT SAVED VOUCHER" : "NEW JOURNEY VOUCHER"}</span><h2>{voucher ? `Invoice #${voucher.invoiceNumber}` : invoice ? `Invoice #${invoice.invoiceNumber}` : "Reserving invoice…"}</h2><p>{voucher ? "Save changes to update this original record." : "Invoice number reserved securely by the server."}</p></div>{onCancel && <button type="button" disabled={busy} onClick={() => { if (!dirty || window.confirm("Discard unsaved voucher changes?")) onCancel(); }}>Close editor</button>}</header>
     {error && <div className="billing-error" role="alert">{error} <button type="button" disabled={busy || loading} onClick={() => setRetry((value) => value + 1)}>Retry / refresh pricing</button></div>}
     {loading && <p role="status">Loading hotel and GST configuration…</p>}
-    {!loading && options && (!hotels.length || !gstRates.length) && <p className="billing-info">{!hotels.length ? "Add a hotel in Hotel inventory. " : ""}{!gstRates.length ? "Add a company GST number and tax rate in GST management before creating a voucher." : ""}</p>}
+    {!loading && options && (!hotels.length || !gstRates.length || missingGstNumbers) && <p className="billing-info">{!hotels.length ? "Add a hotel in Hotel inventory. " : ""}{!gstRates.length ? "Add a company GST number and tax rate in GST management before creating a voucher." : missingGstNumbers ? "Some saved GST rates need a company GST number. Edit them in GST management to enable them here." : ""}</p>}
     <fieldset disabled={busy || loading || !options}>
       <div className="billing-form-columns"><div><section className="billing-form-section"><h3><span>01</span> Guest & billing</h3><div className="billing-form-grid">
         {field("Guest name", "guestName", "text", { maxLength: 160 })}{field("Voucher date", "voucherDate", "date", { min: "1900-01-01", max: "2199-12-31" })}
         <label className="billing-field"><span>Select hotel <i>*</i></span><select name="hotelId" required value={form.hotelId} aria-invalid={Boolean(errors.hotelId)} onChange={(event) => { manualPrice.current = false; const selected = hotels.find((item) => item._id === event.target.value); setForm((current) => ({ ...current, hotelId: event.target.value, basePrice: selected ? String(selected.amount) : "" })); }}><option value="">Select saved hotel</option>{hotels.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}{voucher && !hotels.some((item) => item._id === voucher.hotelId) && <option value={voucher.hotelId}>{voucher.hotel.name} (saved snapshot)</option>}</select>{errors.hotelId && <small>{errors.hotelId}</small>}</label>
-        <label className="billing-field"><span>Select GST number <i>*</i></span><select name="gstId" required value={form.gstId} aria-invalid={Boolean(errors.gstId)} onChange={(event) => update("gstId", event.target.value)}><option value="">Select company GST record</option>{gstRates.map((item) => <option key={item._id} value={item._id}>{item.gstNumber} · {item.rate}% · {item.name}</option>)}{voucher && !gstRates.some((item) => item._id === voucher.gstId) && <option value={voucher.gstId}>{voucher.gst.gstNumber} · {voucher.gst.rate}% (saved snapshot)</option>}</select>{errors.gstId && <small>{errors.gstId}</small>}</label>
+        <label className="billing-field"><span>Select GST number <i>*</i></span><select name="gstId" required value={form.gstId} aria-invalid={Boolean(errors.gstId)} onFocus={() => { void reloadOptions.current?.(); }} onChange={(event) => update("gstId", event.target.value)}><option value="">Select company GST record</option>{gstRates.map((item) => <option key={item._id} value={item._id} disabled={!item.gstNumber}>{item.gstNumber ? `${item.gstNumber} · ${item.rate}% · ${item.name}` : `${item.name} · ${item.rate}% · Company GST number required`}</option>)}{voucher && !gstRates.some((item) => item._id === voucher.gstId) && <option value={voucher.gstId}>{voucher.gst.gstNumber} · {voucher.gst.rate}% (saved snapshot)</option>}</select>{errors.gstId && <small>{errors.gstId}</small>}</label>
         <label className="billing-field billing-wide"><span>Your requirement <i>*</i></span><textarea name="requirement" required rows={6} maxLength={6000} placeholder="Describe the guest’s complete accommodation, travel and service requirements…" value={form.requirement} aria-invalid={Boolean(errors.requirement)} onChange={(event) => update("requirement", event.target.value)} />{errors.requirement && <small>{errors.requirement}</small>}</label>
       </div>{hotel && <p className="billing-info"><b>{hotel.name}</b> · {hotel.address}<br />Inventory base amount: {money(Math.round(hotel.amount * 100))}</p>}</section>
       <section className="billing-form-section"><h3><span>02</span> Stay & travel</h3><div className="billing-form-grid">

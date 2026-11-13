@@ -11,4 +11,5 @@ export function downloadVoucherFile(blob, filename) {
   window.setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 export const vouchersChanged = () => window.dispatchEvent(new window.Event("journey-vouchers-changed"));
+export const voucherOptionsChanged = () => window.dispatchEvent(new window.Event("journey-voucher-options-changed"));
 export const todayInIndia = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());

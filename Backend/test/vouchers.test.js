@@ -11,6 +11,13 @@ import { cookieHeader } from "../lib/cookies.js";
 import { createApp } from "../app.js";
 import { voucherCollection } from "../vouchers/model.js";
 import { calculateVoucherPrice, moneyToPaise } from "../../shared/voucherBilling.js";
+import { companyGstNumber } from "../../shared/gst.js";
+
+test("company GST numbers support existing name-only records without inventing missing numbers", () => {
+  assert.equal(companyGstNumber({ name: " 07abcde1234f1z5 " }), "07ABCDE1234F1Z5");
+  assert.equal(companyGstNumber({ name: "Standard GST", rate: 18 }), "");
+  assert.equal(companyGstNumber({ name: "07ABCDE1234F1Z5", gstNumber: "29abcde1234f1z5" }), "29ABCDE1234F1Z5");
+});
 
 test("voucher money uses validated integer paise", () => {
   assert.deepEqual(calculateVoucherPrice("100.10", 18), { currency: "INR", basePaise: 10010, gstRate: 18, gstPaise: 1802, totalPaise: 11812 });
@@ -20,7 +27,7 @@ test("voucher money uses validated integer paise", () => {
 });
 
 test("journey billing persists CRUD, unique invoices, pricing, filters and documents", async (t) => {
-  const config = { ...readConfig(), databaseName: `eternal_india_test_vouchers_${randomUUID().replaceAll("-", "")}`, adminEmail: "billing-owner@example.com", adminPassword: randomUUID() };
+  const config = { ...readConfig(), databaseName: `eternal_india_test_vouchers_${randomUUID().replaceAll("-", "").slice(0, 10)}`, adminEmail: "billing-owner@example.com", adminPassword: randomUUID() };
   const { client, db } = await connectDatabase(config);
   await ensureAdmin(db, config);
   const system = createApp({ client, db, config });
@@ -36,6 +43,21 @@ test("journey billing persists CRUD, unique invoices, pricing, filters and docum
     hotel = (await json("/admin/hotels", { method: "POST", body: { name: "Billing test stay", address: "12 Test Road, Jaipur", starRating: "4-Star (Upscale / Deluxe)", amount: 5000.25 } })).hotel;
     gst = (await json("/admin/gst", { method: "POST", body: { name: "Company GST", gstNumber: "07ABCDE1234F1Z5", rate: 18 } })).gstRate;
     body = { hotelId: hotel._id, gstId: gst._id, guestName: "Test Guest", voucherDate: "2026-11-13", requirement: "Two rooms and airport transfer.\nVegetarian meals.", checkInDate: "2026-12-01", checkOutDate: "2026-12-03", arrivalDate: "2026-12-01", arrivalPlace: "Delhi airport", departureDate: "2026-12-03", departurePlace: "Jaipur station", basePrice: "5000.25", status: "confirmed" };
+    await t.test("existing GST numbers saved as names appear in management and voucher options and support pricing", async () => {
+      const legacy = await db.collection("gst_rates").insertOne({ name: "29abcde1234f1z5", rate: 12 });
+      try {
+        for (const panel of ["admin", "technical"]) {
+          for (const path of ["gst", "vouchers/options"]) {
+            const result = await json(`/${panel}/${path}`);
+            assert.equal(result.gstRates.find((item) => item._id === legacy.insertedId.toString()).gstNumber, "29ABCDE1234F1Z5");
+          }
+          const quote = await json(`/${panel}/vouchers/quote`, { method: "POST", body: { ...body, gstId: legacy.insertedId.toString() } });
+          assert.equal(quote.gst.gstNumber, "29ABCDE1234F1Z5");
+          assert.equal(quote.pricing.gstRate, 12);
+        }
+        assert.equal((await db.collection("gst_rates").findOne({ _id: legacy.insertedId })).gstNumber, undefined, "reading legacy records does not modify them");
+      } finally { await db.collection("gst_rates").deleteOne({ _id: legacy.insertedId }); }
+    });
     await t.test("all billing endpoints require authentication", async () => {
       for (const [path, method] of [["", "GET"], ["/options", "GET"], ["/invoice", "POST"], ["/quote", "POST"], ["/export?format=xlsx", "GET"], ["/000000000000000000000001", "GET"], ["/000000000000000000000001/pdf", "GET"], ["/000000000000000000000001/print-data", "GET"], ["", "POST"], ["/000000000000000000000001", "PATCH"], ["/000000000000000000000001", "DELETE"]]) assert.equal((await request(`/admin/vouchers${path}`, { method, auth: "", body: method === "POST" || method === "PATCH" ? {} : undefined })).status, 401, path);
     });
