@@ -33,7 +33,7 @@ Read/delete/clear/preferences synchronize across the current account's authorize
 
 ## Inbox behavior
 
-Both panels share dark tables, mobile cards, detail views, category/status badges, date filters and status sorting. Provider sources remain WEBSITE, WHATSAPP and GMAIL. Website categories distinguish direct, WhatsApp handoff, email handoff, contact and Plan Your Trip enquiries. The Contact page links to the existing validated form with a contact category.
+Both panels share a pastel light theme with soft blue, purple, mint, pink and grey surfaces across navigation, cards, forms, tables, notifications and workspace tools. Mobile cards, detail views, category/status badges, date filters and status sorting use readable dark text. Provider sources remain WEBSITE, WHATSAPP and GMAIL. Website categories distinguish direct, WhatsApp handoff, email handoff, contact and Plan Your Trip enquiries. The Contact page links to the existing validated form with a contact category.
 
 Statuses include New, Pending, In Progress, Follow-up, Completed (RESOLVED), Cancelled and Closed, preserving legacy mappings. Search includes customer name/email/phone and enquiry reference. Date filters are inclusive calendar days in IST. Newest/oldest/status/updated sorting happens before pagination. URL filters, assignment, complete messages, archive/restore and enquiry deletion are preserved.
 

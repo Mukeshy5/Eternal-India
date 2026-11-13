@@ -5,7 +5,7 @@ import { AnimationFields, EffectPicker, FestivalField } from "./FestivalFields";
 
 const DecorationRenderer = lazy(() => import("./DecorationRenderer"));
 export default function FestivalPreview({ data, initial, can, busy, perform, onCancel }) {
-  const [form, setForm] = useState(() => ({ ...animationDefaults, selectedEffects: ["bubbles"], name: "Festival preview", category: "General Animations", description: "", priority: 0, enabled: true, bannerImage: "", ...initial }));
+  const [form, setForm] = useState(() => ({ ...animationDefaults, backgroundColor: "#f4f6fc", selectedEffects: ["bubbles"], name: "Festival preview", category: "General Animations", description: "", priority: 0, enabled: true, bannerImage: "", ...initial }));
   const [device, setDevice] = useState("desktop");
   const [running, setRunning] = useState(true);
   const [savedId, setSavedId] = useState(initial?._id || "");

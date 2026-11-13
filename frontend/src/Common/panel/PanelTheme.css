@@ -1,0 +1,254 @@
+/* Shared screen theme for every Admin and Technical workspace section. */
+@media screen {
+  .admin-shell, .admin-checking {
+    color-scheme: light;
+    --panel-bg: #f6f8fc;
+    --panel-surface: #ffffff;
+    --panel-soft: #f8f9fc;
+    --panel-ink: #303b50;
+    --panel-muted: #5d6b80;
+    --panel-line: #e0e6f0;
+    --panel-blue: #eaf2ff;
+    --panel-blue-ink: #405d87;
+    --panel-purple: #f0ecfb;
+    --panel-purple-ink: #665382;
+    --panel-mint: #e8f5ef;
+    --panel-mint-ink: #366552;
+    --panel-pink: #fbeef3;
+    --panel-pink-ink: #86596b;
+    --panel-grey: #eef1f6;
+    --panel-grey-ink: #556176;
+    --panel-peach: #fcf0e5;
+    --panel-peach-ink: #805c3d;
+    --panel-shadow: 0 4px 20px #4d60800a;
+    --panel-radius: 14px;
+    --ink: var(--panel-ink);
+    --muted: var(--panel-muted);
+    --line: var(--panel-line);
+    --green: var(--panel-mint-ink);
+    --pink: var(--panel-purple-ink);
+    background: var(--panel-bg);
+    color: var(--panel-ink);
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  .admin-shell .panel-app {
+    --panel-ink: #303b50;
+    --panel-muted: #5d6b80;
+    --panel-line: #e0e6f0;
+    --panel-accent: var(--panel-purple-ink);
+    --panel-control-height: 44px;
+    --panel-radius: 14px;
+    --panel-shadow: 0 4px 20px #4d60800a;
+    background: var(--panel-bg);
+    color: var(--panel-ink);
+  }
+  .admin-shell :is(h1, h2, h3, h4) { color: var(--panel-ink); }
+  .admin-shell :is(button, a, input, select, textarea):focus-visible {
+    outline: 3px solid #9389b2;
+    outline-offset: 3px;
+  }
+  .admin-shell :is(button, a, input, select, textarea) { -webkit-tap-highlight-color: #e7edf9; }
+  .admin-shell :is(input[type="checkbox"], input[type="radio"]) { accent-color: #82749f; }
+  .admin-shell :is(input, textarea)::placeholder { color: #69788c; opacity: 1; }
+  .admin-shell ::selection { background: #e4e1f7; color: var(--panel-ink); }
+
+  /* Navigation and shared frame. */
+  .admin-shell .panel-sidebar.dashboard-sidebar {
+    background: linear-gradient(180deg, #f4f6fd, #fafbfe 55%, #f2f8f6), #f6f8fd;
+    color: var(--panel-ink);
+    border-right: 1px solid var(--panel-line);
+    box-shadow: 3px 0 18px #52658504;
+  }
+  .admin-shell .panel-brand { border: 1px solid #e8ecf4; box-shadow: 0 3px 12px #52658505; border-radius: 12px; }
+  .admin-shell :is(.panel-brand-mark, .panel-collapse-button, .panel-workspace-name, .panel-account strong) { color: var(--panel-ink); }
+  .admin-shell :is(.panel-workspace-name small, .panel-workspace-version, .panel-nav-label, .panel-account small) { color: var(--panel-muted); }
+  .admin-shell :is(.panel-workspace-name, .panel-account) { border-color: var(--panel-line); }
+  .admin-shell :is(.panel-workspace-symbol, .panel-avatar) { color: var(--panel-purple-ink); background: var(--panel-purple); border-color: #e2ddef; border-radius: 10px; }
+  .admin-shell .panel-workspace-version { background: #edf2fa; border-color: var(--panel-line); }
+  .admin-shell .panel-navigation.dashboard-status-navigation button { color: #536179; border-radius: 10px; min-height: 44px; }
+  .admin-shell .panel-navigation.dashboard-status-navigation button:hover { background: #edf1fa; color: var(--panel-ink); }
+  .admin-shell .panel-navigation.dashboard-status-navigation button[aria-current=page] {
+    background: #e9e7f7; color: #5b4e7a; border-color: #dcd7ed;
+    box-shadow: 0 3px 10px #72658f07;
+  }
+  .admin-shell .panel-nav-active-dot { background: #a79cc6; }
+  .admin-shell .panel-topbar { background: #ffffffed; border-color: var(--panel-line); }
+  .admin-shell :is(.panel-breadcrumb, .panel-topbar-actions > a, .panel-footer) { color: var(--panel-muted); }
+  .admin-shell .panel-breadcrumb strong { color: var(--panel-ink); }
+  .admin-shell :is(.panel-menu-button.dashboard-mobile-menu, .panel-drawer-close) { color: var(--panel-grey-ink); background: #f3f5fb; border-color: var(--panel-line); }
+  .admin-shell .panel-backdrop { background: #e5eaf5b8; backdrop-filter: blur(3px); }
+
+  /* Cards, forms and actions shared by enquiries, operations and staff tools. */
+  .admin-shell .panel-app :is(.admin-tools, .staff-workspace, .payment-management, .festival-workspace, .technical-security) {
+    --staff-ink: var(--panel-ink); --staff-muted: var(--panel-muted);
+    --staff-line: var(--panel-line); --staff-rose: var(--panel-purple-ink);
+    color: var(--panel-ink); background: transparent;
+  }
+  .admin-shell .panel-app :is(.admin-tool-card, .dashboard-inbox, .dashboard-stat, .staff-person, .staff-filter-card, .staff-stats > div, .attendance-calendar, .staff-attendance-calendar-top, .festival-stat, .festival-effect-card, .payment-statistics article, .payment-admin-table, .payment-admin-detail) {
+    background: var(--panel-surface); border-color: var(--panel-line);
+    border-radius: var(--panel-radius); box-shadow: var(--panel-shadow);
+  }
+  .admin-shell .panel-app :is(.admin-tools-heading p, .admin-tool-field, .admin-tool-empty, .staff-note, .staff-name + p, .promotion-result-count, .promotion-save-hint, .payment-management-header p, .payment-summary-note, .technical-profile-card p, .panel-record-row p) { color: var(--panel-muted); }
+  .admin-shell .panel-app :is(.admin-tool-card h2, .staff-name, .staff-stats strong, .payment-statistics strong, .technical-profile-card strong) { color: var(--panel-ink); }
+  .admin-shell .panel-app :is(.staff-workspace, .festival-workspace, .promotion-manager) :is(p, small, dt, .staff-note, .festival-help, .festival-kicker, .festival-effect-category) { color: var(--panel-muted); }
+  .admin-shell .panel-app :is(.admin-tool-field, .enquiry-assignee, .enquiry-filter-row, .payment-admin-filters, .attendance-calendar-filters, .gmail-verification) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]), select, textarea) {
+    background: #fcfdff; color: var(--panel-ink); border-color: #d8e0ed; border-radius: 9px;
+  }
+  .admin-shell :is(.dashboard-button, .dashboard-icon-button, .admin-login-form .button, .notification-card-actions button, .notification-dropdown-actions button, .notification-load-more, .notification-view-all, .notification-enable-sound) {
+    background: #f0f4fb; color: #4f607a; border: 1px solid #dce4f0; border-radius: 9px;
+    box-shadow: 0 2px 5px #52658504; transition: background-color .16s, border-color .16s, box-shadow .16s;
+  }
+  .admin-shell :is(.dashboard-button-primary, .admin-login-form .button, .notification-enable-sound) { background: #e8e5f6; color: #5b4c7d; border-color: #d8d1ea; }
+  .admin-shell .panel-app .dashboard-button-primary { background: #e8e5f6; color: #5b4c7d; border-color: #d8d1ea; }
+  .admin-shell :is(.dashboard-button-danger, .notification-delete-button) { background: var(--panel-pink); color: #825267; border-color: #eed9e2; }
+  .admin-shell .panel-app .dashboard-button-danger { background: var(--panel-pink); color: #825267; border-color: #eed9e2; }
+  .admin-shell :is(.dashboard-button, .dashboard-icon-button, .admin-login-form .button, .notification-card-actions button, .notification-dropdown-actions button, .notification-load-more, .notification-view-all, .notification-enable-sound):hover:not(:disabled) { background: #e7edf8; border-color: #cbd7e9; box-shadow: 0 3px 9px #5265850b; }
+  .admin-shell :is(.dashboard-button-primary, .admin-login-form .button, .notification-enable-sound):hover:not(:disabled) { background: #e1dcf1; border-color: #cbc1e2; }
+  .admin-shell .dashboard-button-danger:hover:not(:disabled) { background: #f6e4ed; border-color: #e8ccd9; }
+  .admin-shell :is(.admin-error, .admin-tool-error, .notification-error) { background: #fceff3; color: #805066 !important; border-color: #e8cad7; border-radius: 9px; }
+  .admin-shell :is(.admin-success, .gmail-verified) { background: var(--panel-mint); color: var(--panel-mint-ink); border-color: #cee6da; }
+  .admin-shell .panel-app :is(.admin-tool-table, .dashboard-table, .payment-admin-table table, .attendance-matrix) { color: var(--panel-ink); }
+  .admin-shell .panel-app :is(.admin-tool-table th, .dashboard-table thead th, .payment-admin-table th) { background: #f1f5fb; color: #596a82; border-color: var(--panel-line); }
+  .admin-shell .panel-app :is(.admin-tool-table, .dashboard-table, .payment-admin-table table) :is(td, th) { border-color: #e8edf5; }
+  .admin-shell .panel-app :is(.admin-tool-table, .dashboard-table, .payment-admin-table table) tbody tr:hover { background: #f7f9fe; }
+  .admin-shell .panel-record-row { border-color: var(--panel-line); }
+  .admin-shell :is(.admin-stop, .voucher-date-plans, .gmail-otp-box, .promotion-toggle, .festival-history-diff > div) { background: #f7f8fd; border-color: var(--panel-line); border-radius: 10px; }
+
+  /* Enquiry cards, details, categories and status controls. */
+  .admin-shell .panel-app .dashboard-layout {
+    --dashboard-ink: var(--panel-ink); --dashboard-muted: var(--panel-muted); --dashboard-line: var(--panel-line);
+    --enquiry-website: #eaf2ff; --enquiry-whatsapp: #e8f5ef; --enquiry-gmail: #f0ecfb;
+    --enquiry-new: #fbf2de; --enquiry-progress: #eaf2ff; --enquiry-resolved: #e8f5ef; --enquiry-closed: #eef1f6;
+    color-scheme: light; background: transparent; color: var(--panel-ink);
+  }
+  .admin-shell .dashboard-layout :is(h1, h2, h3, .dashboard-guest strong, .dashboard-destination strong, .dashboard-stat > strong) { color: var(--panel-ink); }
+  .admin-shell .dashboard-layout :is(.dashboard-page-heading p, .dashboard-section-label, .dashboard-stat-top, .dashboard-stat-hint, .dashboard-inbox-heading p, .dashboard-sync, .dashboard-reference, .dashboard-trip-meta, .dashboard-received-date, .dashboard-received-time, .dashboard-guest a, .enquiry-message-preview, .dashboard-pagination, .dashboard-empty p, .dashboard-mobile-card-bottom > div > span) { color: var(--panel-muted); }
+  .admin-shell .panel-app .dashboard-stat-total { background: #eaf2ff; border-color: #d9e5f6; }
+  .admin-shell .panel-app .dashboard-stat-total :is(.dashboard-stat-top, .dashboard-stat-hint) { color: var(--panel-blue-ink); }
+  .admin-shell .panel-app .dashboard-stat[aria-pressed=true] { border-color: #cdc5e3; box-shadow: inset 0 -2px #c9bfdf, var(--panel-shadow); }
+  .admin-shell .panel-app .dashboard-stat .dashboard-stat-icon { background: #f0ecfb; color: #665382; }
+  .admin-shell .panel-app .dashboard-stat-NEW .dashboard-stat-icon { background: #fbf2de; color: #79613a; }
+  .admin-shell .panel-app .dashboard-stat-IN_PROGRESS .dashboard-stat-icon { background: #eaf2ff; color: #405d87; }
+  .admin-shell .panel-app .dashboard-stat-RESOLVED .dashboard-stat-icon { background: #e8f5ef; color: #366552; }
+  .admin-shell .panel-app .dashboard-stat-CLOSED .dashboard-stat-icon { background: #eef1f6; color: #556176; }
+  .admin-shell .dashboard-layout :is(.dashboard-inbox-heading h2 > span, .dashboard-active-filters, .dashboard-trip-summary, .dashboard-travel-notes, .dashboard-empty-icon) { background: #f2f5fc; color: var(--panel-muted); border-color: var(--panel-line); box-shadow: none; }
+  .admin-shell .panel-app .dashboard-table tr.enquiry-is-new, .admin-shell .panel-app .dashboard-mobile-card.enquiry-is-new { background: #f7f9ff; box-shadow: inset 3px 0 #cbd9f0; }
+  .admin-shell .panel-app .dashboard-table tr.enquiry-is-new:hover { background: #eef3fc; }
+  .admin-shell .dashboard-layout :is(.dashboard-search, .dashboard-filter, .enquiry-assignee select) { background: #fcfdff; border-color: #d8e0ed; color: var(--panel-ink); border-radius: 9px; }
+  .admin-shell .dashboard-layout :is(.dashboard-search input, .dashboard-filter select, .enquiry-assignee select) { background: transparent; color: var(--panel-ink); }
+  .admin-shell .dashboard-layout :is(.dashboard-filter > span, .dashboard-filter > svg, .enquiry-filter-row label, .enquiry-filter-row > span) { color: var(--panel-muted); border-color: var(--panel-line); }
+  .admin-shell .dashboard-layout :is(.dashboard-search button, .dashboard-pagination button) { background: var(--panel-blue); color: var(--panel-blue-ink); border-color: #d8e4f4; border-radius: 7px; }
+  .admin-shell .dashboard-avatar { background: #f0ecfb; color: #665382; border-color: #e0d9ee; }
+  .admin-shell .dashboard-avatar-1 { background: #e8f5ef; color: #366552; border-color: #d4e9df; }
+  .admin-shell .dashboard-avatar-2 { background: #fbeef3; color: #86596b; border-color: #efdee6; }
+  .admin-shell .dashboard-avatar-3 { background: #eaf2ff; color: #405d87; border-color: #d9e5f6; }
+  .admin-shell .panel-app .dashboard-mobile-card { background: white; border-color: var(--panel-line); border-radius: 12px; }
+  .admin-shell .dashboard-layout :is(.dashboard-mobile-trip, .dashboard-mobile-card-bottom, .dashboard-pagination) { border-color: var(--panel-line); }
+  .admin-shell .dashboard-layout .dashboard-mobile-trip > :is(strong, span:not(.enquiry-source-badge)) { color: var(--panel-muted); }
+  .admin-shell .dashboard-layout .dashboard-drawer { color-scheme: light; background: #ffffff; color: var(--panel-ink); border-color: var(--panel-line); box-shadow: -12px 0 50px #52658512; }
+  .admin-shell .dashboard-drawer::backdrop, .admin-shell .attendance-calendar-dialog::backdrop { background: #e5eaf5b8; backdrop-filter: blur(3px); }
+  .admin-shell .dashboard-layout :is(.dashboard-drawer-top, .dashboard-drawer-footer, .dashboard-contact a) { background: #f7f9fd; color: var(--panel-ink); border-color: var(--panel-line); }
+  .admin-shell .dashboard-layout :is(.dashboard-travel-notes p, .dashboard-trip-summary dd, .enquiry-detail-meta dd, .dashboard-contact span) { color: var(--panel-ink); }
+  .admin-shell .dashboard-layout :is(.enquiry-detail-meta dt, .dashboard-trip-summary dt, .dashboard-contact small, .dashboard-drawer-top > span, .dashboard-drawer-status > span) { color: var(--panel-muted); }
+  .admin-shell .enquiry-integrations { background: #f4f8fd; border-color: var(--panel-line); }
+  .admin-shell .enquiry-integrations :is(summary, p, small) { color: var(--panel-muted); }
+  .admin-shell .enquiry-source-tabs button { background: var(--panel-grey); color: var(--panel-grey-ink); border: 1px solid var(--panel-line); }
+  .admin-shell .enquiry-source-tabs button[data-source=website] { background: var(--panel-blue); color: var(--panel-blue-ink); }
+  .admin-shell .enquiry-source-tabs button[data-source=whatsapp] { background: var(--panel-mint); color: var(--panel-mint-ink); }
+  .admin-shell .enquiry-source-tabs button[data-source=gmail] { background: var(--panel-purple); color: var(--panel-purple-ink); }
+  .admin-shell .enquiry-source-tabs button[aria-pressed=true] { border-color: #b9c6dd; box-shadow: inset 0 -2px #c9d5e9; }
+  .admin-shell :is(.enquiry-source-badge, .dashboard-status) { background: var(--badge-bg, #eaf2ff); color: var(--badge-ink, #405d87); border: 1px solid var(--badge-border, #dae5f6); }
+  .admin-shell .dashboard-status select { color: inherit; }
+  .admin-shell .dashboard-status select option { background: #fff; color: var(--panel-ink); }
+  .admin-shell :is(.enquiry-source-whatsapp, .dashboard-status-resolved) { --badge-bg: #e8f5ef; --badge-ink: #366552; --badge-border: #d4e9df; }
+  .admin-shell :is(.enquiry-source-gmail, .enquiry-source-email, .dashboard-status-follow_up) { --badge-bg: #f0ecfb; --badge-ink: #665382; --badge-border: #e0d9ee; }
+  .admin-shell .enquiry-source-contact { --badge-bg: #e8f4f7; --badge-ink: #3f6471; --badge-border: #d3e7ec; }
+  .admin-shell .enquiry-source-plan { --badge-bg: #eceffc; --badge-ink: #535f88; --badge-border: #dde2f4; }
+  .admin-shell .dashboard-status-new { --badge-bg: #fbf2de; --badge-ink: #79613a; --badge-border: #eee2c9; }
+  .admin-shell .dashboard-status-pending { --badge-bg: #fcf0e5; --badge-ink: #805c3d; --badge-border: #eee0d2; }
+  .admin-shell .dashboard-status-cancelled { --badge-bg: #fbeef3; --badge-ink: #86596b; --badge-border: #efdee6; }
+  .admin-shell .dashboard-status-closed { --badge-bg: #eef1f6; --badge-ink: #556176; --badge-border: #dfe5ef; }
+
+  /* Notifications use the same surfaces and actions as the workspace. */
+  .admin-shell :is(.enquiry-notification-menu > summary, .notification-dropdown-heading > span) { background: #f0f4fb; color: var(--panel-blue-ink); border-color: var(--panel-line); }
+  .admin-shell .notification-badge { background: #eee5f7; color: #655080; border: 1px solid #dfd1ec; }
+  .admin-shell :is(.enquiry-notification-dropdown, .notification-center) { color-scheme: light; color: var(--panel-ink); }
+  .admin-shell .enquiry-notification-dropdown { background: #fff; border-color: var(--panel-line); border-radius: 14px; box-shadow: 0 14px 40px #52658518; }
+  .admin-shell .notification-center { width: 100%; min-height: calc(100dvh - 118px); background: var(--panel-bg); }
+  .admin-shell .notification-center > .notification-list, .admin-shell .notification-center .notification-empty { background: #fff; border-color: var(--panel-line); border-radius: 14px; }
+  .admin-shell :is(.notification-dropdown-heading strong, .notification-card-heading strong, .notification-center h1) { color: var(--panel-ink); }
+  .admin-shell :is(.enquiry-notification-dropdown, .notification-center) :is(p, label, time) { color: var(--panel-muted); }
+  .admin-shell :is(.notification-preferences, .notification-card, .notification-center-heading) { border-color: var(--panel-line); }
+  .admin-shell .notification-card.is-read { opacity: 1; }
+  .admin-shell .notification-category { color: var(--panel-purple-ink); }
+  .admin-shell .notification-unread-dot { background: #c3b5d9; }
+  .admin-shell .notification-card.is-read .notification-unread-dot { background: #dce2ec; }
+  .admin-shell .notification-dropdown-list { scrollbar-color: #ccd5e5 #f5f7fb; }
+  .admin-shell .enquiry-toasts article { background: #eef4fd; color: var(--panel-ink); border: 1px solid #d9e4f5; border-left: 4px solid #c2cfe7; border-radius: 12px; box-shadow: 0 8px 25px #52658514; }
+  .admin-shell .enquiry-toasts :is(span, p) { color: var(--panel-muted); }
+  .admin-shell .enquiry-toasts button { background: #ffffffb3; color: var(--panel-blue-ink); border-color: #d1def0; }
+
+  /* Attendance, payments, offers and festival management. */
+  .admin-shell :is(.staff-calendar-toolbar, .staff-calendar-staff-list, .staff-calendar-detail, .staff-calendar-panel-label, .attendance-view-switch, .attendance-matrix thead th, .attendance-matrix thead .attendance-person-cell) { background: #f3f6fc; color: var(--panel-muted); border-color: var(--panel-line); }
+  .admin-shell :is(.staff-calendar-month-day, .staff-calendar-day, .staff-team-calendar-cell, .attendance-matrix td, .attendance-person-cell, .attendance-calendar-dialog) { background: #fff; color: var(--panel-ink); border-color: var(--panel-line); }
+  .admin-shell :is(.staff-calendar-month-day.is-today, .staff-calendar-day.is-today) { outline-color: #a9b8d2; }
+  .admin-shell :is(.staff-calendar-month-day.is-present, .staff-calendar-present, .staff-team-calendar-cell.staff-calendar-present, .staff-badge-present, .staff-badge-active, .attendance-color-present, .payment-badge-paid) { background: var(--panel-mint); color: var(--panel-mint-ink); border-color: #cee6da; }
+  .admin-shell :is(.staff-calendar-month-day.is-absent, .staff-calendar-absent, .staff-team-calendar-cell.staff-calendar-absent, .staff-badge-absent, .staff-badge-inactive, .attendance-color-absent, .payment-badge-failed) { background: var(--panel-pink); color: #805066; border-color: #ecd8e2; }
+  .admin-shell :is(.staff-calendar-month-day.is-leave, .staff-calendar-leave, .staff-team-calendar-cell.staff-calendar-leave, .staff-badge-leave, .attendance-color-leave, .payment-badge-refunded) { background: var(--panel-purple); color: var(--panel-purple-ink); border-color: #dfd7ee; }
+  .admin-shell :is(.staff-calendar-month-day.is-half_day, .staff-calendar-half_day, .staff-badge-half_day, .attendance-color-half_day, .payment-badge-pending, .payment-badge-authorized) { background: var(--panel-peach); color: var(--panel-peach-ink); border-color: #edddce; }
+  .admin-shell :is(.staff-calendar-weekly_off, .staff-badge-weekly_off, .attendance-color-weekly_off, .attendance-matrix .attendance-day-off, .staff-calendar-month-day.is-sunday) { background: var(--panel-grey); color: var(--panel-grey-ink); border-color: var(--panel-line); }
+  .admin-shell .staff-calendar-month-day.is-holiday, .admin-shell .attendance-matrix .attendance-day-today { background: var(--panel-blue); color: var(--panel-blue-ink); }
+  .admin-shell .staff-calendar-month-day:is(.is-present, .is-absent, .is-leave, .is-half_day) > b { background: #ffffffb3; color: inherit; border: 1px solid #dae2ed; }
+  .admin-shell .legend-present { background: #c4e3d3 !important; }
+  .admin-shell .legend-absent { background: #ebc8d5 !important; }
+  .admin-shell .legend-leave { background: #d9ceeb !important; }
+  .admin-shell .legend-sunday { background: #d5dce6 !important; }
+  .admin-shell .legend-holiday { background: #cbdcf3 !important; }
+  .admin-shell .legend-half-day { background: #ead6c1 !important; }
+  .admin-shell .attendance-matrix thead .attendance-day-today strong, .admin-shell .attendance-view-switch button[aria-pressed=true] { background: #e9e5f7; color: #60517e; }
+  .admin-shell .staff-calendar-staff-list button:is(:hover, .is-selected) { background: var(--panel-purple); color: var(--panel-purple-ink); border-color: #ded5ed; box-shadow: inset 3px 0 #c3b6d9; }
+  .admin-shell .payment-status-badge { border: 1px solid #dbe3ef; }
+  .admin-shell :is(.payment-admin-detail dt, .payment-admin-table td > small, .payment-admin-table td > span:not(.payment-status-badge)) { color: var(--panel-muted); }
+  .admin-shell .promotion-target { background: #fff; color: var(--panel-ink); border-color: var(--panel-line); border-radius: 10px; }
+  .admin-shell .promotion-target:is(:hover, [aria-pressed=true]) { background: var(--panel-mint); border-color: #cddfd7; }
+  .admin-shell .festival-navigation button[aria-current=page], .admin-shell .festival-effect-picker label.selected { background: var(--panel-purple); color: var(--panel-purple-ink); border-color: #dfd7ee; }
+  .admin-shell :is(.festival-status-card, .festival-master-toggle, .festival-stat-activeDecorations) { background: var(--panel-mint); border-color: #d3e7dd; }
+  .admin-shell .festival-effect-art { background: radial-gradient(ellipse at 50% 90%, #e8e5f7, transparent 75%), #f5f7fd; color: #81759b; }
+  .admin-shell .festival-effect-art > :is(svg, span, strong) { color: #81759b; }
+  .admin-shell :is(.festival-status-pill, .festival-badges span) { background: #eff4fb; color: #566985; border-color: var(--panel-line); }
+  .admin-shell .festival-inline-warning { background: var(--panel-peach); color: var(--panel-peach-ink) !important; border-color: #e6d2bf; }
+  .admin-shell .festival-preview-website, .admin-shell .festival-preview-website h3 { color: var(--panel-ink); }
+  .admin-shell .festival-preview-website { background: #f6f8fd; }
+  .admin-shell .festival-preview-website :is(p, .festival-kicker) { color: var(--panel-muted); }
+  .admin-shell .festival-preview-website h3 em { color: var(--panel-purple-ink); }
+  .admin-shell .festival-preview-browser { background: #edf1f8; }
+  .admin-shell .festival-preview-faux-button { background: var(--panel-purple); color: var(--panel-purple-ink); }
+  .admin-shell .festival-preview-loading { color: var(--panel-muted); }
+
+  /* Sign-in, registration, recovery and loading screens. */
+  .admin-shell .admin-header { background: #fff; border-color: var(--panel-line); }
+  .admin-shell .admin-login-layout { border-color: var(--panel-line); border-radius: 20px; box-shadow: 0 16px 55px #5265850d; }
+  .admin-shell .admin-login-story { background: linear-gradient(145deg, #edf2fc, #f1edfa 55%, #eaf6f0), #f1f0fb; color: var(--panel-ink); }
+  .admin-shell .admin-login-story h1 { color: var(--panel-ink); }
+  .admin-shell .admin-login-story h1 em { color: #72618b; }
+  .admin-shell .admin-login-story :is(p, .admin-eyebrow, .admin-story-foot) { color: var(--panel-muted); }
+  .admin-shell .admin-login-story > svg { color: #8a80a6; }
+  .admin-shell .availability-dot { background: #b7d9c8; box-shadow: 0 0 0 4px #dceee5; }
+  .admin-shell .admin-login-form { background: #fff; color: var(--panel-ink); }
+  .admin-shell .admin-login-form :is(input, select) { background: #f8faff; color: var(--panel-ink); border-color: #d8e0ed; }
+  .admin-shell :is(.admin-eyebrow, .admin-password-field button, .panel-auth-links a, .panel-other-login) { color: var(--panel-purple-ink); }
+  .admin-shell .admin-login-form > p:not(.admin-error), .admin-shell .admin-login-note { color: var(--panel-muted); }
+  .admin-checking { min-height: 100dvh; }
+  .admin-checking h1 { color: var(--panel-ink); }
+  .admin-checking p { color: var(--panel-muted); }
+
+  @media (max-width: 680px) {
+    .admin-shell .panel-app :is(.admin-tool-field, .enquiry-filter-row, .payment-admin-filters, .attendance-calendar-filters) :is(input, select, textarea) { font-size: 16px; }
+    .admin-shell .panel-app :is(.dashboard-search input, .dashboard-filter select) { font-size: 16px; }
+    .admin-shell .panel-topbar-actions { gap: 10px; }
+    .admin-shell .panel-app :is(.dashboard-button, .dashboard-icon-button) { min-height: 44px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .admin-shell :is(button, a, input, select, textarea) { transition: none; }
+  }
+}
