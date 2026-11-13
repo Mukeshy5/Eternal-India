@@ -93,14 +93,14 @@ export async function verifyCalendar(vite) {
     assert.equal(container.querySelector("#test-panel-route").textContent, "/technical/hotels");
     testWindow.dispatchEvent(new testWindow.Event("pagehide")); await act(async () => assert.equal((await globalThis.fetch("/api/technical/me")).status, 200, "refresh/navigation does not destroy the shared session"));
     await render("/technical/hotels"); await waitFor(() => container.querySelector(".admin-tool-form"), "refresh preserves hotel route");
-    await act(async () => { type('.admin-tool-form input[name=name]', "Calendar test hotel"); type('.admin-tool-form input[name=gst]', "12"); type('.admin-tool-form input[name=amount]', "5000"); });
+    await act(async () => { type('.admin-tool-form input[name=name]', "Calendar test hotel"); type('.admin-tool-form input[name=address]', "1 Test Street, Jaipur"); type('.admin-tool-form input[name=amount]', "5000"); });
     for (const input of container.querySelectorAll('.admin-tool-form input[type=number]')) input.step = "any";
     await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
     await waitFor(async () => await db.collection("hotels").countDocuments() === 1 && container.querySelector(".admin-tool-table tbody tr"), "hotel creation updates saved inventory");
     await click("Edit", container.querySelector(".admin-tool-table"));
-    await act(async () => type('.admin-tool-form input[name=amount]', "5250.50"));
+    await act(async () => { type('.admin-tool-form input[name=address]', "2 Test Street, Jaipur"); type('.admin-tool-form input[name=amount]', "5250.50"); });
     await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
-    await waitFor(async () => (await db.collection("hotels").findOne())?.amount === 5250.5 && container.querySelector(".admin-tool-table").textContent.includes("5,250.5") && container.textContent.includes("Hotel updated successfully."), "hotel update uses the saved API record");
+    await waitFor(async () => (await db.collection("hotels").findOne())?.amount === 5250.5 && (await db.collection("hotels").findOne())?.address === "2 Test Street, Jaipur" && container.querySelector(".admin-tool-table").textContent.includes("2 Test Street, Jaipur") && container.querySelector(".admin-tool-table").textContent.includes("5,250.5") && container.textContent.includes("Hotel updated successfully."), "hotel address and amount update through the saved API record");
     await click("Delete", container.querySelector(".admin-tool-table")); await waitFor(async () => await db.collection("hotels").countDocuments() === 0 && !container.querySelector(".admin-tool-table tbody tr"), "hotel deletion updates inventory");
     await click("Staff Management", container.querySelector(".panel-navigation")); await waitFor(() => container.querySelector(".staff-grid"), "staff route");
     await act(async () => container.querySelector("#test-history-back").click()); await waitFor(() => container.querySelector(".admin-tool-form"), "browser back restores tool");
@@ -109,7 +109,7 @@ export async function verifyCalendar(vite) {
     testWindow.confirm = () => true; await click("All enquiries", container.querySelector(".panel-navigation")); await waitFor(() => container.querySelector(".dashboard-table"), "navigation after confirming discard");
     await render("/technical/not-a-section"); await waitFor(() => container.textContent.includes("Section not found"), "unknown route recovery");
     await render("/technical/hotels"); await waitFor(() => container.querySelector(".admin-tool-form"), "hotel form before session expiry");
-    await act(async () => { type('.admin-tool-form input[name=name]', "Expired session hotel"); type('.admin-tool-form input[name=gst]', "12"); type('.admin-tool-form input[name=amount]', "5000"); });
+    await act(async () => { type('.admin-tool-form input[name=name]', "Expired session hotel"); type('.admin-tool-form input[name=address]', "2 Test Street, Jaipur"); type('.admin-tool-form input[name=amount]', "5000"); });
     await act(async () => { await json("/technical/logout", {}); });
     // Happy DOM uses floating-point remainder for decimal steps; browsers accept these values.
     for (const input of container.querySelectorAll('.admin-tool-form input[type=number]')) input.step = "any";

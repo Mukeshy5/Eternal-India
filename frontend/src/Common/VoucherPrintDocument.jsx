@@ -34,7 +34,7 @@ export default function VoucherPrintDocument({ voucher }) {
       <tbody>{points.slice(1).map((stop, index) => <tr key={index}>
         <th scope="row"><span className="vp-stop-number">{String(index + 1).padStart(2, "0")}</span></th>
         <td><strong>{stop.name}</strong>{stop.address && <p>{stop.address}</p>}</td>
-        <td><strong>{stop.hotel?.name || "To be confirmed"}</strong>{stop.hotel?.starRating && <small>{stop.hotel.starRating}</small>}</td>
+        <td><strong>{stop.hotel?.name || "To be confirmed"}</strong>{stop.hotel?.address && <small>{stop.hotel.address}</small>}{stop.hotel?.starRating && <small>{stop.hotel.starRating}</small>}</td>
         <td><span>Arrival: {dateLabel(stop.arrivalDate)}</span><span>Departure: {dateLabel(stop.departureDate)}</span><strong className="vp-duration">{stop.duration || "To be confirmed"}</strong>{stop.flightNumber && <small>Flight: {stop.flightNumber}</small>}{stop.airportReceiveTime && <small>Receive: {stop.airportReceiveTime}</small>}{stop.airportExitTime && <small>Exit: {stop.airportExitTime}</small>}</td>
         <td><strong>{stop.distanceKm !== "" && stop.distanceKm != null ? formatKm(Number(stop.distanceKm)) : "Pending"}</strong><small>from previous stop</small>{stop.cumulative != null && <small>{formatKm(stop.cumulative)} total</small>}</td>
       </tr>)}</tbody>

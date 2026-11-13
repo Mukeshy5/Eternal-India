@@ -26,7 +26,7 @@ export async function verifyVoucher(server) {
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   }
   const originalFetch = globalThis.fetch;
-  const hotel = { _id: "000000000000000000000012", name: "Heritage Stay", starRating: "4-Star (Upscale / Deluxe)", gst: 12, amount: 5000 };
+  const hotel = { _id: "000000000000000000000012", name: "Heritage Stay", address: "12 Heritage Road, Jaipur", starRating: "4-Star (Upscale / Deluxe)", amount: 5000 };
   const saves = [];
   const errors = [];
   let prints = 0;
@@ -82,6 +82,7 @@ export async function verifyVoucher(server) {
     assert.equal(printRoot.querySelectorAll(".vp-itinerary tbody tr").length, 2);
     assert.ok(printRoot.textContent.includes("Terminal 3, Delhi Airport"));
     assert.ok(printRoot.textContent.includes("Taj East Gate, Agra"));
+    assert.ok(printRoot.textContent.includes("12 Heritage Road, Jaipur"));
     assert.ok(printRoot.textContent.includes("400 km"));
     assert.equal(printRoot.querySelectorAll("button, input, select, textarea").length, 0, "printout has no interactive form controls");
     assert.ok(container.querySelector(".journey-voucher-print").textContent.includes("EIV-TEST-123"));

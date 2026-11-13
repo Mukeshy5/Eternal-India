@@ -172,19 +172,19 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   const parseMoney = (value) => Number.isFinite(Number(value)) && Number(value) >= 0 ? Math.round(Number(value) * 100) / 100 : null;
   const parseHotel = (body) => {
     const name = typeof body?.name === "string" ? body.name.trim().slice(0, 160) : "";
+    const address = typeof body?.address === "string" ? body.address.trim().slice(0, 300) : "";
     const starRating = typeof body?.starRating === "string" ? body.starRating : "";
-    const gst = parseMoney(body?.gst);
     const amount = parseMoney(body?.amount);
-    if (!name || !hotelStars.includes(starRating) || gst === null || gst > 100 || amount === null) return null;
-    return { name, starRating, gst, amount };
+    if (!name || !address || !hotelStars.includes(starRating) || amount === null) return null;
+    return { name, address, starRating, amount };
   };
   management.get("/hotels", requireAdmin, async (_req, res) => {
-    const hotels = await db.collection("hotels").find({}, { projection: { name: 1, starRating: 1, gst: 1, amount: 1, createdAt: 1, updatedAt: 1 } }).sort({ updatedAt: -1 }).limit(500).toArray();
+    const hotels = await db.collection("hotels").find({}, { projection: { name: 1, address: 1, starRating: 1, amount: 1, createdAt: 1, updatedAt: 1 } }).sort({ updatedAt: -1 }).limit(500).toArray();
     res.json({ hotels });
   });
   management.post("/hotels", requireAdmin, async (req, res) => {
     const hotel = parseHotel(req.body);
-    if (!hotel) return res.status(400).json({ message: "Enter a valid hotel name, category, GST and amount." });
+    if (!hotel) return res.status(400).json({ message: "Enter a valid hotel name, address, category and amount." });
     const now = new Date();
     const result = await db.collection("hotels").insertOne({ ...hotel, createdAt: now, updatedAt: now });
     res.status(201).json({ hotel: { _id: result.insertedId, ...hotel, createdAt: now, updatedAt: now } });
@@ -192,9 +192,9 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   management.patch("/hotels/:id", requireAdmin, async (req, res) => {
     if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid hotel." });
     const hotel = parseHotel(req.body);
-    if (!hotel) return res.status(400).json({ message: "Enter a valid hotel name, category, GST and amount." });
+    if (!hotel) return res.status(400).json({ message: "Enter a valid hotel name, address, category and amount." });
     const updatedAt = new Date();
-    const saved = await db.collection("hotels").findOneAndUpdate({ _id: new ObjectId(req.params.id) }, { $set: { ...hotel, updatedAt } }, { returnDocument: "after", projection: { name: 1, starRating: 1, gst: 1, amount: 1, createdAt: 1, updatedAt: 1 } });
+    const saved = await db.collection("hotels").findOneAndUpdate({ _id: new ObjectId(req.params.id) }, { $set: { ...hotel, updatedAt }, $unset: { gst: "" } }, { returnDocument: "after", projection: { name: 1, address: 1, starRating: 1, amount: 1, createdAt: 1, updatedAt: 1 } });
     if (!saved) return res.status(404).json({ message: "Hotel not found." });
     res.json({ message: "Hotel updated.", hotel: saved });
   });
@@ -250,12 +250,12 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     if (cleanStops.some((stop) => !validDate(stop.arrivalDate) || !validDate(stop.departureDate) || stop.departureDate < stop.arrivalDate)) return res.status(400).json({ message: "Enter valid arrival and departure dates. Departure cannot be before arrival." });
     if (!name || !visitingCardNo || !from || !cleanStops.length || cleanStops.some((stop) => !stop.duration || !stop.departureDate || !stop.arrivalDate || !/^[a-f\d]{24}$/i.test(stop.hotelId))) return res.status(400).json({ message: "Complete billing details, journey stops and hotels for every stop." });
     const hotelIds = cleanStops.map((stop) => new ObjectId(stop.hotelId));
-    const hotels = await db.collection("hotels").find({ _id: { $in: hotelIds } }, { projection: { name: 1, starRating: 1, gst: 1, amount: 1 } }).toArray();
+    const hotels = await db.collection("hotels").find({ _id: { $in: hotelIds } }, { projection: { name: 1, address: 1, starRating: 1, amount: 1 } }).toArray();
     const hotelsById = new Map(hotels.map((hotel) => [hotel._id.toString(), hotel]));
     for (const stop of cleanStops) {
       const hotel = hotelsById.get(stop.hotelId);
       if (!hotel) return res.status(400).json({ message: "Select a valid saved hotel for every stop." });
-      stop.hotel = { name: hotel.name, starRating: hotel.starRating, gst: hotel.gst, amount: hotel.amount };
+      stop.hotel = { name: hotel.name, address: hotel.address, starRating: hotel.starRating, amount: hotel.amount };
     }
     const now = new Date();
     const voucher = { voucherNumber: `EIV-${now.getFullYear()}-${randomBytes(4).toString("hex").toUpperCase()}`, billing: { name, visitingCardNo }, journey: { from, fromAddress }, stops: cleanStops, message: message || "May every mile bring you closer to a beautiful memory." , createdAt: now };

@@ -135,6 +135,10 @@ export async function verifyAdminInteractions(server, technical = false) {
         assert.ok(tool, `${label} is present in the technical panel`);
         await act(async () => tool.click());
         assert.ok(container.querySelector("h1").textContent.includes(heading), `${label} opens its complete editor`);
+        if (label === "Add hotel") {
+          assert.equal(container.querySelector('.admin-tool-form input[name="address"]')?.required, true, "hotel address is required");
+          assert.equal(container.querySelector('.admin-tool-form input[name="gst"]'), null, "hotel form no longer asks for GST");
+        }
         await act(async () => container.querySelector(".admin-tools-heading button").click());
         assert.ok(container.querySelector(".dashboard-table"), "returning from a technical tool restores enquiries");
       }
