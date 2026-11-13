@@ -20,47 +20,85 @@ export async function voucherPdf(voucher) {
   logoPromise ??= sharp(fileURLToPath(new URL("../../frontend/public/logo.webp", import.meta.url))).png().toBuffer().catch((error) => { logoPromise = undefined; throw error; });
   const logo = await logoPromise;
   return pdf((doc) => {
-    const width = 523, left = 36;
-    doc.image(logo, left, 36, { fit: [110, 46] });
-    doc.font("Helvetica-Bold").fontSize(21).fillColor("#153963").text(company.name, 164, 36);
-    doc.font("Helvetica").fontSize(9).text(company.subtitle, 164, 63);
-    doc.fontSize(8).fillColor("#435469").text(company.address, 164, 80, { width: 395 });
-    doc.text(company.phone, 164, 106);
-    doc.moveTo(left, 129).lineTo(559, 129).strokeColor("#cbd9e8").stroke();
-    doc.font("Helvetica-Bold").fontSize(15).fillColor("#153963").text("JOURNEY VOUCHER", left, 146);
-    doc.font("Voucher").fontSize(10).text(`Invoice #${voucher.invoiceNumber}   |   ${date(voucher.voucherDate)}   |   ${voucher.status.toUpperCase()}`, left, 172);
-    let y = 202;
-    const row = (labelA, valueA, labelB, valueB) => {
-      doc.font("Voucher").fontSize(8);
-      const h = Math.max(42, doc.heightOfString(valueA || "—", { width: 235 }) + 22, doc.heightOfString(valueB || "—", { width: 235 }) + 22);
-      if (y + h > 745) { doc.addPage(); y = 40; }
-      for (const [x, label, value] of [[left, labelA, valueA], [305, labelB, valueB]]) {
-        doc.fillColor("#64758a").fontSize(8).text(label, x, y, { width: 235 });
-        doc.fillColor("#172c44").fontSize(10).text(value || "—", x, y + 14, { width: 235 });
-      }
-      y += h;
+    const left = 36, width = doc.page.width - left * 2, right = left + width;
+    const plum = "#71314f", gold = "#c8a56e", ink = "#25364b", muted = "#7c7080", rule = "#e7dfe4";
+    const bodyTop = 260, bodyBottom = doc.page.height - 104;
+    const line = (x1, y1, x2, y2, color = rule) => doc.moveTo(x1, y1).lineTo(x2, y2).lineWidth(.6).strokeColor(color).stroke();
+    const text = (value, x, y, size, color, options = {}) => doc.font("Voucher").fontSize(size).fillColor(color).text(value || "—", x, y, options);
+    const page = () => {
+      // Paint the logo into every page so it also survives printing without backgrounds.
+      doc.save().opacity(.055).rotate(-18, { origin: [doc.page.width / 2, 425] });
+      doc.image(logo, (doc.page.width - 390) / 2, 355, { fit: [390, 140], align: "center", valign: "center" });
+      doc.restore();
+      doc.rect(left, 24, width, 3).fill(plum);
+      doc.image(logo, (doc.page.width - 170) / 2, 39, { fit: [170, 53], align: "center", valign: "center" });
+      text(company.subtitle, left, 99, 8.5, ink, { width, align: "center" });
+      text(company.address, left + 24, 117, 7.5, muted, { width: width - 48, align: "center" });
+      text(`${company.phone}   |   ${company.website}`, left, 144, 8, muted, { width, align: "center" });
+      text(`GST No.  ${voucher.gst.gstNumber}`, left, 162, 9, plum, { width, align: "center" });
+      line(left, 185, right, 185, gold);
+      doc.roundedRect(left, 198, width, 46, 5).fill("#faf6f8");
+      const statusColor = { confirmed: "#33785b", cancelled: "#a6535d", draft: "#40648e" }[voucher.status] || ink;
+      [["INVOICE NUMBER", `#${voucher.invoiceNumber}`, ink], ["VOUCHER DATE", date(voucher.voucherDate), ink], ["BOOKING STATUS", voucher.status.toUpperCase(), statusColor]].forEach(([label, value, color], index) => {
+        const x = left + index * width / 3;
+        text(label, x, 204, 7, muted, { width: width / 3, align: "center" });
+        text(value, x, 218, 9, color, { width: width / 3, align: "center" });
+        if (index) line(x, 207, x, 235);
+      });
+      const footer = doc.page.height - 79;
+      line(left, footer, right, footer, gold);
+      text(company.address, left, footer + 10, 7, muted, { width, align: "center", height: 16 });
+      text(`${company.phone}   |   ${company.website}`, left, footer + 24, 7.5, muted, { width, align: "center", height: 16 });
+      doc.font("Voucher").fontSize(10).fillColor(ink);
+      doc.x = left; doc.y = bodyTop;
     };
-    row("GUEST NAME", voucher.guestName, "HOTEL NAME", voucher.hotel.name);
-    row("COMPANY GST NUMBER", `${voucher.gst.gstNumber} · ${voucher.gst.rate}%`, "HOTEL ADDRESS", voucher.hotel.address);
-    row("CHECK-IN DATE", date(voucher.checkInDate), "CHECK-OUT DATE", date(voucher.checkOutDate));
-    row("ARRIVAL", `${date(voucher.arrivalDate)}\n${voucher.arrivalPlace}`, "DEPARTURE", `${date(voucher.departureDate)}\n${voucher.departurePlace}`);
-    if (y > 700) { doc.addPage(); y = 40; }
-    doc.fillColor("#64758a").fontSize(8).text("YOUR REQUIREMENT", left, y);
-    doc.font("Voucher").fillColor("#172c44").fontSize(10).text(voucher.requirement, left, y + 17, { width, lineGap: 3 });
-    y = doc.y + 22;
-    if (y + 210 > 768) { doc.addPage(); y = 40; }
-    for (const [label, value] of [["Base price", money(voucher.pricing.basePaise)], [`GST (${voucher.pricing.gstRate}%)`, money(voucher.pricing.gstPaise)], ["TOTAL AMOUNT", money(voucher.pricing.totalPaise)]]) {
-      doc.rect(305, y - 5, 254, 28).fill("#eef4fb");
-      doc.font("Voucher").fontSize(10).fillColor("#153963").text(label, 315, y, { width: 120 }).text(value, 435, y, { width: 114, align: "right" }); y += 30;
-    }
-    y += 65;
-    doc.font("Helvetica-Bold").fontSize(10).text("Authorized Signatory", 305, y, { width: 254, align: "center" });
-    doc.font("Voucher").fontSize(8).fillColor("#435469").text(company.note, left, y + 28, { width });
+    doc.on("pageAdded", page);
+    page();
+    let y = bodyTop;
+    const ensureSpace = (height) => { if (y + height > bodyBottom) { doc.addPage(); y = bodyTop; } };
+    doc.font("Voucher").fontSize(20);
+    const hotelHeight = doc.heightOfString(voucher.hotel.name, { width: width - 32, align: "center" });
+    doc.fontSize(9);
+    const addressHeight = doc.heightOfString(voucher.hotel.address, { width: width - 40, align: "center" });
+    text("HOTEL / ACCOMMODATION", left, y, 7.5, "#966d3d", { width, align: "center", characterSpacing: 1.2 });
+    text(voucher.hotel.name, left + 16, y + 19, 20, plum, { width: width - 32, align: "center" });
+    text(voucher.hotel.address, left + 20, y + 23 + hotelHeight, 9, muted, { width: width - 40, align: "center" });
+    y += 40 + hotelHeight + addressHeight;
+    line(left, y, right, y);
+    const row = (cells, size = 10) => {
+      const cellWidth = width / cells.length, valueWidth = cellWidth - 28;
+      doc.font("Voucher").fontSize(size);
+      const height = Math.max(50, ...cells.map(([, value]) => doc.heightOfString(value || "—", { width: valueWidth }) + 30));
+      ensureSpace(height);
+      cells.forEach(([label, value], index) => {
+        const x = left + index * cellWidth;
+        if (index) line(x, y, x, y + height);
+        text(label, x + 14, y + 10, 7.5, muted, { width: valueWidth, characterSpacing: .5 });
+        text(value, x + 14, y + 25, size, ink, { width: valueWidth });
+      });
+      y += height;
+      line(left, y, right, y);
+    };
+    row([["GUEST NAME", voucher.guestName]], 12);
+    row([["CHECK-IN DATE", date(voucher.checkInDate)], ["CHECK-OUT DATE", date(voucher.checkOutDate)]]);
+    row([["ARRIVAL", `${date(voucher.arrivalDate)}\n${voucher.arrivalPlace}`], ["DEPARTURE", `${date(voucher.departureDate)}\n${voucher.departurePlace}`]]);
+    y += 18;
+    ensureSpace(65);
+    line(left, y, left, y + 36, gold);
+    text("YOUR REQUIREMENT", left + 14, y, 7.5, muted, { width: width - 28, characterSpacing: .5 });
+    // PDFKit continues long requirements within the reserved header/footer margins.
+    text(voucher.requirement, left + 14, y + 17, 10, ink, { width: width - 28, lineGap: 2 });
     y = doc.y + 16;
-    if (y + 55 > 800) { doc.addPage(); y = 40; }
-    doc.moveTo(left, y).lineTo(559, y).strokeColor("#cbd9e8").stroke();
-    doc.fontSize(8).text(`Address: ${company.address}\nPhone: ${company.phone}\nWebsite: ${company.website}`, left, y + 10, { width, align: "center" });
-  }, { info: { Title: `Journey Voucher ${voucher.invoiceNumber}`, Author: company.name } });
+    ensureSpace(108);
+    line(right - 200, y + 48, right - 14, y + 48, gold);
+    doc.font("Helvetica-Bold").fontSize(9).fillColor(plum).text("Authorized Signatory", right - 200, y + 60, { width: 186, align: "center" });
+    text(company.note, left, y + 87, 7.5, muted, { width });
+    const range = doc.bufferedPageRange();
+    for (let i = 0; i < range.count; i++) {
+      doc.switchToPage(i);
+      text(`Page ${i + 1} of ${range.count}`, left, doc.page.height - 29, 7, muted, { width, align: "center", height: 16 });
+    }
+  }, { margin: { top: 260, bottom: 104, left: 36, right: 36 }, info: { Title: `Journey Voucher ${voucher.invoiceNumber}`, Author: company.name } });
 }
 
 const columns = [

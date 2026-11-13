@@ -120,9 +120,13 @@ export async function verifyVoucher(server) {
     assert.equal(container.querySelector(".billing-editor").checkValidity(), true, JSON.stringify([...container.querySelector(".billing-editor").elements].filter((e)=>e.willValidate && !e.checkValidity()).map((e)=>({name:e.name,value:e.value,reason:e.validationMessage}))));
     await act(async () => container.querySelector(".billing-editor").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
     await waitFor(() => container.querySelector(".billing-document"));
-    assert.equal(creates, 1); assert.ok(container.querySelector(".billing-document").textContent.includes("118.12"));
-    assert.ok(container.querySelector(".billing-document").textContent.includes(gst.gstNumber));
-    assert.ok(container.querySelector(".billing-document").textContent.includes("Authorized Signatory"));
+    assert.equal(creates, 1);
+    const document = container.querySelector(".billing-document");
+    assert.doesNotMatch(document.textContent, /ETERNAL INDIA|JOURNEY VOUCHER|Base price|Total amount|118\.12|GST \(/, "guest document omits headings and internal pricing");
+    assert.ok(document.querySelector(".billing-document-brand").textContent.includes(gst.gstNumber), "GST number appears in the centered company header");
+    assert.equal(document.querySelector(".billing-document-hotel h2").textContent, hotel.name);
+    assert.ok(document.querySelector(".billing-document-watermark[aria-hidden='true']"));
+    assert.ok(document.textContent.includes("Authorized Signatory"));
     assert.equal(container.querySelectorAll(".billing-table tbody tr").length, 1);
     await act(async () => button("Edit").click());
     await waitFor(() => container.querySelector('[aria-label="Edit journey voucher"]'));
