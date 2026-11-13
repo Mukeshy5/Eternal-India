@@ -7,67 +7,67 @@ const history = [
   {
     heading: "Siddhartha Gautama's early life",
     paragraphs: [
-      "Buddhism is a major world religion and philosophical tradition founded on the teachings of Siddhartha Gautama, known as the Buddha, or “the Awakened One.” Accounts of his life were preserved in Buddhist traditions, and details differ between early sources.",
-      "According to these accounts, Siddhartha was born into the Shakya community. His father, Suddhodana, was a leader of the clan, whose capital was Kapilavastu. His mother, Queen Maya, gave birth to him at Lumbini, beneath a sal tree. He was named Siddhartha, a name traditionally understood as “one who achieves his aim.” The sage Asita is said to have foretold that the child would become either a great ruler or a spiritual teacher.",
-      "Tradition says Siddhartha married Yasodhara as a young man and they had a son, Rahula. He grew up amid the comforts of the royal household, but came to feel that wealth and status could not answer the deeper questions of life.",
+      "Buddhism is a world religion based on the teachings of Siddhartha Gautama, known as the Buddha, or “the Awakened One.” Details of his life were preserved in Buddhist traditions, and accounts differ between early sources.",
+      "According to tradition, Siddhartha was born into the Shakya clan, commonly described as a Kshatriya community, whose capital was Kapilavastu. His father, Suddhodana, was the clan's leader, and his mother was Queen Maya. She gave birth to him at Lumbini, beneath a sal tree. He was named Siddhartha, traditionally understood as “one who achieves his aim.” The seer Asita is said to have foretold that the child would become either a great ruler or a spiritual teacher.",
+      "Traditional accounts say Siddhartha married his cousin Yasodhara at about 16 and they had a son, Rahula. He spent about 29 years in the royal household, but came to feel that material comfort and wealth could not answer life's deeper questions.",
     ],
   },
   {
     heading: "The four sights & the search for a way through suffering",
     paragraphs: [
-      "At around the age of 29, Siddhartha is said to have left the palace and encountered an old person, a sick person, a dead body and a wandering ascetic. These sights brought home the realities of ageing, illness and death, and inspired him to search for a way to understand and overcome suffering.",
-      "Leaving his princely life behind, he became a mendicant and travelled to Rajagaha, in the kingdom of Magadha. There, King Bimbisara is said to have offered him a place at court. Siddhartha declined, while promising to return if his search brought him the understanding he sought.",
+      "At about 29, Siddhartha is said to have travelled beyond the palace and encountered an old person, someone who was ill, a dead body and a wandering ascetic. These sights brought home the realities of ageing, illness and death and inspired him to seek a way to understand suffering.",
+      "He left his princely life to become a mendicant and travelled to Rajagaha in Magadha, where King Bimbisara is said to have offered him a place at court. Siddhartha declined, promising to return if his search brought the understanding he sought.",
     ],
   },
   {
     heading: "Teachers, austerity & the Middle Way",
     paragraphs: [
-      "Siddhartha studied meditation with teachers including Alara Kalama and Uddaka Ramaputta. He mastered their practices but continued his search. With a group of five companions led by Kaundinya, he then pursued severe ascetic practices and extreme fasting.",
-      "After nearly starving himself, Siddhartha recalled a peaceful meditative state from childhood. He concluded that neither indulgence nor self-mortification offered the answer. The Middle Way—the path of moderation between these extremes—became central to his teaching.",
+      "Siddhartha studied meditation with the teachers Alara Kalama and Uddaka Ramaputta. After mastering Alara Kalama's teachings, he was invited to lead that community, but continued his search. With five companions led by Kaundinya, he then practised severe austerities and restricted his food, seeking liberation through self-denial.",
+      "After nearly starving, Siddhartha recalled a peaceful meditative state from his childhood, when he had watched his father begin the seasonal ploughing. He realised that a focused meditative state could bring clarity, while neither self-indulgence nor self-mortification offered the path he sought. This understanding became the Middle Way: a path of moderation between the two extremes.",
     ],
   },
   {
     heading: "Awakening beneath the Bodhi tree",
     paragraphs: [
-      "At Bodh Gaya, Siddhartha sat in meditation beneath a tree later known as the Bodhi tree. Buddhist tradition says that after a prolonged period of meditation he attained awakening and became the Buddha. His five companions had left, believing he had abandoned the search.",
-      "The Buddha’s awakening is associated with insight into suffering, its causes, its ending and the path leading to its ending. These teachings are known as the Four Noble Truths. Nirvana describes liberation from ignorance, greed and hatred, and the peace that follows.",
+      "At Bodh Gaya, Siddhartha meditated beneath a tree later known as the Bodhi tree, vowing not to rise until he had found the truth. His five companions had left, believing he had abandoned the search. Buddhist tradition says that after a prolonged meditation he attained awakening and became the Buddha, also known as Shakyamuni, the Awakened One of the Shakya clan.",
+      "Buddhist teachings describe his awakening as insight into suffering, its causes, its ending and the path leading to its ending—the Four Noble Truths. Nirvana is liberation from ignorance, greed, hatred and other afflictive states, and the peace associated with that freedom.",
     ],
   },
   {
     heading: "The first teaching & the beginning of the Sangha",
     paragraphs: [
-      "After his awakening, the Buddha travelled to the Deer Park at Sarnath, near Varanasi. There he gave his first teaching to the five former companions, setting in motion what Buddhist tradition calls the Wheel of Dharma. The five became his first monastic followers, forming the beginning of the Sangha.",
-      "The Buddha later taught merchants Tapussa and Bhallika, remembered as among his first lay followers. As the teaching community grew, it welcomed people from different backgrounds. Accounts describe the conversion of Yasa and his friends, followed by the Kassapa brothers and their followers; the Sangha is traditionally said to have grown to around a thousand members.",
+      "After awakening, the Buddha met the merchants Tapussa and Bhallika, remembered as among his first lay followers. He then travelled to the Deer Park at Sarnath, near Varanasi, and delivered his first sermon to his five former companions. This teaching is remembered as setting in motion the Wheel of Dharma. Together, the Buddha and the five formed the first Sangha, the community of Buddhist monastics.",
+      "As the teaching community grew, Yasa and his friends joined. Traditional accounts say that the first group of disciples became arahants and that the Sangha grew to around 60 members. The Kassapa brothers later joined with their followers, further expanding the community.",
     ],
   },
   {
     heading: "Teaching across the Gangetic plain",
     paragraphs: [
-      "For the rest of his life, the Buddha travelled and taught across the Gangetic plain, in areas that are now part of Uttar Pradesh and Bihar. Buddhist stories remember encounters with people from many walks of life, including the feared Angulimala and Alavaka, and emphasise that the path was open beyond social rank or caste.",
-      "The Sangha travelled for much of the year. During the rainy-season retreat, known as Vassana, monks and nuns stayed in monasteries or other sheltered places. The first retreat is associated with Varanasi; later accounts describe the Buddha spending several seasons at Veluvana, the Bamboo Grove monastery in Rajagaha.",
-      "At Rajagaha, Sariputta and Maudgalyayana became two of the Buddha’s foremost disciples after hearing the teaching from Assaji. They joined a wider community of close students that included Mahakasyapa, Ananda and Anuruddha.",
+      "For the rest of his life, the Buddha is said to have travelled and taught across the Gangetic plain, in areas now in Uttar Pradesh and Bihar. Buddhist stories remember his encounters with people from many walks of life, including Angulimala and Alavaka. The teachings welcomed people across social ranks and did not establish a caste structure.",
+      "The Sangha travelled for much of the year, pausing during the rainy-season retreat, known as Vassana. The first retreat is associated with Varanasi; later, the Buddha spent several seasons at Veluvana, the Bamboo Grove monastery in Rajagaha.",
+      "In Rajagaha, Sariputta and Maudgalyayana became two of the Buddha's foremost disciples after hearing a teaching from Assaji, one of the first five disciples. Other close disciples included Mahakasyapa, Ananda and Anuruddha.",
     ],
   },
   {
     heading: "Return to Kapilavastu & the monastic community",
     paragraphs: [
-      "After hearing of his awakening, King Suddhodana sent messengers to invite his son home. Buddhist accounts say that the first groups joined the Sangha before delivering the invitation; eventually Kaludayi, a childhood friend of Siddhartha, conveyed the message. The Buddha later returned to Kapilavastu, teaching along the way.",
-      "Several members of the royal family are remembered as joining the community, including Siddhartha’s son Rahula, his cousin Anuruddha and his half-brother Nanda. Rahula was still a child. The tradition also names a group of foremost disciples whose lives and teachings became important to Buddhist communities.",
-      "The stories of Mahapajapati, the Buddha’s foster mother, and Ananda are central to accounts of the order of nuns. After initially hesitating, the Buddha is said to have agreed to ordain women. Early monastic traditions prescribed additional rules for nuns.",
+      "After hearing of his son's awakening, King Suddhodana sent messengers to invite him home. Buddhist accounts say that the first nine delegations joined the Sangha; the tenth, led by Siddhartha's childhood friend Kaludayi, delivered the invitation. The Buddha later returned to Kapilavastu on foot, teaching along the way.",
+      "Several members of the royal family are remembered as joining the community, including Siddhartha's son Rahula, who was still a child, his cousin Anuruddha and his half-brother Nanda. Traditional lists of foremost disciples also name Sariputta, Maudgalyayana, Mahakasyapa, Ananda, Upali, Subhuti, Mahakaccana, Punna and Rahula.",
+      "His foster mother Mahapajapati, supported by Ananda, is central to accounts of the founding of the order of nuns. Buddhist tradition says the Buddha eventually agreed to ordain women, recognising their capacity for awakening, while prescribing additional monastic rules for nuns.",
     ],
   },
   {
     heading: "Patronage & Buddhism's wider reach",
     paragraphs: [
-      "The Buddha’s teaching attracted support from rulers and householders. King Bimbisara of Magadha is remembered as an early royal patron, helping establish places where the monastic community could stay and practise.",
-      "Centuries later, the Mauryan emperor Ashoka became an important patron of Buddhism. Following the Kalinga war, he supported the tradition and sponsored missions beyond his empire. Buddhist communities and teachings subsequently spread across Asia, taking root in many different cultures.",
+      "The Buddha's teachings attracted support from rulers and householders. King Bimbisara of Magadha is remembered as an early royal patron who supported the monastic community and helped establish places, including viharas, where it could stay and practise.",
+      "Centuries later, the Mauryan emperor Ashoka became a major patron of Buddhism. Following the Kalinga war, he supported the tradition and sponsored missions beyond his empire. Buddhist communities and teachings subsequently spread across Asia, taking root in many cultures.",
     ],
   },
   {
     heading: "Teachings preserved & Parinirvana",
     paragraphs: [
-      "The Buddha did not appoint a personal successor. He encouraged his followers to practise and seek liberation for themselves. His teachings were transmitted orally, and Buddhist councils were later held to recite, preserve and discuss the teachings and monastic discipline.",
-      "Buddhist tradition places the Buddha’s Parinirvana at Kusinara, identified with modern Kushinagar in Uttar Pradesh. Today, pilgrimage routes connect places associated with his birth, awakening, first teaching and final passing, as well as many sites shaped by the communities that followed.",
+      "The Buddha did not appoint a personal successor, encouraging his followers to practise and seek liberation for themselves. His teachings were transmitted orally, and Buddhist councils were later held to recite, preserve and discuss the teachings and monastic discipline.",
+      "Buddhist tradition places the Buddha's Parinirvana at Kusinara, identified with modern Kushinagar in Uttar Pradesh. Today, pilgrimage routes connect places associated with his birth, awakening, first teaching and final passing, alongside sites shaped by the communities that followed.",
     ],
   },
 ];
