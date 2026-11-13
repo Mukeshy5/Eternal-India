@@ -18,11 +18,10 @@ export async function verifyResponsive(vite) {
   const entries = ["NEW", "PENDING", "IN_PROGRESS", "FOLLOW_UP", "RESOLVED", "CANCELLED", "CLOSED"].map((status, index) => ({ _id: String(index), name: "Responsive test guest", email: "guest@example.com", reference: `TEST-${index}`, message: "Message with a long address guest@example.com", source: index < 3 ? ["WEBSITE", "WHATSAPP", "GMAIL"][index] : "WEBSITE", ...(index === 3 ? { contactChannel: "email" } : index === 4 ? { enquiryKind: "CONTACT" } : index === 5 ? { enquiryKind: "PLAN_TRIP" } : {}), status, receivedAt: "2026-11-01T10:00:00Z" }));
   const data = { enquiries: entries, total: entries.length, pages: 1, stats: { total: entries.length, NEW: 1, IN_PROGRESS: 1, RESOLVED: 1, CLOSED: 1 } };
   const admin = { email: "admin@example.com", canManageAccounts: true };
-  const panel = renderToStaticMarkup(createElement(MemoryRouter, null, createElement("div", { className: "admin-shell" }, createElement(Layout, { admin, section: "enquiries" }, createElement(Dashboard, { data, loaded: true, page: 1, searchInput: "", status: "", selected: { ...entries[0], phone: "+919876543210", destination: "Responsive test destination", externalMessageId: "external-message-id-that-can-be-very-long-to-test-wrapping", travellers: 2 } })))));
+  const panel = renderToStaticMarkup(createElement(MemoryRouter, null, createElement("div", { className: "admin-shell" }, createElement(Layout, { admin, section: "enquiries" }, createElement(Dashboard, { data, loaded: true, page: 1, searchInput: "", status: "" })))));
   const home = renderToStaticMarkup(createElement(MemoryRouter, null, createElement(Navbar), createElement(Home), createElement(FloatingContact)));
   const luminance = (rgb) => {
-    let colour = { white: "#ffffff", black: "#000000" }[rgb] || rgb;
-    if (/^#[a-f\d]{3,4}$/i.test(colour)) colour = `#${colour.slice(1).split("").map((digit) => digit + digit).join("")}`;
+    const colour = { white: "#ffffff", black: "#000000" }[rgb] || rgb;
     const values = /^#[a-f\d]{6}(?:[a-f\d]{2})?$/i.test(colour) ? colour.slice(1).match(/../g).map((n) => Number.parseInt(n, 16)) : colour.match(/[\d.]+/g)?.map(Number);
     assert.ok(values?.length >= 3, `resolved theme colour: ${rgb}`);
     // Translucent chrome sits above the light workspace surface.
@@ -58,16 +57,6 @@ export async function verifyResponsive(vite) {
       element(".navigation").classList.remove("navigation-open");
       assert.equal(computed(".home-hero-photo").position, width <= 900 ? "relative" : "absolute");
       assert.equal(computed(".dashboard-desktop-list").display, width <= 800 ? "none" : "block");
-      assert.equal(computed(".dashboard-drawer-footer").display, width <= 600 ? "grid" : "flex", `${width}: enquiry actions adapt to viewport`);
-      if (width <= 600) {
-        assert.equal(computed(".dashboard-drawer-footer").gridTemplateColumns, "repeat(2, minmax(0, 1fr))", `${width}: enquiry actions fit in two columns`);
-        assert.equal(computed(".dashboard-drawer-footer > button").minHeight, "44px", `${width}: enquiry actions remain touch-sized`);
-        assert.equal(computed(".dashboard-drawer-status").flexDirection, "column", `${width}: enquiry status stacks`);
-      }
-      if (width <= 390) {
-        assert.equal(computed(".dashboard-trip-summary dl").gridTemplateColumns, "minmax(0, 1fr)", `${width}: journey details stack`);
-        assert.equal(computed(".enquiry-detail-meta > div").flexDirection, "column", `${width}: metadata labels and values stack`);
-      }
       const scrolling = computed(".attendance-calendar-grid");
       assert.equal(scrolling.overflowX || scrolling.overflow, "auto", `${width}: report tables contain their own scrolling`);
       if (width <= 640) {
@@ -83,15 +72,13 @@ export async function verifyResponsive(vite) {
         (selector.includes("source") ? sourceColours : statusColours).add(badge.backgroundColor);
       }
       assert.equal(sourceColours.size, 5); assert.equal(statusColours.size, 7);
-      const themeIssues = [];
       for (const selector of [".panel-sidebar", ".panel-topbar", ".dashboard-inbox", ".dashboard-stat-total", ".dashboard-button-primary", ".dashboard-button-danger", ".admin-tool-card", ".admin-tool-field input", ".payment-statistics article", ".payment-badge-paid", ".staff-person", ".staff-badge-leave", ".attendance-calendar", ".attendance-color-present", ".festival-effect-art", ".promotion-toggle", ".technical-profile-card", ".notification-center", ".notification-center > .notification-list", ".enquiry-notification-dropdown", ".notification-enable-sound", ".enquiry-toasts article", ".admin-error", ".admin-success", ".admin-login-story", ".admin-login-form", ".admin-login-form .button"]) {
         const view = computed(selector);
         assert.ok(!["initial", "transparent", ""].includes(view.backgroundColor), `${width}: ${selector} has a resolved light background, got ${view.backgroundColor}`);
         const background = luminance(view.backgroundColor), foreground = luminance(view.color);
-        if (background < .78) themeIssues.push(`${selector} needs a lighter surface (${view.backgroundColor})`);
-        if ((Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05) < 4.5) themeIssues.push(`${selector} needs readable dark text (${view.color} on ${view.backgroundColor})`);
+        assert.ok(background >= .78, `${width}: ${selector} retains a pastel/light surface`);
+        assert.ok((Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05) >= 4.5, `${width}: ${selector} readable dark text (${view.color} on ${view.backgroundColor})`);
       }
-      assert.deepEqual(themeIssues, [], `${width}: light theme and text contrast across workspace sections`);
       assert.equal(computed(".notification-center").colorScheme, "light");
       assert.equal(computed(".enquiry-notification-dropdown").colorScheme, "light");
       if (width <= 680) assert.equal(computed('.enquiry-filter-row input[type="date"]').fontSize, "16px", "mobile date inputs avoid zoom");
