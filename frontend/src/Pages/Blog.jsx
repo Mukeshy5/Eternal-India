@@ -1,6 +1,27 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Eyebrow, Icon, PageIntro } from "../Common/SiteUI";
+import chitrakootTemple from "../assets/CHITRAKOOT/CHITRAKOOT.jpeg";
+import chitrakootRiver from "../assets/CHITRAKOOT/CHITRAKOOT (2).jpeg";
+import chitrakootView from "../assets/CHITRAKOOT/CHITRAKOOT (3).jpeg";
+
+const chitrakootPhotos = [
+  {
+    src: chitrakootTemple,
+    alt: "Temple entrance at Anusuya Ashram in Chitrakoot",
+    caption: "Anusuya Ashram",
+  },
+  {
+    src: chitrakootRiver,
+    alt: "River flowing past the rocky banks of Chitrakoot",
+    caption: "A quiet riverbank",
+  },
+  {
+    src: chitrakootView,
+    alt: "Green hills and landscape around Chitrakoot",
+    caption: "Views across Chitrakoot",
+  },
+];
 
 const chitrakootHighlights = [
   {
@@ -461,6 +482,24 @@ export default function Blog() {
               (Uttar Pradesh) and 07670 (Madhya Pradesh).
             </p>
           </header>
+
+          <div
+            className="blog-article-chitrakoot-gallery"
+            aria-label="Photos of Chitrakoot"
+          >
+            {chitrakootPhotos.map((photo) => (
+              <figure key={photo.src}>
+                <img
+                  className="blog-article-chitrakoot-image"
+                  src={photo.src}
+                  alt={photo.alt}
+                  loading="lazy"
+                  decoding="async"
+                />
+                <figcaption>{photo.caption}</figcaption>
+              </figure>
+            ))}
+          </div>
 
           <div className="blog-article-body">
             <section aria-labelledby="chitrakoot-getting-there">

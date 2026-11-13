@@ -1106,14 +1106,28 @@ main:focus {
 .blog-article-secondary .blog-article-intro > h2 {
   margin-top: 8px;
 }
+.blog-article-chitrakoot-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 22px 0 34px;
+}
+.blog-article-chitrakoot-gallery figure {
+  min-width: 0;
+  margin: 0;
+}
 .blog-article-chitrakoot-image {
   display: block;
   width: 100%;
-  max-height: 420px;
-  margin-top: 20px;
+  height: 240px;
   border-radius: 10px;
   object-fit: cover;
   object-position: center 45%;
+}
+.blog-article-chitrakoot-gallery figcaption {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: .78rem;
 }
 .blog-article-smallprint {
   margin-top: 16px;
@@ -2753,7 +2767,8 @@ main:focus {
   .blog-article-place-grid,
   .blog-article-nearby-grid,
   .blog-article-festival-list,
-  .blog-article-lodging-list {
+  .blog-article-lodging-list,
+  .blog-article-chitrakoot-gallery {
     grid-template-columns: 1fr;
   }
   .blog-article-place-grid {

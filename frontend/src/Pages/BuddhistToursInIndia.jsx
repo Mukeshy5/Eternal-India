@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Eyebrow, Icon } from "../Common/SiteUI";
 import { TravelHero } from "../Common/TravelUI";
+import buddhistImage from "../assets/buddhist/buddhist.jpg";
 
 const history = [
   {
@@ -175,9 +176,9 @@ export default function BuddhistToursInIndia() {
       label="Buddhist heritage · India"
       title={<>Buddhist tours<br /><em>in India.</em></>}
       description="Explore the life and teachings of the Buddha through the places, stories and living traditions that continue to draw pilgrims and curious travellers."
-      image="/images/varanasi.jpg"
-      alt="The Ganges riverfront in Varanasi"
-      caption="Sarnath · near Varanasi"
+      image={buddhistImage}
+      alt="A seated Buddha statue framed by trees"
+      caption="Buddhist heritage · India"
     >
       <Link className="button" to="/request-quote?destination=Buddhist%20Tours%20in%20India">
         Plan this journey <Icon size={18} />
