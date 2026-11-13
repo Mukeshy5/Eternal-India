@@ -1,3 +1,4 @@
+import { ensureVoucherModels } from "../vouchers/model.js";
 import { MongoClient } from "mongodb";
 import { ensureStaffModels } from "../staff/models.js";
 import { ensurePaymentModels } from "../payments/model.js";
@@ -47,6 +48,7 @@ export async function connectDatabase(config) {
         db.collection("enquiries").createIndex({ createdAt: -1 }),
         db.collection("enquiries").createIndex({ status: 1, createdAt: -1 }),
       ]);
+      await ensureVoucherModels(db);
       await ensureStaffModels(db);
       await ensurePaymentModels(db);
       await ensureEnquiryModels(db);

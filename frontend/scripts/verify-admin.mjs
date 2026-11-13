@@ -16,7 +16,8 @@ export async function verifyAdminInteractions(server, technical = false) {
   const calls = [];
   let signedIn = false, backendAvailable = true;
   const accounts = [];
-  let vouchers = [{ _id: "000000000000000000000002", voucherNumber: "EIV-HISTORY-TEST", billing: { name: "History Guest", visitingCardNo: "H-1" }, journey: { from: "Delhi", fromAddress: "Airport" }, stops: [{ name: "Jaipur", address: "Hotel", distanceKm: 280, duration: "2 nights", arrivalDate: "2026-11-01", departureDate: "2026-11-03", meals: [], hotel: { name: "Test Hotel", starRating: "3-Star", gst: 12, amount: 2000 } }], message: "Happy travels", createdAt: "2026-11-01T00:00:00Z" }];
+  let gstRates = [];
+  let vouchers = [{ _id: "000000000000000000000002", invoiceNumber: "10001", voucherDate: "2026-11-01", guestName: "History Guest", hotelId: "000000000000000000000012", gstId: "000000000000000000000013", hotel: { name: "Test Hotel", address: "Test address", amount: 2000 }, gst: { name: "Company GST", gstNumber: "07ABCDE1234F1Z5", rate: 18 }, pricing: { basePaise: 200000, gstPaise: 36000, totalPaise: 236000, gstRate: 18 }, checkInDate: "2026-12-01", checkOutDate: "2026-12-03", arrivalDate: "2026-12-01", arrivalPlace: "Delhi", departureDate: "2026-12-03", departurePlace: "Jaipur", requirement: "Saved requirement", status: "confirmed", revision: 1 }];
   const entry = { _id: "000000000000000000000001", name: "Admin UI Guest", email: "guest@example.com", phone: "+91 9000000000", destination: "Jaipur", travellers: 2, date: "", message: "Family holiday\nHeritage and local food", voiceLanguage: "hi", reference: "EI-TEST-UI", source: "WEBSITE", subject: "Trip enquiry ? Jaipur", status: "NEW", createdAt: "2026-11-05T08:00:00Z" };
   const response = (data, status = 200) => new Response(status === 204 ? null : JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
   globalThis.fetch = async (url, options = {}) => {
@@ -43,10 +44,32 @@ export async function verifyAdminInteractions(server, technical = false) {
       if (options.method === "POST") { const { email, role } = JSON.parse(options.body); const account = { _id: "created", email, roles: [role], status: "active" }; accounts.push(account); return response({ account }, 201); }
       return response({ accounts });
     }
-    if (url.startsWith(`/api${basePath}/vouchers?`)) return response({ vouchers, total: vouchers.length, page: 1, pages: 1 });
+    if (url === `/api${basePath}/gst`) {
+      if (options.method === "POST") {
+        const gstRate = { _id: `gst-${gstRates.length + 1}`, ...JSON.parse(options.body) };
+        gstRates.push(gstRate);
+        return response({ gstRate }, 201);
+      }
+      return response({ gstRates });
+    }
+    if (url.startsWith(`/api${basePath}/gst/`)) {
+      const id = url.split("/").at(-1);
+      if (options.method === "PATCH") {
+        gstRates = gstRates.map((gstRate) => gstRate._id === id ? { ...gstRate, ...JSON.parse(options.body) } : gstRate);
+        return response({ gstRate: gstRates.find((gstRate) => gstRate._id === id) });
+      }
+      if (options.method === "DELETE") {
+        gstRates = gstRates.filter((gstRate) => gstRate._id !== id);
+        return response(null, 204);
+      }
+    }
+    if (url === `/api${basePath}/vouchers/options`) return response({ hotels: [], gstRates: [], usedHotels: [], usedGst: [] });
+    if (url === `/api${basePath}/vouchers/invoice`) return response({ invoice: { reservationId: "000000000000000000000002", invoiceNumber: "10002" } });
+    if (url.startsWith(`/api${basePath}/vouchers?`)) return response({ vouchers, total: vouchers.length, page: 1, pages: 1, totalBillingPaise: vouchers.reduce((sum, v) => sum + v.pricing.totalPaise, 0) });
     if (url.startsWith(`/api${basePath}/vouchers/`) && options.method === "DELETE") { vouchers = []; return response(null, 204); }
+    if (url.startsWith(`/api${basePath}/vouchers/`)) return response({ voucher: vouchers[0] });
     if (url === "/api/technical/promotions") return response({ targets: [], promotions: [] });
-    if (url === "/api/technical/hotels") return response({ hotels: [] });
+    if (url === "/api/technical/hotels") return response({ hotels: [{ _id: "hotel-1", name: "Test Hotel", address: "1 Test Road", starRating: "3-Star", amount: 2000 }] });
     if (url === `/api${basePath}/enquiry-notification-settings`) return response({ popup: true, sound: false, unread: 1 });
     if (url === `/api${basePath}/enquiry-summary`) return response({ unread: 1 });
     if (url === `/api${basePath}/enquiry-assignees`) return response({ assignees: [] });
@@ -72,7 +95,7 @@ export async function verifyAdminInteractions(server, technical = false) {
     await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Forgot password?").click());
     await act(async () => type(container.querySelector("#admin-email"), "admin@example.com"));
     await act(async () => container.querySelector(".admin-login-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
-    assert.ok(container.querySelector('[role="status"]').textContent.includes("reset link"));
+    await waitFor(() => container.querySelector('[role="status"]')?.textContent.includes("reset link"));
     await act(async () => [...container.querySelectorAll("a")].find((link) => link.textContent === "Back to sign in").click());
     if (technical) {
       assert.equal([...container.querySelectorAll("a")].some((link) => link.textContent === "Create account"), false, "Technical Panel has no self-registration option");
@@ -107,6 +130,30 @@ export async function verifyAdminInteractions(server, technical = false) {
     assert.equal(menu.getAttribute("aria-expanded"), "true");
     await act(async () => container.querySelector(".dashboard-status-navigation button").click());
     assert.equal(menu.getAttribute("aria-expanded"), "false", "mobile menu closes after selection");
+    const gstLink = [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "Add GST");
+    assert.ok(gstLink, "GST management is available in both panels");
+    await act(async () => gstLink.click());
+    await waitFor(() => container.querySelector('input[name="name"]'));
+    await act(async () => {
+      type(container.querySelector('input[name="name"]'), "Standard GST");
+      type(container.querySelector('input[name="rate"]'), "18");
+    });
+    await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
+    await waitFor(() => container.querySelector(".admin-tool-table tbody tr"));
+    assert.ok(container.querySelector('.admin-success[role="status"]')?.textContent.includes("GST rate added"), "successful GST creation is acknowledged");
+    assert.ok(calls.some((call) => call.url === `/api${basePath}/gst` && call.options.method === "POST"), "GST rates can be added");
+    await act(async () => container.querySelector(".admin-tool-table button").click());
+    await act(async () => type(container.querySelector('input[name="name"]'), "Updated GST"));
+    await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
+    await waitFor(() => container.querySelector(".admin-tool-table tbody tr")?.textContent.includes("Updated GST"));
+    assert.ok(container.querySelector('.admin-success[role="status"]')?.textContent.includes("GST rate updated"), "successful GST edits are acknowledged");
+    assert.ok(calls.some((call) => call.url.startsWith(`/api${basePath}/gst/`) && call.options.method === "PATCH"), "GST rates can be updated");
+    testWindow.confirm = () => true;
+    await act(async () => [...container.querySelectorAll(".admin-tool-table button")].find((button) => button.textContent === "Delete").click());
+    await waitFor(() => container.querySelector(".admin-tool-empty"));
+    assert.ok(calls.some((call) => call.url.startsWith(`/api${basePath}/gst/`) && call.options.method === "DELETE"), "GST rates can be deleted");
+    await act(async () => [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "All enquiries").click());
+    await waitFor(() => container.querySelector(".dashboard-table"));
     await act(async () => container.querySelector(".dashboard-view").click());
     assert.ok(container.querySelector(".dashboard-drawer").textContent.includes(entry.message));
     assert.ok(container.querySelector(".dashboard-drawer").textContent.includes("Hindi"));
@@ -138,8 +185,10 @@ export async function verifyAdminInteractions(server, technical = false) {
         if (label === "Add hotel") {
           assert.equal(container.querySelector('.admin-tool-form input[name="address"]')?.required, true, "hotel address is required");
           assert.equal(container.querySelector('.admin-tool-form input[name="gst"]'), null, "hotel form no longer asks for GST");
+          assert.ok(container.querySelector(".hotel-inventory-table td[data-label='Address']"), "saved hotel addresses have a mobile label");
+          assert.ok(container.querySelector(".hotel-inventory-table td[data-label='Actions']"), "hotel actions remain labeled on mobile");
         }
-        await act(async () => container.querySelector(".admin-tools-heading button").click());
+        await act(async () => (label === "Journey Voucher" ? [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "All enquiries") : container.querySelector(".admin-tools-heading button")).click());
         assert.ok(container.querySelector(".dashboard-table"), "returning from a technical tool restores enquiries");
       }
     }
@@ -157,10 +206,10 @@ export async function verifyAdminInteractions(server, technical = false) {
     testWindow.confirm = () => true;
     await act(async () => [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "Journey Voucher History").click());
     await waitFor(() => container.textContent.includes("History Guest"));
-    await act(async () => [...container.querySelectorAll("button")].find((button) => button.textContent === "View voucher").click());
-    assert.ok(container.querySelector(".journey-voucher-print").textContent.includes("EIV-HISTORY-TEST"));
+    await act(async () => [...container.querySelectorAll("button")].find((button) => button.textContent === "View").click());
+    assert.ok(container.querySelector(".billing-document").textContent.includes("10001"));
     testWindow.confirm = () => true;
-    await act(async () => [...container.querySelectorAll(".panel-record-row button")].find((button) => button.textContent === "Delete").click());
+    await act(async () => [...container.querySelectorAll(".billing-table button")].find((button) => button.textContent === "Delete").click());
     await waitFor(() => container.textContent.includes("0 saved vouchers"));
     await act(async () => container.querySelector(".dashboard-sign-out-button").click());
     assert.ok(container.querySelector(".admin-login-form"));

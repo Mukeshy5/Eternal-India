@@ -1,0 +1,25 @@
+.billing-document { box-sizing: border-box; width: 100%; max-width: 794px; margin: 0 auto; padding: clamp(20px,4vw,42px); background: white; color: #172c44; border: 1px solid #d7e2ee; font: 13px/1.6 Arial, sans-serif; overflow-wrap: anywhere; }
+.billing-document-brand { display: grid; grid-template-columns: 125px 1fr; gap: 24px; align-items: start; padding-bottom: 22px; border-bottom: 2px solid #d4e0ed; }
+.billing-document-brand img { width: 125px; height: auto; object-fit: contain; }
+.billing-document .billing-document-brand h2 { margin: 0 0 2px; color: #153963; font-size: 25px; letter-spacing: .04em; }
+.billing-document p { margin: 2px 0; }
+.billing-document-brand p { font-size: 11px; color: #435469; }
+.billing-document-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 22px 0; }
+.billing-document-title h3 { margin: 0; color: #153963; font-size: 17px; letter-spacing: .06em; }
+.billing-document-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 0; border-top: 1px solid #dfe7f0; border-left: 1px solid #dfe7f0; }
+.billing-document-facts > div { min-width: 0; padding: 12px; border-right: 1px solid #dfe7f0; border-bottom: 1px solid #dfe7f0; }
+.billing-document dt { color: #64758a; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.billing-document dd { margin: 5px 0 0; white-space: pre-wrap; }
+.billing-requirement { margin: 22px 0; }
+.billing-requirement h4 { margin: 0 0 8px; color: #64758a; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.billing-requirement p { white-space: pre-wrap; }
+.billing-document-totals { width: 60%; margin: 25px 0 0 auto; background: #eef4fb; }
+.billing-document-totals > div { display: flex; justify-content: space-between; gap: 15px; padding: 10px 14px; border-bottom: 1px solid #d6e3f1; }
+.billing-document-totals dt { text-transform: none; font-size: 12px; letter-spacing: 0; }
+.billing-document-totals dd { margin: 0; text-align: right; }
+.billing-document-totals > div:last-child { color: #153963; font-weight: 700; }
+.billing-signature { margin: 90px 0 24px auto; width: 45%; padding-top: 12px; border-top: 1px solid #aebdce; text-align: center; font-weight: 700; }
+.billing-document .billing-document-note { font-size: 10px; }
+.billing-document footer { margin-top: 20px; padding-top: 15px; border-top: 1px solid #cbd9e8; font-size: 10px; text-align: center; color: #435469; }
+@media (max-width:600px) { .billing-document-brand { grid-template-columns: 1fr; gap: 15px; } .billing-document-facts { grid-template-columns: 1fr; } .billing-document-totals { width: 100%; } .billing-signature { width: 70%; } }
+@media print { @page { size: A4; margin: 12mm; } .billing-document { width: 100%; max-width: none; padding: 0; border: 0; font-size: 10pt; } .billing-document-brand { grid-template-columns: 110px 1fr; } .billing-document-facts { grid-template-columns: 1fr 1fr; } .billing-document-facts > div, .billing-document-totals, .billing-signature, .billing-document footer { break-inside: avoid; } .billing-document-totals { width: 60%; } }

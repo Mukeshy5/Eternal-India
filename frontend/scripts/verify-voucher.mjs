@@ -1,119 +1,124 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { act, createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { Window } from "happy-dom";
-import { journeyRoute, roadPoint } from "../src/Common/journeyRoute.js";
+import { readFileSync } from "node:fs";
+import { calculateVoucherPrice } from "../../shared/voucherBilling.js";
 
 export async function verifyVoucher(server) {
-  const route = journeyRoute("Delhi", "Airport", [{ name: "Jaipur", distanceKm: 300 }, { name: "Agra", distanceKm: 100 }]);
-  assert.equal(route.total, 400);
-  assert.equal(route.points[1].fraction, .75, "pin position follows cumulative leg distance");
-  assert.equal(route.points[2].fraction, 1);
-  assert.equal(route.points[1].cumulative, 300);
-  assert.deepEqual({ x: route.points[1].x, y: route.points[1].y }, roadPoint(.75));
-  const pending = journeyRoute("Delhi", "", [{ name: "Jaipur", distanceKm: "" }, { name: "Agra", distanceKm: 100 }]);
-  assert.equal(pending.complete, false);
-  assert.equal(pending.points[1].cumulative, null, "missing distances are not invented");
-  const zero = journeyRoute("Delhi", "", [{ name: "Delhi", distanceKm: 0 }]);
-  assert.equal(zero.total, 0);
-  assert.ok(Number.isFinite(zero.points[1].x));
-  assert.ok(journeyRoute("Delhi", "", Array.from({ length: 20 }, (_, index) => ({ name: `Stop ${index}`, distanceKm: index + 1 }))).points.every((point) => point.x > 0 && point.x < 100 && point.y > 0 && point.y < 100));
-
-  const testWindow = new Window({ url: "http://localhost/admin" });
+  const testWindow = new Window({ url: "http://localhost/admin/vouchers" });
   const previous = new Map();
-  for (const [key, value] of Object.entries({ window: testWindow, document: testWindow.document, navigator: testWindow.navigator, HTMLElement: testWindow.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) {
+  for (const [key, value] of Object.entries({ window: testWindow, document: testWindow.document, navigator: testWindow.navigator, HTMLElement: testWindow.HTMLElement, Event: testWindow.Event, IS_REACT_ACT_ENVIRONMENT: true })) {
     previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   }
   const originalFetch = globalThis.fetch;
-  const hotel = { _id: "000000000000000000000012", name: "Heritage Stay", address: "12 Heritage Road, Jaipur", starRating: "4-Star (Upscale / Deluxe)", amount: 5000 };
-  const saves = [];
-  const errors = [];
-  let prints = 0;
-  let decoded = 0;
-  testWindow.print = () => { prints += 1; };
-  testWindow.HTMLImageElement.prototype.decode = async () => { decoded += 1; };
+  const hotel = { _id: "000000000000000000000012", name: "Heritage Stay", address: "12 Heritage Road, Jaipur", amount: 5000.25 };
+  const gst = { _id: "000000000000000000000013", name: "Company GST", gstNumber: "07ABCDE1234F1Z5", rate: 18 };
+  let vouchers = [], creates = 0, updates = 0, prints = 0;
+  const calls = [], downloads = [];
+  testWindow.confirm = () => true;
+  testWindow.HTMLAnchorElement.prototype.click = function () { downloads.push(this.download); };
   globalThis.fetch = async (url, options = {}) => {
-    if (url === "/api/admin/hotels") return Response.json({ hotels: [hotel] });
-    if (url === "/api/admin/vouchers") {
-      const body = JSON.parse(options.body);
-      saves.push(body);
-      return Response.json({ voucher: { ...body, voucherNumber: "EIV-TEST-123", createdAt: "2026-11-05T12:00:00Z", stops: body.stops.map((stop) => ({ ...stop, distanceKm: Number(stop.distanceKm), hotel })) } }, { status: 201 });
+    calls.push({ url, options });
+    const body = options.body ? JSON.parse(options.body) : {};
+    if (url === "/api/admin/vouchers/options") return Response.json({ hotels: [hotel], gstRates: [gst], usedHotels: [], usedGst: [] });
+    if (url === "/api/admin/vouchers/invoice") return Response.json({ invoice: { reservationId: "000000000000000000000022", invoiceNumber: "10001" } });
+    if (url === "/api/admin/vouchers/quote") return Response.json({ pricing: calculateVoucherPrice(body.basePrice, gst.rate), gst, hotel });
+    if (url === "/api/admin/vouchers" && options.method === "POST") {
+      creates++; const voucher = { ...body, _id: "000000000000000000000022", invoiceNumber: "10001", hotel, gst, pricing: calculateVoucherPrice(body.basePrice, gst.rate), revision: 1 };
+      vouchers.push(voucher); return Response.json({ voucher }, { status: 201 });
     }
-    throw new Error(`Unexpected voucher request: ${url}`);
+    if (url.startsWith("/api/admin/vouchers?")) {
+      const params = new URL(url, "http://localhost").searchParams;
+      const rows = vouchers.filter((v) => !params.get("search") || v.guestName.toLowerCase().includes(params.get("search").toLowerCase()) || v.invoiceNumber.includes(params.get("search")));
+      return Response.json({ vouchers: rows, total: rows.length, page: 1, pages: 1, pageSize: 20, totalBillingPaise: rows.reduce((sum, v) => sum + v.pricing.totalPaise, 0) });
+    }
+    if (url.includes("/export?")) return new Response("export", { headers: { "Content-Type": url.includes("format=xlsx") ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/pdf" } });
+    if (url.endsWith("/pdf")) return new Response("%PDF-test", { headers: { "Content-Type": "application/pdf" } });
+    if (url.startsWith("/api/admin/vouchers/")) {
+      if (options.method === "DELETE") { vouchers = []; return new Response(null, { status: 204 }); }
+      if (options.method === "PATCH") { updates++; vouchers[0] = { ...vouchers[0], ...body, pricing: calculateVoucherPrice(body.basePrice, gst.rate), revision: 2 }; }
+      return Response.json({ voucher: vouchers[0] });
+    }
+    throw new Error(`Unexpected billing request: ${url}`);
   };
   const { createRoot } = await import("react-dom/client");
-  const container = testWindow.document.createElement("div");
-  testWindow.document.body.append(container);
-  const root = createRoot(container);
-  const input = (name, value) => {
-    const element = container.querySelector(`[name="${name}"]`);
+  const container = testWindow.document.createElement("div"); testWindow.document.body.append(container); const root = createRoot(container);
+  const button = (label, scope = container) => [...scope.querySelectorAll("button")].find((b) => b.textContent === label);
+  async function waitFor(check) { for (let i = 0; i < 100; i++) { let found; await act(async () => { found = check(); if (!found) await new Promise((resolve) => setTimeout(resolve, 20)); }); if (found) return; } assert.fail(container.textContent.slice(-2000)); }
+  const input = (name, value, scope = container.querySelector(".billing-editor")) => {
+    const element = scope.querySelector(`[name="${name}"]`); assert.ok(element, name);
     if (element.tagName === "SELECT") element.value = value;
-    else Object.getOwnPropertyDescriptor(testWindow.HTMLInputElement.prototype, "value").set.call(element, value);
+    else Object.getOwnPropertyDescriptor(element.tagName === "TEXTAREA" ? testWindow.HTMLTextAreaElement.prototype : testWindow.HTMLInputElement.prototype, "value").set.call(element, value);
     element.dispatchEvent(new testWindow.Event(element.tagName === "SELECT" ? "change" : "input", { bubbles: true }));
   };
-  const button = (text) => [...container.querySelectorAll("button")].find((element) => element.textContent.includes(text));
   try {
     const { default: JourneyVoucher } = await server.ssrLoadModule("/src/Common/JourneyVoucher.jsx");
-    await act(async () => root.render(createElement(JourneyVoucher, { onBack: () => {}, onError: (message) => { if (message) errors.push(message); } })));
-    assert.ok(button("Print / Save PDF").disabled, "draft cannot be printed as a saved voucher");
-    await act(async () => {
-      for (const [name, value] of Object.entries({ guestName: "Family Guest", visitingCardNo: "REF-123", from: "Delhi", fromAddress: "Terminal 3, Delhi Airport", "stop-0-name": "Jaipur", "stop-0-distance": "300", "stop-0-address": "Heritage Stay, Jaipur", "stop-0-arrival": "2026-12-01", "stop-0-departure": "2026-12-03", "stop-0-duration": "2 nights", "stop-0-hotel": hotel._id })) input(name, value);
-    });
-    await act(async () => button("Add another stop").click());
-    await act(async () => {
-      for (const [name, value] of Object.entries({ "stop-1-name": "Agra", "stop-1-distance": "100", "stop-1-address": "Taj East Gate, Agra", "stop-1-arrival": "2026-12-03", "stop-1-departure": "2026-12-04", "stop-1-duration": "1 night", "stop-1-hotel": hotel._id })) input(name, value);
-    });
-    assert.ok(container.querySelector(".voucher-distance-total").textContent.includes("400 km"));
-    const pins = container.querySelectorAll(".voucher-map-pin");
-    assert.equal(pins.length, 3);
-    assert.ok(pins[1].getAttribute("aria-label").includes("Heritage Stay, Jaipur"));
-    await act(async () => pins[2].click());
-    assert.ok(container.querySelector(".voucher-pin-detail").textContent.includes("Taj East Gate, Agra"));
-    assert.equal(container.querySelector("form").checkValidity(), true, JSON.stringify([...container.querySelector("form").elements].filter((element) => element.willValidate && !element.checkValidity()).map((element) => ({ name: element.name, value: element.value, reason: element.validationMessage }))));
-    await act(async () => container.querySelector("form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
-    assert.equal(saves.length, 1);
-    assert.equal(saves[0].journey.fromAddress, "Terminal 3, Delhi Airport");
-    assert.equal(saves[0].stops[1].address, "Taj East Gate, Agra");
-    assert.equal(saves[0].stops[0].key, undefined);
-    assert.equal(button("Print / Save PDF").disabled, false);
-    const printRoot = testWindow.document.querySelector("#journey-voucher-print-root");
-    assert.equal(printRoot.parentElement, testWindow.document.body, "print document is outside the dashboard layout");
-    assert.equal(printRoot.querySelectorAll(".vp-itinerary tbody tr").length, 2);
-    assert.ok(printRoot.textContent.includes("Terminal 3, Delhi Airport"));
-    assert.ok(printRoot.textContent.includes("Taj East Gate, Agra"));
-    assert.ok(printRoot.textContent.includes("12 Heritage Road, Jaipur"));
-    assert.ok(printRoot.textContent.includes("400 km"));
-    assert.equal(printRoot.querySelectorAll("button, input, select, textarea").length, 0, "printout has no interactive form controls");
-    assert.ok(container.querySelector(".journey-voucher-print").textContent.includes("EIV-TEST-123"));
-    assert.ok(decodeURIComponent(container.querySelector(".voucher-asset").src).includes("Journey Voucher (2).png"));
-    await act(async () => button("Print / Save PDF").click());
-    assert.equal(prints, 1);
-    assert.equal(decoded, 3, "print waits for logo, voucher artwork and route image");
-    await act(async () => input("stop-0-distance", "200"));
-    assert.equal(button("Print / Save PDF").disabled, true, "editing invalidates the previously saved voucher");
-    assert.equal(testWindow.document.querySelector("#journey-voucher-print-root"), null, "editing removes stale printable data");
-    assert.ok(container.querySelector(".voucher-distance-total").textContent.includes("300 km"));
-    await act(async () => container.querySelector('[aria-label="Remove stop 1"]').click());
-    assert.equal(container.querySelector('[name="stop-0-name"]').value, "Agra");
-    assert.equal(container.querySelector('[name="stop-0-distance"]').value, "", "removal requires correcting the new leg distance");
-    assert.equal(errors.length, 0);
-    const { default: PrintDocument } = await server.ssrLoadModule("/src/Common/VoucherPrintDocument.jsx");
-    const longVoucher = { ...saves[0], voucherNumber: "EIV-LONG-TEST", createdAt: "2026-11-05", stops: Array.from({ length: 20 }, (_, index) => ({ ...saves[0].stops[0], name: `Destination ${index + 1}`, address: `Complete stop ${index + 1} address, ${"Long address details ".repeat(12)}`, hotel })) };
-    const sample = testWindow.document.createElement("div");
-    sample.innerHTML = renderToStaticMarkup(createElement(PrintDocument, { voucher: longVoucher }));
-    assert.equal(sample.querySelectorAll(".vp-itinerary tbody tr").length, 20, "long itineraries retain every stop in the paged table");
-    assert.equal(sample.querySelectorAll(".vp-map-pin").length, 21);
-    assert.ok(sample.querySelector("tbody tr:last-child").textContent.includes("Complete stop 20 address"));
-    assert.equal(sample.querySelectorAll(".vp-itinerary thead tr th").length, 5);
-    console.log("PASS voucher distance placement, live preview, saving, isolated A4 print document, full addresses, 20-stop itinerary, artwork-ready printing and edit consistency");
-  } finally {
-    await act(async () => root.unmount());
-    testWindow.close();
-    globalThis.fetch = originalFetch;
-    for (const [key, descriptor] of previous) {
-      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-      else delete globalThis[key];
+    await act(async () => root.render(createElement(JourneyVoucher)));
+    await waitFor(() => container.textContent.includes("Invoice #10001"));
+    const css = readFileSync(new URL("../src/Common/JourneyBilling.css", import.meta.url), "utf8");
+    for (const width of [1440, 768, 375]) {
+      const sizeWindow = new Window({ settings: { disableCSSFileLoading: true } });
+      try {
+        sizeWindow.happyDOM.setViewport({ width, height: 900 });
+        sizeWindow.document.body.innerHTML = container.outerHTML;
+        const style = sizeWindow.document.createElement("style"); style.textContent = css; sizeWindow.document.head.append(style);
+        const computed = (selector) => sizeWindow.getComputedStyle(sizeWindow.document.querySelector(selector));
+        assert.equal(computed(".billing-form-columns").gridTemplateColumns.includes("310px"), width > 1150, `${width}: billing summary stacks at tablet widths`);
+        assert.equal(computed(".billing-table-wrap").overflowX, "auto", "history has contained horizontal scrolling");
+        if (width <= 650) assert.equal(computed('[name="guestName"]').fontSize, "16px", "mobile input avoids zoom");
+      } finally { sizeWindow.close(); }
     }
+    assert.ok(button("Create voucher").disabled);
+    await act(async () => { input("hotelId", hotel._id); input("gstId", gst._id); });
+    await waitFor(() => container.textContent.includes("Price verified"));
+    assert.equal(container.querySelector('[name="basePrice"]').value, "5000.25");
+    assert.ok(container.querySelector(".billing-price-total").textContent.includes("5,900.30"));
+    await act(async () => input("basePrice", "100.10"));
+    assert.ok(container.querySelector(".billing-price-total").textContent.includes("118.12"), "price changes immediately");
+    assert.ok(button("Create voucher").disabled, "waits for matching server quote");
+    await act(async () => { for (const [key, value] of Object.entries({ guestName: "Billing Guest", requirement: "Two rooms and transfers.\nVegetarian meals.", checkInDate: "2026-12-01", checkOutDate: "2026-12-03", arrivalDate: "2026-12-01", departureDate: "2026-12-03", arrivalPlace: "Delhi airport", departurePlace: "Jaipur station" })) input(key, value); });
+    await waitFor(() => !button("Create voucher").disabled);
+    container.querySelector('[name="basePrice"]').step = "any"; // happy-dom has a floating-point stepMismatch bug; API tests enforce two decimals.
+    assert.equal(container.querySelector(".billing-editor").checkValidity(), true, JSON.stringify([...container.querySelector(".billing-editor").elements].filter((e)=>e.willValidate && !e.checkValidity()).map((e)=>({name:e.name,value:e.value,reason:e.validationMessage}))));
+    await act(async () => container.querySelector(".billing-editor").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
+    await waitFor(() => container.querySelector(".billing-document"));
+    assert.equal(creates, 1); assert.ok(container.querySelector(".billing-document").textContent.includes("118.12"));
+    assert.ok(container.querySelector(".billing-document").textContent.includes(gst.gstNumber));
+    assert.ok(container.querySelector(".billing-document").textContent.includes("Authorized Signatory"));
+    assert.equal(container.querySelectorAll(".billing-table tbody tr").length, 1);
+    await act(async () => button("Edit").click());
+    await waitFor(() => container.querySelector('[aria-label="Edit journey voucher"]'));
+    await act(async () => { input("guestName", "Edited Guest"); input("basePrice", "200"); });
+    await waitFor(() => !button("Save voucher changes").disabled && !container.querySelector(".billing-editor fieldset").disabled);
+    container.querySelector('[name="basePrice"]').step = "any";
+    assert.equal(container.querySelector(".billing-editor").checkValidity(), true, JSON.stringify([...container.querySelector(".billing-editor").elements].filter((e)=>e.willValidate && !e.checkValidity()).map((e)=>({name:e.name,value:e.value,reason:e.validationMessage}))));
+    await act(async () => container.querySelector(".billing-editor").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
+    await waitFor(() => container.querySelector(".billing-document")?.textContent.includes("Edited Guest"));
+    assert.equal(updates, 1); assert.equal(creates, 1); assert.equal(vouchers[0].invoiceNumber, "10001");
+    await act(async () => button("Download PDF").click()); assert.ok(downloads.includes("journey-voucher-10001.pdf"));
+    await act(async () => button("Print").click());
+    const dialog = testWindow.document.querySelector('[role="dialog"]'); assert.ok(dialog); const frame = dialog.querySelector("iframe");
+    Object.defineProperty(frame, "contentWindow", { configurable: true, value: { focus() {}, print() { prints++; } } }); // happy-dom has no blob PDF frame window.
+    await act(async () => frame.dispatchEvent(new testWindow.Event("load")));
+    await act(async () => button("Print voucher", dialog).click()); assert.equal(prints, 1, "prints isolated PDF frame");
+    await act(async () => button("Close preview", dialog).click()); assert.equal(testWindow.document.querySelector('[role="dialog"]'), null);
+    for (const label of ["Export Excel", "Export PDF"]) await act(async () => button(label).click());
+    assert.ok(downloads.includes("journey-voucher-history.xlsx")); assert.ok(downloads.includes("journey-voucher-history.pdf"));
+    await act(async () => input("search", "No match", container.querySelector(".billing-filters")));
+    await act(async () => container.querySelector(".billing-filters").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
+    await waitFor(() => container.textContent.includes("No vouchers found"));
+    assert.ok(calls.some((call) => call.url.includes("search=No+match")));
+    await act(async () => button("Clear filters").click()); await waitFor(() => container.querySelectorAll(".billing-table tbody tr").length === 1);
+    testWindow.confirm = () => false;
+    await act(async () => button("Delete").click()); assert.equal(vouchers.length, 1, "cancel does not delete");
+    testWindow.confirm = () => true;
+    await act(async () => button("Delete").click()); await waitFor(() => container.textContent.includes("0 saved vouchers"));
+    assert.equal(vouchers.length, 0); assert.equal(container.querySelector(".billing-document"), null);
+    assert.equal(container.querySelector('[role="alert"]'), null);
+    console.log("PASS billing form, backend invoice reservation, live pricing, CRUD, search, synchronization, PDF preview/printing, downloads and exports");
+  } finally {
+    await act(async () => root.unmount()); testWindow.close(); globalThis.fetch = originalFetch;
+    for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
   }
 }

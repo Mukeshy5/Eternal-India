@@ -7,6 +7,7 @@ export const panelSections = {
   "staff-cards": { label: "Download ID Card", title: "Employee ID Cards", group: "People", icon: "archive", permission: "export" },
   "staff-reports": { label: "Attendance Reports", title: "Attendance Reports", group: "People", icon: "clock", permission: "view" },
   hotels: { label: "Add hotel", title: "Hotel Inventory", group: "Operations", icon: "pin" },
+  gst: { label: "Add GST", title: "GST Management", group: "Operations", icon: "archive" },
   vouchers: { label: "Journey Voucher", title: "Journey Vouchers", group: "Operations", icon: "calendar" },
   "voucher-history": { label: "Journey Voucher History", title: "Journey Voucher History", group: "Operations", icon: "archive" },
   accounts: { label: "Panel accounts", title: "Panel Accounts", group: "Administration", icon: "people", adminOnly: true },

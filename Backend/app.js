@@ -21,6 +21,8 @@ import { sessionLifecycle } from "./lib/session-lifecycle.js";
 import { canManageAccounts, registerAccounts } from "./lib/accounts.js";
 import { gmailAccountFilter, gmailIdentity } from "./lib/email-identity.js";
 import { registerPaymentRoutes } from "./payments/routes.js";
+import { registerVoucherRoutes } from "./vouchers/routes.js";
+import { registerGstRoutes } from "./lib/gst.js";
 import { createEnquirySystem } from "./enquiries/index.js";
 import { registerEnquiryRoutes, registerWhatsAppWebhook } from "./enquiries/routes.js";
 import { authenticatePanel } from "./lib/panel-auth.js";
@@ -30,7 +32,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   app.disable("x-powered-by");
   if (config.render) app.set("trust proxy", 1);
   app.use(compression());
-  app.use(helmet({ strictTransportSecurity: config.production ? undefined : false, contentSecurityPolicy: { directives: { mediaSrc: ["'self'", "https:"], scriptSrc: ["'self'", "https://checkout.razorpay.com"], frameSrc: ["'self'", "https://*.razorpay.com", "https://*.razorpay.in"], connectSrc: ["'self'", "https://*.razorpay.com", "https://*.razorpay.in"], imgSrc: ["'self'", "data:", "https:"] } } }));
+  app.use(helmet({ strictTransportSecurity: config.production ? undefined : false, contentSecurityPolicy: { directives: { mediaSrc: ["'self'", "https:"], scriptSrc: ["'self'", "https://checkout.razorpay.com"], frameSrc: ["'self'", "blob:", "https://*.razorpay.com", "https://*.razorpay.in"], connectSrc: ["'self'", "https://*.razorpay.com", "https://*.razorpay.in"], imgSrc: ["'self'", "data:", "https:"] } } }));
   app.use("/api", (req, res, next) => {
     res.set("Cache-Control", "no-store");
     const origin = req.get("Origin");
@@ -70,6 +72,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   const enquirySystem = createEnquirySystem({ db, config, gmailProviderFactory });
   registerWhatsAppWebhook({ app, whatsapp: enquirySystem.whatsapp });
   app.use(["/api/admin/staff-attendance/bulk", "/api/technical/staff-attendance/bulk"], express.json({ limit: "128kb" }));
+  app.use(["/api/admin/vouchers", "/api/technical/vouchers"], express.json({ limit: "64kb" }));
   app.use(express.json({ limit: "16kb" }));
 
   const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
@@ -101,7 +104,8 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
               : path.includes("promotion") || path.includes("offer-image") ? "tour pricing or offers"
                 : path.includes("voucher") ? "a journey voucher"
                   : path.includes("hotel") ? "hotel details"
-                    : "workspace settings";
+                    : path.includes("/gst") ? "GST rates"
+                      : "workspace settings";
       void enquirySystem.notifications.publish({
         id: `panel:${randomUUID()}`,
         category: panel === "technical" ? "Technical panel activity" : "Admin panel activity",
@@ -204,68 +208,12 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     if (!result.deletedCount) return res.status(404).json({ message: "Hotel not found." });
     res.status(204).send();
   });
-  management.get("/vouchers", requireAdmin, async (req, res) => {
-    const page = Math.max(1, Math.min(100000, Number.parseInt(req.query.page, 10) || 1));
-    const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 120) : "";
-    const pattern = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const filter = search ? { $or: ["billing.name", "billing.visitingCardNo", "voucherNumber", "journey.from"].map((field) => ({ [field]: { $regex: pattern, $options: "i" } })) } : {};
-    const [vouchers, total] = await Promise.all([db.collection("journey_vouchers").find(filter, { projection: { billing: 1, journey: 1, stops: 1, message: 1, voucherNumber: 1, createdAt: 1 } }).sort({ createdAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).toArray(), db.collection("journey_vouchers").countDocuments(filter)]);
-    res.json({ vouchers, total, page, pages: Math.max(1, Math.ceil(total / 20)) });
-  });
-  management.delete("/vouchers/:id", requireAdmin, async (req, res) => {
-    if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid voucher." });
-    if (!(await db.collection("journey_vouchers").deleteOne({ _id: new ObjectId(req.params.id) })).deletedCount) return res.status(404).json({ message: "Voucher not found." });
-    res.sendStatus(204);
-  });
-  management.post("/vouchers", requireAdmin, async (req, res) => {
-    const billing = req.body?.billing;
-    const journey = req.body?.journey;
-    const stops = Array.isArray(req.body?.stops) ? req.body.stops : [];
-    const name = typeof billing?.name === "string" ? billing.name.trim().slice(0, 160) : "";
-    const visitingCardNo = typeof billing?.visitingCardNo === "string" ? billing.visitingCardNo.trim().slice(0, 80) : "";
-    const from = typeof journey?.from === "string" ? journey.from.trim().slice(0, 160) : "";
-    const fromAddress = typeof journey?.fromAddress === "string" ? journey.fromAddress.trim().slice(0, 300) : "";
-    const message = typeof req.body?.message === "string" ? req.body.message.trim().slice(0, 500) : "";
-    const cleanStops = stops.map((stop) => ({
-      name: typeof stop?.name === "string" ? stop.name.trim().slice(0, 160) : "",
-      address: typeof stop?.address === "string" ? stop.address.trim().slice(0, 300) : "",
-      distanceKm: stop?.distanceKm === "" || stop?.distanceKm == null ? null : typeof stop.distanceKm === "number" || typeof stop.distanceKm === "string" ? Number(stop.distanceKm) : NaN,
-      duration: typeof stop?.duration === "string" ? stop.duration.trim().slice(0, 80) : "",
-      departureDate: typeof stop?.departureDate === "string" ? stop.departureDate.slice(0, 10) : "",
-      arrivalDate: typeof stop?.arrivalDate === "string" ? stop.arrivalDate.slice(0, 10) : "",
-      hotelId: typeof stop?.hotelId === "string" ? stop.hotelId : "",
-      flightNumber: typeof stop?.flightNumber === "string" ? stop.flightNumber.trim().slice(0, 30) : "",
-      airportReceiveTime: typeof stop?.airportReceiveTime === "string" ? stop.airportReceiveTime.slice(0, 5) : "",
-      airportExitTime: typeof stop?.airportExitTime === "string" ? stop.airportExitTime.slice(0, 5) : "",
-      stopoverDetails: typeof stop?.stopoverDetails === "string" ? stop.stopoverDetails.trim().slice(0, 500) : "",
-      dayNight: ["day", "night"].includes(stop?.dayNight) ? stop.dayNight : "",
-      checkpoint: typeof stop?.checkpoint === "string" ? stop.checkpoint.trim().slice(0, 120) : "",
-      checkpointTime: ["morning", "afternoon", "evening"].includes(stop?.checkpointTime) ? stop.checkpointTime : "",
-      meals: Array.isArray(stop?.meals) ? stop.meals.filter((meal) => ["breakfast", "lunch", "eveningSnacks", "dinner"].includes(meal)).slice(0, 4) : [],
-      foodNotes: typeof stop?.foodNotes === "string" ? stop.foodNotes.trim().slice(0, 500) : "",
-      datePlans: stop?.datePlans && typeof stop.datePlans === "object" && !Array.isArray(stop.datePlans) ? Object.fromEntries(Object.entries(stop.datePlans).slice(0, 31).map(([date, plan]) => [date.slice(0, 10), Object.fromEntries(["morningActivity", "morningFood", "afternoonActivity", "afternoonFood", "eveningActivity", "eveningFood", "nightFood"].map((key) => [key, typeof plan?.[key] === "string" ? plan[key].trim().slice(0, 200) : ""]))])) : {},
-    })).filter((stop) => stop.name);
-    if (stops.length > 20 || cleanStops.some((stop) => stop.distanceKm !== null && (!Number.isFinite(stop.distanceKm) || stop.distanceKm < 0 || stop.distanceKm > 100000))) return res.status(400).json({ message: "Use up to 20 stops and a distance between 0 and 100,000 km for each leg." });
-    const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
-    if (cleanStops.some((stop) => !validDate(stop.arrivalDate) || !validDate(stop.departureDate) || stop.departureDate < stop.arrivalDate)) return res.status(400).json({ message: "Enter valid arrival and departure dates. Departure cannot be before arrival." });
-    if (!name || !visitingCardNo || !from || !cleanStops.length || cleanStops.some((stop) => !stop.duration || !stop.departureDate || !stop.arrivalDate || !/^[a-f\d]{24}$/i.test(stop.hotelId))) return res.status(400).json({ message: "Complete billing details, journey stops and hotels for every stop." });
-    const hotelIds = cleanStops.map((stop) => new ObjectId(stop.hotelId));
-    const hotels = await db.collection("hotels").find({ _id: { $in: hotelIds } }, { projection: { name: 1, address: 1, starRating: 1, amount: 1 } }).toArray();
-    const hotelsById = new Map(hotels.map((hotel) => [hotel._id.toString(), hotel]));
-    for (const stop of cleanStops) {
-      const hotel = hotelsById.get(stop.hotelId);
-      if (!hotel) return res.status(400).json({ message: "Select a valid saved hotel for every stop." });
-      stop.hotel = { name: hotel.name, address: hotel.address, starRating: hotel.starRating, amount: hotel.amount };
-    }
-    const now = new Date();
-    const voucher = { voucherNumber: `EIV-${now.getFullYear()}-${randomBytes(4).toString("hex").toUpperCase()}`, billing: { name, visitingCardNo }, journey: { from, fromAddress }, stops: cleanStops, message: message || "May every mile bring you closer to a beautiful memory." , createdAt: now };
-    const result = await db.collection("journey_vouchers").insertOne(voucher);
-    res.status(201).json({ voucher: { _id: result.insertedId, ...voucher } });
-  });
+  registerVoucherRoutes({ management, db, requireAdmin, config });
   registerEnquiryRoutes({ app, management, db, config, requireAdmin, ...enquirySystem });
   registerAccounts({ app, management, db, requireAdmin, config, sendPasswordReset, notifications: enquirySystem.notifications });
   const festivals = registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions });
   registerPromotions({ app, management, db, requireAdmin });
+  registerGstRoutes({ management, db, requireAdmin });
   registerStaffRoutes({ management, db, requireAdmin, config });
   app.use(["/api/admin", "/api/technical"], management);
   app.use("/api", (_req, res) => res.status(404).json({ message: "API endpoint not found." }));
