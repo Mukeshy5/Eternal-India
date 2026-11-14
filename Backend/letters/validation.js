@@ -1,6 +1,7 @@
 import { validDate } from "../staff/validation.js";
 import { moneyToPaise } from "../../shared/voucherBilling.js";
 import { defaultLetterContent, letterTypes } from "../../shared/employmentLetters.js";
+import { defaultCertificationImageId } from "../../shared/companyCertifications.js";
 
 export function validateCompany(value) {
   const errors = {}, company = {};
@@ -8,6 +9,10 @@ export function validateCompany(value) {
     const source = value?.[key];
     company[key] = typeof source === "string" ? source.trim().replace(/\s+/g, " ") : "";
     if (typeof source !== "string" || company[key].length < min || company[key].length > max || /[\x00-\x08\x0b-\x1f\x7f<>]/.test(company[key])) errors[`company.${key}`] = `Use ${min}–${max} characters for ${key}.`;
+  }
+  if (value?.certificationImageId !== undefined) {
+    if (typeof value.certificationImageId !== "string" || value.certificationImageId !== defaultCertificationImageId && !/^[a-f0-9]{64}$/.test(value.certificationImageId)) errors["company.certificationImageId"] = "Choose a saved company certification image.";
+    else company.certificationImageId = value.certificationImageId;
   }
   return { company, errors };
 }

@@ -68,7 +68,8 @@
 .letter-employee-results > p { padding: 18px; font-size: 12px; line-height: 1.7; color: #6a798b; }
 .letter-preview-label { display: flex; justify-content: space-between; margin: 8px 0 14px; color: #7a8796; font-size: 10px; letter-spacing: .08em; }
 .letter-preview-label small { font-size: 10px; letter-spacing: 0; }
-.letter-paper { border: 1px solid #dfe6e9; border-top: 5px solid #58776c; background: white; box-shadow: 0 8px 25px #465c7310; padding: clamp(22px, 3vw, 45px); color: #334654; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.9; overflow-wrap: anywhere; }
+.letter-paper { display: flex; flex-direction: column; aspect-ratio: 210 / 297; border: 1px solid #dfe6e9; border-top: 5px solid #58776c; background: white; box-shadow: 0 8px 25px #465c7310; padding: clamp(22px, 3vw, 45px); color: #334654; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.9; overflow-wrap: anywhere; }
+.letter-document-content { flex: 1; }
 .letter-letterhead { display: flex; align-items: start; justify-content: space-between; gap: 16px; padding-bottom: 22px; border-bottom: 1px solid #dce5e4; }
 .letter-letterhead img { width: 32%; max-width: 140px; object-fit: contain; }
 .letter-letterhead > div { text-align: right; max-width: 62%; }
@@ -87,7 +88,16 @@
 .letter-signature p { margin: 2px 0; }
 .letter-signature strong { display: block; margin-top: 34px; }
 .letter-acceptance { margin-top: 35px; font-size: 10px; }
-.letter-paper footer { border-top: 1px solid #e1e8e8; margin-top: 35px; padding-top: 12px; font-size: 9px; text-align: center; color: #7b8b91; }
+.letter-document-footer { flex-shrink: 0; border-top: 1px solid #a4b7af; margin-top: 28px; padding-top: 10px; font-size: 9px; text-align: center; color: #6c7c81; break-inside: avoid; }
+.letter-certification-heading { font-size: 8px; letter-spacing: .16em; text-transform: uppercase; margin-bottom: 8px; }
+.letter-certification-image { display: flex; justify-content: center; align-items: center; min-height: 66px; width: 100%; color: #738196; font-size: 10px; line-height: 1.6; text-align: center; }
+.letter-certification-image img { display: block; width: 100%; height: 74px; object-fit: contain; }
+.letter-certification-image button { font-size: 10px; padding: 3px 8px; min-height: 28px; }
+.letter-footer-contact { margin-top: 8px; border-top: 1px solid #e4eae7; padding-top: 9px; }
+.letter-certification-settings { margin-top: 20px; padding: 16px; border: 1px solid #dfe8e3; border-radius: 9px; background: #fafcfb; }
+.letter-certification-settings > strong { font-size: 12px; }
+.letter-certification-settings .letter-certification-image { margin: 12px 0; }
+.letter-certification-settings .letter-field { margin-bottom: 0; }
 .letter-detail > .letter-paper { max-width: 794px; margin: 25px auto; padding: clamp(24px, 5vw, 62px); }
 .letter-detail-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 20px; gap: 16px; }
 .letter-detail-toolbar strong { font-size: 14px; }

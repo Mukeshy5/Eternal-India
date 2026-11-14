@@ -8,6 +8,9 @@ import { letterCompany, letterTypes, employmentDuration } from "../../shared/emp
 import { letterCollection } from "./models.js";
 import { validateCompany, validateLetter } from "./validation.js";
 import { employmentLetterPdf } from "./documents.js";
+import multer from "multer";
+import { defaultCertificationImageId } from "../../shared/companyCertifications.js";
+import { certificationCollection, certificationImage, certificationResponse, normalizeCertification } from "./certifications.js";
 
 const objectId = (value) => typeof value === "string" && /^[a-f\d]{24}$/i.test(value) ? new ObjectId(value) : null;
 const digest = (value) => createHash("sha256").update(value).digest("hex");
@@ -23,15 +26,26 @@ export function registerLetterRoutes({ management, db, requireAdmin, config }) {
   const editorGuard = [...guard(), (req, res, next) => staffAccess(req.admin, config).some((key) => ["create", "edit"].includes(key)) ? next() : res.status(403).json({ message: "Your account cannot prepare employment letters." })];
   const pdfLimit = rateLimit({ windowMs: 60000, limit: 30, keyGenerator: (req) => req.admin._id.toString(), standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many PDF generation requests. Please wait a minute and try again." } });
   const settings = async () => await db.collection("employment_letter_settings").findOne({ _id: "company" }) || { company: { ...letterCompany, name: config.companyName || letterCompany.name }, version: 0 };
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 0 } }).single("certification");
+  router.post("/letters/certifications", ...guard("edit"), pdfLimit, (req, res, next) => upload(req, res, (error) => error ? validationError(res, { "company.certificationImageId": "Upload one PNG, JPEG or WebP certification image, up to 5 MB." }) : next()), async (req, res) => {
+    const image = await normalizeCertification(req.file);
+    await db.collection(certificationCollection).updateOne({ _id: image._id }, { $setOnInsert: { ...image, createdAt: new Date(), createdBy: req.admin._id } }, { upsert: true });
+    res.status(201).json(certificationResponse(image));
+  });
+  router.get("/letters/certifications/:imageId", ...guard(), async (req, res) => {
+    res.set("Cache-Control", "private, no-store").json(certificationResponse(await certificationImage(db, req.params.imageId)));
+  });
 
   router.get("/letters/settings", ...guard(), async (req, res) => {
     const record = await settings();
-    res.json({ company: record.company, version: record.version, permissions: staffAccess(req.admin, config) });
+    res.json({ company: { ...record.company, certificationImageId: record.company.certificationImageId || defaultCertificationImageId }, version: record.version, permissions: staffAccess(req.admin, config) });
   });
   router.put("/letters/settings", ...guard("edit"), async (req, res) => {
     const { company, errors } = validateCompany(req.body?.company);
     if (!Number.isInteger(req.body?.version) || req.body.version < 0) errors.version = "Refresh the company settings before saving.";
     if (Object.keys(errors).length) return validationError(res, errors);
+    company.certificationImageId ??= (await settings()).company.certificationImageId || defaultCertificationImageId;
+    await certificationImage(db, company.certificationImageId);
     const fields = { company, updatedAt: new Date(), updatedBy: req.admin._id };
     try {
       if (req.body.version === 0) await db.collection("employment_letter_settings").insertOne({ _id: "company", ...fields, version: 1 });
@@ -66,8 +80,13 @@ export function registerLetterRoutes({ management, db, requireAdmin, config }) {
     const person = !current && await staff.findOne({ _id: staffId, deletedAt: null }, { projection: { name: 1, employeeId: 1, designation: 1, department: 1 } });
     if (!current && !person) return { errors: { staffId: "This employee no longer exists. Refresh the list." } };
     const result = validateLetter(body, current?.employee || employeeSnapshot(person), current);
+    if (!Object.keys(result.errors).length) {
+      result.fields.company.certificationImageId ??= current?.company.certificationImageId || (await settings()).company.certificationImageId || defaultCertificationImageId;
+      await certificationImage(db, result.fields.company.certificationImageId);
+    }
     return { ...result, fields: { ...result.fields, staffId } };
   }
+  const renderPdf = async (letter, options) => employmentLetterPdf(letter, { ...options, certification: await certificationImage(db, letter.company.certificationImageId) });
   const sendPdf = (res, pdf, number, attachment = false) => res.set({ "Content-Type": "application/pdf", "Content-Disposition": `${attachment ? "attachment" : "inline"}; filename="${number.replaceAll("/", "-")}.pdf"`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" }).send(pdf);
 
   router.post("/letters/preview", ...editorGuard, ...guard("export"), pdfLimit, async (req, res) => {
@@ -75,7 +94,7 @@ export function registerLetterRoutes({ management, db, requireAdmin, config }) {
     if (req.body?.id && !current) return res.status(404).json({ message: "Letter no longer exists. Refresh its history." });
     const { fields, errors } = await prepare(req.body, current);
     if (Object.keys(errors).length) return validationError(res, errors);
-    sendPdf(res, await employmentLetterPdf({ ...fields, letterNumber: current?.letterNumber || "PREVIEW" }, { preview: true }), "letter-preview");
+    sendPdf(res, await renderPdf({ ...fields, letterNumber: current?.letterNumber || "PREVIEW" }, { preview: true }), "letter-preview");
   });
   router.get("/letters", ...guard(), async (req, res) => {
     const { type, search = "", staffId, from, to } = req.query;
@@ -98,7 +117,7 @@ export function registerLetterRoutes({ management, db, requireAdmin, config }) {
     const year = fields.issueDate.slice(0, 4);
     const counter = await db.collection("employment_letter_counters").findOneAndUpdate({ _id: `${fields.type}:${year}` }, { $inc: { sequence: 1 } }, { upsert: true, returnDocument: "after" });
     const now = new Date(), letterNumber = `EI/${fields.type === "joining" ? "JL" : "EL"}/${year}/${String(counter.sequence).padStart(6, "0")}`;
-    const pdf = await employmentLetterPdf({ ...fields, letterNumber });
+    const pdf = await renderPdf({ ...fields, letterNumber });
     const record = { ...fields, letterNumber, pdf, pdfSha256: digest(pdf), requestKey: req.body.requestKey, payloadHash, version: 1, createdAt: now, updatedAt: now, createdBy: req.admin._id, updatedBy: req.admin._id };
     try { await letters.insertOne(record); }
     catch (error) {
@@ -126,7 +145,7 @@ export function registerLetterRoutes({ management, db, requireAdmin, config }) {
     if (!current) return res.status(404).json({ message: "Letter not found." });
     const { fields, errors } = await prepare(req.body, current);
     if (Object.keys(errors).length) return validationError(res, errors);
-    const pdf = await employmentLetterPdf({ ...fields, letterNumber: current.letterNumber });
+    const pdf = await renderPdf({ ...fields, letterNumber: current.letterNumber });
     let updated;
     try { updated = await letters.findOneAndUpdate({ _id: current._id, version: current.version }, { $set: { ...fields, pdf, pdfSha256: digest(pdf), updatedAt: new Date(), updatedBy: req.admin._id }, $inc: { version: 1 } }, { returnDocument: "after", projection }); }
     catch (error) { if (error.code === 11000) return res.status(409).json({ message: "A letter already exists for that employment period." }); throw error; }

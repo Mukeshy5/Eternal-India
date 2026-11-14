@@ -1,15 +1,10 @@
 import { Link } from "react-router-dom";
 import { Icon, whatsappUrl } from "../Common/SiteUI";
+import { companyCertifications } from "../../../shared/companyCertifications.js";
 
-const companyCertificationImages = [
-  "WhatsApp Image 2026-11-13 at 3.24.55 PM.jpeg",
-  "WhatsApp Image 2026-11-13 at 3.26.32 PM.jpeg",
-  "WhatsApp Image 2026-11-13 at 3.27.28 PM.jpeg",
-  "WhatsApp Image 2026-11-13 at 3.30.30 PM.jpeg",
-  "WhatsApp Image 2026-11-13 at 3.33.46 PM.jpeg",
-].map((fileName) => ({
-  src: new URL(`../assets/CompanyCertification/${fileName}`, import.meta.url).href,
-  alt: `Company certification ${fileName}`,
+const companyCertificationImages = companyCertifications.map(({ file, alt }) => ({
+  src: new URL(`../assets/CompanyCertification/${file}`, import.meta.url).href,
+  alt,
 }));
 
 export default function Footer() {

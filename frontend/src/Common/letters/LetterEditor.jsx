@@ -4,6 +4,7 @@ import { indiaDate } from "../../../../shared/staff.js";
 import { defaultLetterContent, employmentDuration, letterTypes } from "../../../../shared/employmentLetters.js";
 import { usePanelNavigationGuard } from "../panel/PanelNavigationContext";
 import LetterDocument from "./LetterDocument";
+import LetterCertification from "./LetterCertification";
 
 function Field({ label, error, children, wide }) {
   return <label className={`letter-field${wide ? " letter-field-wide" : ""}`}><span>{label}</span>{children}{error && <small role="alert">{error}</small>}</label>;
@@ -27,13 +28,13 @@ function EmployeePicker({ apiBase, onSelect, onError, disabled }) {
 }
 
 export default function LetterEditor({ type, record, company, apiBase, busy, errors, canExport, canSaveCompany, onError, onSave, onPreview, onCancel, onSaveCompany }) {
-  const [initial] = useState(() => record ? { ...record, salary: String(record.salaryPaise / 100), requestKey: undefined } : {
+  const [initial] = useState(() => record ? { ...record, company: { ...record.company, certificationImageId: record.company.certificationImageId || company.certificationImageId }, salary: String(record.salaryPaise / 100), requestKey: undefined } : {
     type, staffId: "", employee: null, company: { ...company }, issueDate: indiaDate(), joiningDate: "", lastWorkingDate: "", salary: "", salaryPeriod: "month", content: "", terms: "", responsibilities: "", performance: "", requestKey: crypto.randomUUID(),
   });
-  const [values, setValues] = useState(initial), [selecting, setSelecting] = useState(false), [customContent, setCustomContent] = useState(!!record && record.content !== defaultLetterContent(record));
+  const [values, setValues] = useState(initial), [selecting, setSelecting] = useState(false), [uploading, setUploading] = useState(false), [customContent, setCustomContent] = useState(!!record && record.content !== defaultLetterContent(record));
   const employeeRequest = useRef(null), alive = useRef(true);
   const dirty = JSON.stringify(values) !== JSON.stringify(initial);
-  usePanelNavigationGuard(dirty, busy || selecting, "Discard the unsaved letter content?");
+  usePanelNavigationGuard(dirty, busy || selecting || uploading, "Discard the unsaved letter content?");
   useEffect(() => { alive.current = true; return () => { alive.current = false; employeeRequest.current?.abort(); }; }, []);
   const composed = { ...values, salaryPaise: Math.round(Number(values.salary || 0) * 100) };
   const content = customContent ? values.content : defaultLetterContent(composed);
@@ -48,9 +49,21 @@ export default function LetterEditor({ type, record, company, apiBase, busy, err
     } catch (failure) { if (!controller.signal.aborted) onError(failure); }
     finally { if (alive.current && !controller.signal.aborted) setSelecting(false); }
   }
+  async function uploadCertification(event) {
+    const file = event.target.files?.[0]; event.target.value = "";
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { onError(new Error("Upload a certification image up to 5 MB.")); return; }
+    employeeRequest.current?.abort(); const controller = new AbortController(); employeeRequest.current = controller; setUploading(true);
+    try {
+      const body = new FormData(); body.append("certification", file);
+      const result = await api(`${apiBase}/letters/certifications`, { method: "POST", body, signal: controller.signal });
+      if (!controller.signal.aborted) setValues((current) => ({ ...current, company: { ...current.company, certificationImageId: result.imageId } }));
+    } catch (error) { if (!controller.signal.aborted) onError(error); }
+    finally { if (alive.current && !controller.signal.aborted) setUploading(false); }
+  }
   return <div className="letter-compose"><form className="letter-editor letter-card" aria-label={`${record ? "Edit" : "Generate"} ${letterTypes[type]}`} onSubmit={(event) => { event.preventDefault(); onSave(payload); }}>
-    <div className="letter-card-heading"><div><span className="letter-eyebrow">{record ? record.letterNumber : "NEW DOCUMENT"}</span><h2>{record ? "Edit letter" : "Create a letter"}</h2></div><button type="button" onClick={cancel} disabled={busy || selecting}>Back to history</button></div>
-    <fieldset disabled={busy || selecting}>
+    <div className="letter-card-heading"><div><span className="letter-eyebrow">{record ? record.letterNumber : "NEW DOCUMENT"}</span><h2>{record ? "Edit letter" : "Create a letter"}</h2></div><button type="button" onClick={cancel} disabled={busy || selecting || uploading}>Back to history</button></div>
+    <fieldset disabled={busy || selecting || uploading}>
       <h3><span>01</span> Employee details</h3>
       {!record && !values.employee && <EmployeePicker apiBase={apiBase} onSelect={selectEmployee} onError={onError} disabled={busy || selecting} />}
       {selecting && <p role="status">Fetching employee details…</p>}
@@ -62,7 +75,8 @@ export default function LetterEditor({ type, record, company, apiBase, busy, err
         {type === "joining" ? <><Field label="Gross salary · INR" error={errors.salary}><input required name="salary" type="number" min="0" max="99999999.99" step="0.01" value={values.salary} onChange={(event) => change("salary", event.target.value)} /></Field><Field label="Salary period" error={errors.salaryPeriod}><select name="salaryPeriod" value={values.salaryPeriod} onChange={(event) => change("salaryPeriod", event.target.value)}><option value="month">Per month</option><option value="year">Per year</option></select></Field></> : <><Field label="Last working date" error={errors.lastWorkingDate}><input required name="lastWorkingDate" type="date" min={values.joiningDate || "2000-01-01"} max={values.issueDate || "2100-12-31"} value={values.lastWorkingDate} onChange={(event) => change("lastWorkingDate", event.target.value)} /></Field><Field label="Employment duration (inclusive)"><input readOnly value={employmentDuration(values.joiningDate, values.lastWorkingDate)} placeholder="Calculated from employment dates" /></Field></>}
       </div>
       <h3><span>03</span> Company & signatory</h3><div className="letter-form-grid">{[["name", "Company name", true, 200], ["address", "Company address", true, 600], ["phone", "Company phone", false, 200], ["website", "Website", false, 200], ["signatory", "Signatory name", true, 200], ["signatoryTitle", "Signatory designation", false, 200]].map(([key, label, required, maxLength]) => <Field key={key} label={label} error={errors[`company.${key}`]} wide={key === "address"}>{key === "address" ? <textarea name={`company.${key}`} rows={3} required maxLength={maxLength} value={values.company[key]} onChange={(event) => change("company", { ...values.company, [key]: event.target.value })} /> : <input name={`company.${key}`} required={required} maxLength={maxLength} value={values.company[key]} onChange={(event) => change("company", { ...values.company, [key]: event.target.value })} />}</Field>)}</div>
-      {canSaveCompany && <button type="button" className="letter-text-button" onClick={() => onSaveCompany(values.company)}>Save company details for future letters</button>}
+      <div className="letter-certification-settings"><strong>Company certification</strong><LetterCertification imageId={values.company.certificationImageId} apiBase={apiBase} />{canSaveCompany && <Field label={uploading ? "Uploading certification…" : "Upload certification image"} error={errors["company.certificationImageId"]}><input type="file" name="certification" accept="image/png,image/jpeg,image/webp" onChange={uploadCertification} /></Field>}<p className="letter-hint">The same image is used in both letter footers. PNG, JPEG or WebP, up to 5 MB. Save company details to use it for future letters in both panels.</p></div>
+      {canSaveCompany && <>{company.certificationImageId && company.certificationImageId !== values.company.certificationImageId && <button type="button" className="letter-text-button" onClick={() => change("company", { ...values.company, certificationImageId: company.certificationImageId })}>Use current company certification</button>}<button type="button" className="letter-text-button" onClick={() => onSaveCompany(values.company)}>Save company details for future letters</button></>}
       <h3><span>04</span> Letter content</h3><p className="letter-hint">Review and edit the wording before generation. Employment details also appear in the letter summary.</p>
       <Field label="Letter body" error={errors.content}><textarea name="content" rows={10} maxLength={16000} value={content} onChange={(event) => { setCustomContent(true); change("content", event.target.value); }} /></Field>
       {customContent && <p className="letter-hint">Custom wording is preserved when employment details change. Review dates, role and salary in the body before saving.</p>}
@@ -71,5 +85,5 @@ export default function LetterEditor({ type, record, company, apiBase, busy, err
       <div className="letter-editor-actions"><button type="submit" className="letter-primary" disabled={!values.employee}>{busy ? "Preparing document…" : record ? "Save changes & regenerate PDF" : "Generate & save letter"}</button>{canExport && <button type="button" disabled={!values.employee} onClick={() => onPreview(payload)}>Preview PDF</button>}</div>
       <p className="letter-hint">{record ? "Saving updates the document and PDF under the same reference number." : "The final reference number is assigned when the letter is saved."}</p>
     </fieldset>
-  </form><aside className="letter-live-preview"><div className="letter-preview-label"><span>LIVE PREVIEW</span><small>A4 · Company letterhead</small></div><LetterDocument letter={{ ...composed, content }} draft /></aside></div>;
+  </form><aside className="letter-live-preview"><div className="letter-preview-label"><span>LIVE PREVIEW</span><small>A4 · Company letterhead</small></div><LetterDocument letter={{ ...composed, content }} apiBase={apiBase} draft /></aside></div>;
 }

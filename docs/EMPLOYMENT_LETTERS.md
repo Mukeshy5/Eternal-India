@@ -13,6 +13,10 @@ Both panels use the same `employment_letters` collection and route handlers. Ope
 
 Company defaults reuse the existing company configuration and shared voucher branding/address. An account with staff edit permission can save company/signatory details as shared defaults for future letters. Each generated letter keeps its own company and employee snapshot. Editing company defaults or staff later does not rewrite issued letters. Existing historical letters can still be viewed and amended after staff deletion. Editing an issued letter preserves its reference and increments its version.
 
+Both letter footers include **Company certification**, a centered image and a separate contact line. In **Company & signatory**, upload the actual company PNG/JPEG/WebP (up to 5 MB and 16 megapixels), then choose **Save company details for future letters** to share the selection between both panels and letter types. Without a custom selection, the backend builds the footer from the five existing company-supplied artworks in `frontend/src/assets/CompanyCertification/`. No placeholder artwork or remote image URL is used.
+
+Uploads are fully decoded, oriented, bounded to 1800 × 420 and normalized to PNG before storage in `employment_letter_images`. An immutable SHA-256 image ID is saved in company defaults and each issued letter snapshot. Authenticated image retrieval returns a PNG data URL, avoiding relative-path, cross-origin cookie and print-time network failures. PDFs embed the image bytes on every A4 page with a reserved footer margin. Keep the image collection and bundled original artwork in deployments/backups. Old PDFs remain intact; to add the new footer to a previously issued PDF, open **Edit letter**, review it and **Save changes & regenerate PDF**. Changing company defaults does not alter issued PDFs or their image snapshots.
+
 ## Storage and permissions
 
 Startup installs strict MongoDB JSON schemas and indexes. `employment_letters` stores the employee reference/snapshot, company snapshot, employment fields, editable content, PDF binary, SHA-256 integrity hash, optimistic version and creator/updater identities and timestamps. PDFs are deliberately embedded in the same MongoDB document as the letter so a successful save cannot leave a missing file or mismatched PDF. Input limits keep documents below MongoDB's document limit. Include this collection in normal encrypted database backups; there are no public file URLs, disk upload directories or expiry indexes for letters.
@@ -39,6 +43,8 @@ All paths below follow either `/api/admin` or `/api/technical`.
 | --- | --- | --- |
 | GET | `/letters/settings` | Company defaults, version and current permissions |
 | PUT | `/letters/settings` | Save `{ company, version }` |
+| POST | `/letters/certifications` | Upload one multipart `certification` PNG/JPEG/WebP; requires `edit` |
+| GET | `/letters/certifications/:imageId` | Authenticated image metadata and PNG data URL |
 | GET | `/letters/employees?search=&page=` | Paginated employee search, including inactive employees |
 | GET | `/letters/employees/:id` | Employee details and employment defaults |
 | GET | `/letters?type=joining&search=&staffId=&from=&to=&page=` | Filtered history (`from/to` are issue dates) |

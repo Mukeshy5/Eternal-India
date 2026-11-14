@@ -59,6 +59,16 @@ export async function verifyLetters(vite) {
     assert.ok([...container.querySelectorAll(".panel-navigation button")].some((item) => item.textContent.endsWith("Experience Letter")));
     await waitFor(() => ![...container.querySelectorAll("button")].find((item) => item.textContent === "+ Create joining letter")?.disabled, "company defaults loaded");
     await click("+ Create joining letter");
+    await waitFor(() => container.querySelector(".letter-document-footer img")?.getAttribute("src")?.startsWith("data:image/png;base64,"), "real company certification loaded in footer");
+    const actualCertification = await (await globalThis.fetch("/api/technical/letters/certifications/company-certifications-v1")).json();
+    const certificationFile = new File([Buffer.from(actualCertification.dataUrl.split(",")[1], "base64")], "company-certifications.png", { type: "image/png" });
+    const certificationInput = container.querySelector('input[name="certification"]'); assert.ok(certificationInput);
+    Object.defineProperty(certificationInput, "files", { configurable: true, value: [certificationFile] });
+    await act(async () => certificationInput.dispatchEvent(new testWindow.Event("change", { bubbles: true })));
+    await waitFor(async () => await db.collection("employment_letter_images").countDocuments() === 1 && !container.querySelector(".letter-editor fieldset").disabled, "certification uploaded to MongoDB");
+    await click("Save company details for future letters");
+    await waitFor(() => container.textContent.includes("Company details saved for future letters"), "shared company certification setting saved");
+    const savedCompany = await db.collection("employment_letter_settings").findOne({ _id: "company" }); assert.match(savedCompany.company.certificationImageId, /^[a-f0-9]{64}$/);
     await waitFor(() => container.querySelector(".letter-employee-results button"), "employee list from API");
     await act(async () => container.querySelector(".letter-employee-results button").click());
     await waitFor(() => container.querySelector('[name="salary"]').value === "45000.75", "employee salary and joining date dynamically fetched");
@@ -71,6 +81,8 @@ export async function verifyLetters(vite) {
     await submit();
     await waitFor(async () => await db.collection("employment_letters").countDocuments() === 1 && !!container.querySelector(".letter-detail"), "joining letter saved through API");
     let joining = await db.collection("employment_letters").findOne({ type: "joining" }); assert.equal(joining.content, "Dear Letter UI Employee,\n\nThis is the edited joining letter body."); assert.ok(joining.pdf);
+    assert.equal(joining.company.certificationImageId, savedCompany.company.certificationImageId);
+    await waitFor(() => container.querySelector(".letter-document-footer img"), "saved joining letter certification visible");
     await click("Download PDF"); await waitFor(() => blobs.length >= 2, "stored PDF downloaded"); assert.equal(blobs.at(-1).type, "application/pdf");
     await click("Preview PDF & print"); await waitFor(() => testWindow.document.querySelector(".letter-pdf-dialog iframe"), "saved PDF preview");
     const iframe = testWindow.document.querySelector(".letter-pdf-dialog iframe"); let printed = 0;
@@ -87,8 +99,11 @@ export async function verifyLetters(vite) {
     await act(async () => { type("issueDate", "2026-11-14"); type("lastWorkingDate", "2026-10-31"); type("responsibilities", "Guest service and itinerary management."); type("performance", "Professional, dependable performance throughout employment."); });
     assert.ok(container.querySelector(".letter-paper").textContent.includes("1 year, 10 months")); await submit();
     await waitFor(async () => await db.collection("employment_letters").countDocuments() === 2 && !!container.querySelector(".letter-detail"), "experience letter saved");
+    const experience = await db.collection("employment_letters").findOne({ type: "experience" }); assert.equal(experience.company.certificationImageId, joining.company.certificationImageId);
+    await waitFor(() => container.querySelector(".letter-document-footer img"), "experience certification visible");
     await render("admin"); await waitFor(() => container.querySelector(".letter-table")?.textContent.includes(joining.letterNumber), "Admin Panel shares Technical Panel letter history");
     await click("Edit"); await waitFor(() => container.querySelector(".letter-editor"), "load saved letter for editing");
+    await waitFor(() => container.querySelector(".letter-document-footer img"), "Admin Panel shares saved company certification");
     await act(async () => type("terms", "Updated in Admin Panel.")); await submit();
     await waitFor(async () => (await db.collection("employment_letters").findOne({ type: "joining" })).version === 2 && !!container.querySelector(".letter-detail"), "admin amendment persisted");
     const updated = await db.collection("employment_letters").findOne({ type: "joining" }); assert.equal(updated.letterNumber, joining.letterNumber); assert.notEqual(updated.pdfSha256, joining.pdfSha256); joining = updated;

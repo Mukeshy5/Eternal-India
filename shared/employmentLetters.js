@@ -1,9 +1,11 @@
 import { voucherCompany, formatVoucherDate, formatVoucherMoney } from "./voucherBilling.js";
+import { defaultCertificationImageId } from "./companyCertifications.js";
 
 export const letterTypes = { joining: "Joining Letter", experience: "Experience Letter" };
 export const letterCompany = {
   name: voucherCompany.name, address: voucherCompany.address, phone: voucherCompany.phone,
   website: voucherCompany.website, signatory: "Authorised Signatory", signatoryTitle: "Human Resources",
+  certificationImageId: defaultCertificationImageId,
 };
 export const letterDate = formatVoucherDate;
 export const letterMoney = formatVoucherMoney;

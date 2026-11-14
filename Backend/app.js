@@ -55,7 +55,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
       res.vary("Origin");
     }
     if (req.method === "OPTIONS") return res.set({ "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" }).sendStatus(204);
-    const imageUpload = req.is("multipart/form-data") && ((req.method === "POST" && (/^\/(admin|technical)\/offer-images$/.test(req.path) || req.path === "/technical/festival-assets")) || (["POST", "PATCH"].includes(req.method) && /^\/(admin|technical)\/staff(?:\/[a-f\d]{24})?$/i.test(req.path)));
+    const imageUpload = req.is("multipart/form-data") && ((req.method === "POST" && (/^\/(admin|technical)\/(?:offer-images|letters\/certifications)$/.test(req.path) || req.path === "/technical/festival-assets")) || (["POST", "PATCH"].includes(req.method) && /^\/(admin|technical)\/staff(?:\/[a-f\d]{24})?$/i.test(req.path)));
     if (["POST", "PUT", "PATCH"].includes(req.method) && !imageUpload && !req.is("application/json")) return res.status(415).json({ message: "Use JSON to submit this request." });
     next();
   });

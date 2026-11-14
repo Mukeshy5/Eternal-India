@@ -2,6 +2,7 @@ export const letterCollection = "employment_letters";
 export async function ensureLetterModels(db) {
   const text = { bsonType: "string" }, date = { bsonType: "date" };
   const company = { bsonType: "object", required: ["name", "address", "phone", "website", "signatory", "signatoryTitle"], properties: Object.fromEntries(["name", "address", "phone", "website", "signatory", "signatoryTitle"].map((key) => [key, { ...text, maxLength: key === "address" ? 600 : 200 }])) };
+  company.properties.certificationImageId = { ...text, maxLength: 64 };
   const schemas = {
     [letterCollection]: {
       bsonType: "object", required: ["type", "staffId", "employee", "company", "joiningDate", "issueDate", "letterNumber", "content", "terms", "responsibilities", "performance", "pdf", "pdfSha256", "requestKey", "payloadHash", "version", "createdAt", "updatedAt", "createdBy", "updatedBy"],
@@ -17,6 +18,7 @@ export async function ensureLetterModels(db) {
       },
     },
     employment_letter_settings: { bsonType: "object", required: ["company", "version", "updatedAt", "updatedBy"], properties: { company, version: { bsonType: ["int", "long", "double"], minimum: 1 }, updatedAt: date, updatedBy: { bsonType: "objectId" } } },
+    employment_letter_images: { bsonType: "object", required: ["_id", "bytes", "width", "height", "createdAt", "createdBy"], properties: { _id: { ...text, pattern: "^[a-f0-9]{64}$" }, bytes: { bsonType: "binData" }, width: { bsonType: ["int", "double"], minimum: 1, maximum: 1800 }, height: { bsonType: ["int", "double"], minimum: 1, maximum: 420 }, createdAt: date, createdBy: { bsonType: "objectId" } } },
   };
   for (const [name, schema] of Object.entries(schemas)) {
     const options = { validator: { $jsonSchema: schema }, validationLevel: "strict", validationAction: "error" };
