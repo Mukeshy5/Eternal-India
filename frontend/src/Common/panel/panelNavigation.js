@@ -6,6 +6,8 @@ export const panelSections = {
   "staff-attendance": { label: "Staff Attendance", title: "Attendance Calendar", group: "People", icon: "calendar", permission: "view" },
   "staff-cards": { label: "Download ID Card", title: "Employee ID Cards", group: "People", icon: "archive", permission: "export" },
   "staff-reports": { label: "Attendance Reports", title: "Attendance Reports", group: "People", icon: "clock", permission: "view" },
+  "joining-letters": { label: "Joining Letter", title: "Joining Letters", group: "People", icon: "archive", permission: "view" },
+  "experience-letters": { label: "Experience Letter", title: "Experience Letters", group: "People", icon: "archive", permission: "view" },
   hotels: { label: "Add hotel", title: "Hotel Inventory", group: "Operations", icon: "pin" },
   gst: { label: "Add GST", title: "GST Management", group: "Operations", icon: "archive" },
   vouchers: { label: "Journey Voucher", title: "Journey Vouchers", group: "Operations", icon: "calendar" },

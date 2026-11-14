@@ -3,6 +3,8 @@ import { MongoClient } from "mongodb";
 import { ensureStaffModels } from "../staff/models.js";
 import { ensurePaymentModels } from "../payments/model.js";
 import { ensureEnquiryModels } from "../enquiries/model.js";
+import { ensureLetterModels } from "../letters/models.js";
+import { ensureOfficeModels } from "../offices/models.js";
 
 const MAX_CONNECT_RETRIES = 5;
 const RETRY_BASE_DELAY_MS = 3000;
@@ -49,7 +51,9 @@ export async function connectDatabase(config) {
         db.collection("enquiries").createIndex({ status: 1, createdAt: -1 }),
       ]);
       await ensureVoucherModels(db);
+      await ensureOfficeModels(db);
       await ensureStaffModels(db);
+      await ensureLetterModels(db);
       await ensurePaymentModels(db);
       await ensureEnquiryModels(db);
 

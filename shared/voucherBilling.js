@@ -26,5 +26,8 @@ export const voucherCompany = {
   note: "N.B.: This Exchange Order is issued & valid Subject to Terms & Conditions given overleaf.",
 };
 export const voucherStatuses = ["draft", "confirmed", "cancelled"];
+export const mealPlans = { CP: "Breakfast Only", MAP: "Breakfast + Dinner", AP: "Breakfast + Lunch + Dinner" };
+export const mealPlanLabel = (value) => Object.hasOwn(mealPlans, value || "") ? `${value} – ${mealPlans[value]}` : "Not recorded";
+export const voucherOffice = (voucher) => voucher?.officeAddress || { name: voucherCompany.name, address: voucherCompany.address, phone: voucherCompany.phone };
 export const formatVoucherMoney = (paise) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format((paise ?? 0) / 100);
 export const formatVoucherDate = (date) => date ? new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" }).format(new Date(`${date.slice(0, 10)}T12:00:00+05:30`)) : "—";

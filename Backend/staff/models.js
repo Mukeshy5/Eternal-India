@@ -13,6 +13,7 @@ export async function ensureStaffModels(db) {
     },
   };
   for (const [name, schema] of Object.entries(schemas)) {
+    if (name === "staff") Object.assign(schema.properties, { joiningDate: { bsonType: "string", pattern: "^(|[0-9]{4}-[0-9]{2}-[0-9]{2})$" }, salary: { bsonType: "string", maxLength: 20 } });
     try { await db.createCollection(name, { validator: { $jsonSchema: schema }, validationLevel: "strict", validationAction: "error" }); }
     catch (error) { if (error.code !== 48) throw error; await db.command({ collMod: name, validator: { $jsonSchema: schema }, validationLevel: "strict", validationAction: "error" }); }
   }

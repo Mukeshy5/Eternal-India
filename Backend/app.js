@@ -22,6 +22,8 @@ import { canManageAccounts, registerAccounts } from "./lib/accounts.js";
 import { gmailAccountFilter, gmailIdentity } from "./lib/email-identity.js";
 import { registerPaymentRoutes } from "./payments/routes.js";
 import { registerVoucherRoutes } from "./vouchers/routes.js";
+import { registerLetterRoutes } from "./letters/routes.js";
+import { registerOfficeRoutes } from "./offices/routes.js";
 import { registerGstRoutes } from "./lib/gst.js";
 import { createEnquirySystem } from "./enquiries/index.js";
 import { registerEnquiryRoutes, registerWhatsAppWebhook } from "./enquiries/routes.js";
@@ -73,6 +75,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   registerWhatsAppWebhook({ app, whatsapp: enquirySystem.whatsapp });
   app.use(["/api/admin/staff-attendance/bulk", "/api/technical/staff-attendance/bulk"], express.json({ limit: "128kb" }));
   app.use(["/api/admin/vouchers", "/api/technical/vouchers"], express.json({ limit: "64kb" }));
+  app.use(["/api/admin/letters", "/api/technical/letters"], express.json({ limit: "128kb" }));
   app.use(express.json({ limit: "16kb" }));
 
   const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
@@ -102,6 +105,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
           : path.includes("/enquiries") ? "an enquiry"
             : path.includes("festival") || path.includes("decoration") ? "festival settings"
               : path.includes("promotion") || path.includes("offer-image") ? "tour pricing or offers"
+                : path.includes("/letters") ? "employment letters"
                 : path.includes("voucher") ? "a journey voucher"
                   : path.includes("hotel") ? "hotel details"
                     : path.includes("/gst") ? "GST rates"
@@ -214,7 +218,9 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   const festivals = registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions });
   registerPromotions({ app, management, db, requireAdmin });
   registerGstRoutes({ management, db, requireAdmin, realtime: enquirySystem.realtime });
+  registerOfficeRoutes({ management, db, requireAdmin, realtime: enquirySystem.realtime });
   registerStaffRoutes({ management, db, requireAdmin, config });
+  registerLetterRoutes({ management, db, requireAdmin, config });
   app.use(["/api/admin", "/api/technical"], management);
   app.use("/api", (_req, res) => res.status(404).json({ message: "API endpoint not found." }));
 

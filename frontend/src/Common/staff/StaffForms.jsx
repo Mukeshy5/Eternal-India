@@ -11,7 +11,7 @@ export function Field({ label, error, children }) {
 export function StaffEditor({ staff, busy, errors, onSave, onCancel, apiBase }) {
   const [values, setValues] = useState(staff || { name: "", email: "", phone: "", department: "", designation: "", status: "active" });
   const [photo, setPhoto] = useState(null);
-  usePanelNavigationGuard(!!photo || ["name", "phone", "email", "department", "designation", "status"].some((key) => values[key] !== (staff?.[key] ?? (key === "status" ? "active" : ""))), busy, "Discard unsaved staff details?");
+  usePanelNavigationGuard(!!photo || ["name", "phone", "email", "department", "designation", "status", "joiningDate", "salary"].some((key) => (values[key] ?? "") !== (staff?.[key] ?? (key === "status" ? "active" : ""))), busy, "Discard unsaved staff details?");
   const [preview, setPreview] = useState("");
   const [camera, setCamera] = useState(false);
   const [cameraError, setCameraError] = useState("");
@@ -45,7 +45,7 @@ export function StaffEditor({ staff, busy, errors, onSave, onCancel, apiBase }) 
   function submit(event) {
     event.preventDefault();
     const form = new FormData();
-    for (const key of ["name", "email", "phone", "department", "designation", "status"]) form.append(key, values[key]);
+    for (const key of ["name", "email", "phone", "department", "designation", "status", "joiningDate", "salary"]) form.append(key, values[key] ?? "");
     if (staff) form.append("version", String(staff.version));
     if (photo) form.append("photo", photo, "staff-photo.jpg");
     onSave(form);
@@ -56,6 +56,7 @@ export function StaffEditor({ staff, busy, errors, onSave, onCancel, apiBase }) 
       {camera ? <video ref={video} muted playsInline aria-label="Live staff camera" /> : preview ? <img src={preview} alt="New staff photo preview" /> : staff ? <StaffPhoto staff={staff} apiBase={apiBase} /> : <div className="staff-photo-placeholder">Staff photo</div>}
       <div className="staff-photo-controls"><button type="button" className="dashboard-button" onClick={camera ? capture : startCamera}>{camera ? "Capture photo" : "Open live camera"}</button>{camera && <button type="button" className="dashboard-button" onClick={stopCamera}>Close camera</button>}<Field label="Or upload photo (JPEG / PNG, up to 2 MB)" error={errors.photo}><input type="file" accept="image/jpeg,image/png" capture="user" onChange={choosePhoto} required={!staff && !photo} /></Field>{cameraError && <p className="staff-field-error" role="alert">{cameraError}</p>}</div>
     </div><div className="admin-tool-grid">{[["name", "Staff name", "text", 100], ["phone", "Phone number", "tel", 25], ["email", "Email address", "email", 200], ["department", "Department", "text", 80], ["designation", "Designation", "text", 80]].map(([key, label, type, maxLength]) => <Field key={key} label={label} error={errors[key]}><input name={key} type={type} required maxLength={maxLength} value={values[key]} aria-invalid={!!errors[key]} onChange={(event) => setValues({ ...values, [key]: event.target.value })} /></Field>)}<Field label="Status" error={errors.status}><select name="status" value={values.status} onChange={(event) => setValues({ ...values, status: event.target.value })}><option value="active">Active</option><option value="inactive">Inactive</option></select></Field></div>
+    <div className="admin-tool-grid"><Field label="Joining date (optional)" error={errors.joiningDate}><input name="joiningDate" type="date" value={values.joiningDate ?? ""} onChange={(event) => setValues({ ...values, joiningDate: event.target.value })} /></Field><Field label="Monthly gross salary · INR (optional)" error={errors.salary}><input name="salary" type="number" min="0" max="99999999.99" step="0.01" value={values.salary ?? ""} onChange={(event) => setValues({ ...values, salary: event.target.value })} /></Field></div>
     <div className="admin-tool-actions"><button type="submit" className="dashboard-button dashboard-button-primary">{busy ? "Saving…" : staff ? "Update staff" : "Save staff & create card"}</button><button type="button" className="dashboard-button" onClick={onCancel}>Cancel</button></div></fieldset>
   </form>;
 }

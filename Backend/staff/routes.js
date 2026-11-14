@@ -34,7 +34,7 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     return revision.value;
   };
   registerStaffCalendar({ router, db, guard, searchFilter, config, events });
-  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 9, fieldSize: 1000 } }).single("photo");
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 11, fieldSize: 1000 } }).single("photo");
   const photoUpload = (req, res, next) => {
     if (!req.is("multipart/form-data")) return next();
     upload(req, res, (error) => error ? res.status(400).json({ message: "Upload one JPEG or PNG photo, up to 2 MB.", errors: { photo: "Invalid or oversized photo." } }) : next());

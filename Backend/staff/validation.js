@@ -1,4 +1,5 @@
 import { attendanceStatuses, indiaDate, legacyAttendanceStatuses } from "../../shared/staff.js";
+import { moneyToPaise } from "../../shared/voucherBilling.js";
 
 export const validDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= "2000-01-01" && value <= "2100-12-31" && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 const clean = (value) => typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
@@ -20,6 +21,12 @@ export function validateStaff(body, existing) {
   if (!/^\+[1-9]\d{7,14}$/.test(fields.phone)) errors.phone = "Enter a phone number with country code, or a 10-digit Indian mobile number.";
   fields.status = body?.status ?? existing?.status ?? "active";
   if (!["active", "inactive"].includes(fields.status)) errors.status = "Choose Active or Inactive.";
+  fields.joiningDate = body?.joiningDate ?? existing?.joiningDate ?? "";
+  if (fields.joiningDate !== "" && !validDate(fields.joiningDate)) errors.joiningDate = "Choose a valid joining date.";
+  const salary = body?.salary ?? existing?.salary ?? "";
+  const salaryPaise = salary === "" ? null : moneyToPaise(salary);
+  fields.salary = salary === "" ? "" : salaryPaise === null ? "" : (salaryPaise / 100).toFixed(2);
+  if (salary !== "" && salaryPaise === null) errors.salary = "Enter a valid monthly gross salary with up to two decimal places.";
   if (existing && Number(body?.version) !== existing.version) errors.version = "This staff record changed. Refresh before editing.";
   return { fields, errors };
 }

@@ -14,6 +14,7 @@
     "verify:notifications": "node scripts/verify-notification-integration.mjs",
     "verify:responsive": "node scripts/verify-responsive.mjs",
     "verify:accounts": "node scripts/verify-accounts.mjs",
+    "verify:letters": "node scripts/verify-letters.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },
