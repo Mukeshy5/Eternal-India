@@ -37,17 +37,25 @@ test("office addresses, number-only GST and voucher meal plans use shared authen
     });
     await t.test("office CRUD validates, prevents duplicates and stale edits, and is shared between panels", async () => {
       assert.equal((await request("/technical/office-addresses", { method: "POST", body: { name: "", address: "x" } })).status, 400);
-      office = (await json("/admin/office-addresses", { method: "POST", body: { name: "Delhi office", address: "12 Garden Road, New Delhi, 110001", phone: "+91 11 41715155" } })).address;
+      office = (await json("/admin/office-addresses", { method: "POST", body: { address: "12 Garden Road, New Delhi, 110001" } })).address;
+      assert.equal(office.name, undefined); assert.equal(office.phone, undefined);
+      const stored = await db.collection("office_addresses").findOne({ _id: new ObjectId(office._id) }); assert.equal(stored.name, undefined); assert.equal(stored.phone, undefined);
       assert.equal((await json("/technical/office-addresses")).addresses[0]._id, office._id);
       assert.equal((await json(`/technical/office-addresses/${office._id}`)).address.address, office.address);
       assert.equal((await request("/technical/office-addresses", { method: "POST", body: { ...office, name: "Other office", address: "  12  GARDEN ROAD, New Delhi, 110001 " } })).status, 409);
       const previous = office;
       office = (await json(`/technical/office-addresses/${office._id}`, { method: "PATCH", body: { ...office, address: "14 Garden Road, New Delhi, 110001" } })).address;
       assert.equal(office.version, 2);
+      assert.equal(office.name, undefined); assert.equal(office.phone, undefined);
       assert.equal((await request(`/admin/office-addresses/${office._id}`, { method: "PATCH", body: previous })).status, 409);
       assert.equal((await request(`/admin/office-addresses/${office._id}`, { method: "DELETE", body: { version: 1 } })).status, 409);
       assert.ok(await db.collection("enquiry_events").findOne({ type: "voucher-options-change", recordId: office._id, action: "updated" }));
       await assert.rejects(db.collection("office_addresses").insertOne({ name: "Missing details" }), (error) => error.code === 121);
+      // Old office records remain readable and can be edited with only an address.
+      await db.collection("office_addresses").updateOne({ _id: new ObjectId(office._id) }, { $set: { name: "Legacy office", phone: "+91 11 41715155" } });
+      const listed = (await json("/technical/office-addresses")).addresses[0]; assert.equal(listed.name, undefined); assert.equal(listed.phone, undefined);
+      office = (await json(`/admin/office-addresses/${office._id}`, { method: "PATCH", body: { address: office.address, version: office.version, name: "Ignored", phone: "Ignored" } })).address;
+      const amended = await db.collection("office_addresses").findOne({ _id: new ObjectId(office._id) }); assert.equal(amended.name, undefined); assert.equal(amended.phone, undefined);
     });
     await t.test("GST persists only numbers, normalizes case, rejects duplicates and supports legacy corrections", async () => {
       for (const body of [{}, { name: "Tax", rate: 18 }, { gstNumber: "bad" }, { gstNumber: { $ne: "" } }]) assert.equal((await request("/admin/gst", { method: "POST", body })).status, 400);
@@ -94,7 +102,7 @@ test("office addresses, number-only GST and voucher meal plans use shared authen
       }
       const excel = await request(`/technical/vouchers/export?format=xlsx&mealPlan=AP`); assert.equal(excel.status, 200);
       const book = new ExcelJS.Workbook(); await book.xlsx.load(Buffer.from(await excel.arrayBuffer())); const sheet = book.worksheets[0];
-      assert.equal(sheet.getCell("R2").value, office.name); assert.equal(sheet.getCell("S2").value, office.address); assert.equal(sheet.getCell("T2").value, mealPlanLabel("AP"));
+      assert.equal(sheet.getCell("R2").value, voucherCompany.name); assert.equal(sheet.getCell("S2").value, office.address); assert.equal(sheet.getCell("T2").value, mealPlanLabel("AP"));
       await qaFile(await request("/admin/vouchers/export?format=pdf&mealPlan=AP"), "voucher-history.pdf");
     });
     await t.test("deleting masters preserves issued vouchers and their edit/print behavior", async () => {

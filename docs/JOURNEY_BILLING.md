@@ -6,7 +6,7 @@ Both `/admin/vouchers` and `/technical/vouchers` open the new billing editor and
 
 Use **Hotel inventory**, **Add GST** and **Address Add** in either panel. Hotels supply the initial amount; staff can enter the agreed voucher amount. Add GST has one field: the company's 15-character GSTIN. GST names and percentages are no longer entered or returned by its API. Existing numbers saved in the old GST name field remain readable. Rate-only records appear as disabled choices until a valid GST number is supplied. No registration numbers, office addresses or prices are seeded.
 
-**Address Add** supports viewing, searching, adding, editing and deleting office names, addresses and optional phone numbers. Addresses are shared across both panels. New vouchers require a saved office address and one meal plan: **CP - Breakfast Only**, **MAP - Breakfast + Dinner**, or **AP - Breakfast + Lunch + Dinner**. The address and meal plan are saved with the voucher and appear in details, history, exports and print. Duplicate addresses/GST numbers and stale updates return 409 rather than silently replacing another user's changes.
+**Address Add** supports viewing, searching, adding, editing and deleting office addresses using a single **Office address** field. Office name and office phone are no longer requested or returned by the office-address API. Addresses are shared across both panels. New vouchers require a saved office address and one meal plan: **CP - Breakfast Only**, **MAP - Breakfast + Dinner**, or **AP - Breakfast + Lunch + Dinner**. The address and meal plan are saved with the voucher and appear in details, history, exports and print. Existing voucher snapshots retain their saved details. Duplicate addresses/GST numbers and stale updates return 409 rather than silently replacing another user's changes.
 
 The old itinerary editor, validation, route handlers, artwork, print components and voucher-specific styles were removed. The public travel pages retain their shared road illustration. Historic itinerary documents in `journey_vouchers` are retained untouched: they have no verifiable invoice price, company GSTIN or billing dates, so the new application does not fabricate billing records from them. The rebuilt register contains all new billing vouchers in `journey_billing_vouchers`. There is no automatic destructive migration and no new API exposing the legacy schema.
 
@@ -32,7 +32,7 @@ All paths below are under `/api/admin` and `/api/technical`. The existing HttpOn
 | --- | --- | --- |
 | GET | `/office-addresses` | Shared saved offices |
 | GET | `/office-addresses/:id` | One office's details |
-| POST | `/office-addresses` | Add an office (`name`, `address`, optional `phone`) |
+| POST | `/office-addresses` | Add an office using only `address` |
 | PATCH / DELETE | `/office-addresses/:id` | Update/remove using the current `version` |
 | GET / POST | `/gst` | List/add GST numbers (only `gstNumber` is entered) |
 | PATCH / DELETE | `/gst/:id` | Update/remove a GST registration using its current `version` |

@@ -106,10 +106,12 @@ export async function voucherPdf(voucher) {
     // PDFKit continues long requirements within the reserved header/footer margins.
     text(voucher.requirement, left + 14, y + 17, 10, ink, { width: width - 28, lineGap: 2 });
     y = doc.y + 16;
-    ensureSpace(108);
+    doc.font("Voucher").fontSize(7.5);
+    const noteHeight = doc.heightOfString(company.note, { width, align: "center" });
+    ensureSpace(84 + noteHeight + 12);
     line(right - 200, y + 48, right - 14, y + 48, gold);
     doc.font("Helvetica-Bold").fontSize(9).fillColor(plum).text("Authorized Signatory", right - 200, y + 60, { width: 186, align: "center" });
-    text(company.note, left, y + 87, 7.5, muted, { width });
+    text(company.note, left, y + 84, 7.5, muted, { width, align: "center", height: noteHeight });
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {
       doc.switchToPage(i);

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { rateLimit } from "express-rate-limit";
 import { adminPanelAccess } from "../lib/panel-access.js";
 import { technicalAccess } from "../festivals/permissions.js";
-import { calculateVoucherPrice, voucherOffice } from "../../shared/voucherBilling.js";
+import { calculateVoucherPrice, voucherCompany, voucherOffice } from "../../shared/voucherBilling.js";
 import { companyGstNumber, publicGstRecord } from "../../shared/gst.js";
 import { officeCollection } from "../offices/models.js";
 import { ensureVoucherModels, voucherCollection } from "./model.js";
@@ -37,7 +37,7 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config }) 
     ]);
     const hotel = hotelRecord ? { name: hotelRecord.name, address: hotelRecord.address, starRating: hotelRecord.starRating, amount: hotelRecord.amount } : previous?.hotelId === body.hotelId ? previous.hotel : null;
     const gst = gstRecord ? { gstNumber: companyGstNumber(gstRecord) } : previous?.gstId === body.gstId ? { gstNumber: previous.gst.gstNumber } : null;
-    const officeAddress = officeRecord ? { name: officeRecord.name, address: officeRecord.address, phone: officeRecord.phone } : previous && (previous.officeAddressId || "") === officeAddressId ? voucherOffice(previous) : null;
+    const officeAddress = officeRecord ? { name: officeRecord.name || voucherCompany.name, address: officeRecord.address, phone: officeRecord.phone || "" } : previous && (previous.officeAddressId || "") === officeAddressId ? voucherOffice(previous) : null;
     if (!officeAddress) throw billingError("This office address no longer exists. Refresh your selections.", 400, { officeAddressId: "Select an existing office address." });
     if (!hotel || !gst || !gst.gstNumber) throw billingError("Choose an existing hotel and a GST record with a company GST number.");
     // GSTIN registrations carry no percentage. Only existing voucher snapshots
@@ -55,7 +55,7 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config }) 
       db.collection("gst_rates").find({}, { projection: { name: 1, gstNumber: 1, version: 1 } }).sort({ gstNumber: 1, _id: 1 }).toArray(),
       records().aggregate([{ $group: { _id: "$hotelId", name: { $first: "$hotel.name" } } }, { $limit: 500 }]).toArray(),
       records().aggregate([{ $group: { _id: "$gstId", gstNumber: { $first: "$gst.gstNumber" } } }, { $limit: 500 }]).toArray(),
-      db.collection(officeCollection).find({}, { projection: { name: 1, address: 1, phone: 1, version: 1 } }).sort({ name: 1, _id: 1 }).toArray(),
+      db.collection(officeCollection).find({}, { projection: { address: 1, version: 1 } }).sort({ address: 1, _id: 1 }).toArray(),
       records().aggregate([{ $match: { officeAddressId: { $type: "string", $ne: "" } } }, { $group: { _id: "$officeAddressId", name: { $first: "$officeAddress.name" }, address: { $first: "$officeAddress.address" } } }]).toArray(),
     ]);
     res.json({ hotels, gstRates: gstRates.map(publicGstRecord), usedHotels, usedGst, officeAddresses, usedOffices });

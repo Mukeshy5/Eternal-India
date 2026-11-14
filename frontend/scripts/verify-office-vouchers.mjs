@@ -59,11 +59,14 @@ export async function verifyOfficeVouchers(vite) {
     const { default: Admin } = await vite.ssrLoadModule("/src/Pages/Admin.jsx");
     async function render(panel, section) { await act(async () => root.render(createElement(MemoryRouter, { key: panel, initialEntries: [`/${panel}/${section}`] }, createElement(Admin, { technical: panel === "technical" })))); }
     await render("technical", "office-addresses");
-    await waitFor(() => container.querySelector(".addresses-manager input[name=name]"), "Address Add navigation and route");
-    await act(async () => { input("name", "Delhi office"); input("address", "12 Office Road, New Delhi 110001"); input("phone", "+91 11 41715155"); });
+    await waitFor(() => container.querySelector(".addresses-manager textarea[name=address]"), "Address Add navigation and route");
+    assert.deepEqual([...container.querySelectorAll(".addresses-manager form input, .addresses-manager form textarea")].map((element) => element.name), ["address"]);
+    assert.ok(!container.querySelector(".addresses-manager").textContent.includes("Office name")); assert.ok(!container.querySelector(".addresses-manager").textContent.includes("Office phone"));
+    await act(async () => input("address", "12 Office Road, New Delhi 110001"));
     await submit(".addresses-manager form");
     await waitFor(async () => await db.collection("office_addresses").countDocuments() === 1 && !!container.querySelector(".addresses-manager tbody tr"), "office address persisted through the UI");
     let office = await db.collection("office_addresses").findOne();
+    assert.equal(office.name, undefined); assert.equal(office.phone, undefined);
     await click("View", container.querySelector(".addresses-manager tbody")); assert.ok(container.querySelector('[aria-label="View office address"]').textContent.includes(office.address)); await click("Close details");
     await click("Edit", container.querySelector(".addresses-manager tbody")); await act(async () => input("address", "14 Office Road, New Delhi 110001")); await submit(".addresses-manager form");
     await waitFor(async () => (await db.collection("office_addresses").findOne()).version === 2 && container.textContent.includes("updated successfully"), "address amendment"); office = await db.collection("office_addresses").findOne();
@@ -81,8 +84,8 @@ export async function verifyOfficeVouchers(vite) {
     await waitFor(() => io.engine.clientsCount > 0 && optionEvents > 0, "authenticated realtime connection"); optionEvents = 0;
     let second;
     await act(async () => {
-      await request(`/technical/office-addresses/${office._id}`, "PATCH", { name: office.name, address: "16 Office Road, New Delhi 110001", phone: office.phone, version: office.version });
-      second = (await request("/technical/office-addresses", "POST", { name: "Mumbai office", address: "20 Marine Road, Mumbai 400001", phone: "+91 22 41715155" })).address;
+      await request(`/technical/office-addresses/${office._id}`, "PATCH", { address: "16 Office Road, New Delhi 110001", version: office.version });
+      second = (await request("/technical/office-addresses", "POST", { address: "20 Marine Road, Mumbai 400001" })).address;
     });
     await waitFor(() => optionEvents > 0 && container.querySelector(`[name=officeAddressId] option[value="${second._id}"]`) && container.querySelector('[aria-label="Selected office address"]').textContent.includes("16 Office Road"), "office updates pushed over Socket.IO without replacing unsaved fields");
     assert.equal(container.querySelector('[name=guestName]').value, "Office UI Guest"); await waitFor(() => container.textContent.includes("Price verified"), "quote refreshed after office update");
@@ -99,8 +102,8 @@ export async function verifyOfficeVouchers(vite) {
     await act(async () => input("mealPlanFilter", "CP")); await submit(".billing-filters"); await waitFor(() => container.textContent.includes("No vouchers found"), "meal plan history filter");
     await click("Clear filters"); await waitFor(() => container.querySelector(".billing-table tbody tr"), "history filter reset");
     await navigate("Address Add"); await waitFor(() => container.querySelector(".addresses-manager tbody"), "technical address management");
-    const row = [...container.querySelectorAll(".addresses-manager tbody tr")].find((element) => element.textContent.includes("Mumbai office")); await click("Delete", row);
-    await waitFor(async () => await db.collection("office_addresses").countDocuments({ name: "Mumbai office" }) === 0, "office master deleted");
+    const row = [...container.querySelectorAll(".addresses-manager tbody tr")].find((element) => element.textContent.includes(second.address)); await click("Delete", row);
+    await waitFor(async () => await db.collection("office_addresses").countDocuments({ address: second.address }) === 0 && !container.querySelector(".addresses-manager tbody").textContent.includes(second.address), "office master deleted");
     await navigate("Journey Voucher History"); await waitFor(() => container.querySelector(".billing-table tbody tr"), "historical voucher retained"); await click("View", container.querySelector(".billing-table tbody"));
     await waitFor(() => container.querySelector(".billing-document")?.textContent.includes(second.address), "saved address and meal plan survive master deletion"); assert.ok(container.querySelector(".billing-document").textContent.includes("AP - Breakfast + Lunch + Dinner"));
     await click("Print", container.querySelector(".billing-detail")); await waitFor(() => win.document.querySelector('[role="dialog"] iframe'), "saved voucher PDF print preview");

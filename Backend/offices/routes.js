@@ -4,7 +4,7 @@ import { billingError, validObjectId } from "../vouchers/validation.js";
 
 export function validateOffice(body) {
   const fields = {}, errors = {};
-  for (const [key, min, max] of [["name", 2, 100], ["address", 5, 600], ["phone", 0, 100]]) {
+  for (const [key, min, max] of [["address", 5, 600]]) {
     const value = body?.[key] ?? "";
     fields[key] = typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
     if (typeof value !== "string" || fields[key].length < min || fields[key].length > max || /[\x00-\x1f\x7f<>]/.test(fields[key])) errors[key] = `Use ${min}–${max} plain-text characters.`;
@@ -15,15 +15,15 @@ export function validateOffice(body) {
 
 export function registerOfficeRoutes({ management, db, requireAdmin, realtime }) {
   const records = db.collection(officeCollection);
-  const publicOffice = ({ addressKey: _key, ...record }) => record;
+  const publicOffice = ({ addressKey: _key, name: _name, phone: _phone, ...record }) => record;
   const changed = async (action, id) => { await realtime?.voucherOptionsChanged("office-address", action, id); };
   management.get("/office-addresses", requireAdmin, async (_req, res) => {
-    const addresses = await records.find({}, { projection: { addressKey: 0 } }).sort({ name: 1, _id: 1 }).toArray();
+    const addresses = await records.find({}, { projection: { addressKey: 0, name: 0, phone: 0 } }).sort({ address: 1, _id: 1 }).toArray();
     res.json({ addresses });
   });
   management.get("/office-addresses/:id", requireAdmin, async (req, res) => {
     if (!validObjectId(req.params.id)) throw billingError("Select a valid office address.");
-    const address = await records.findOne({ _id: new ObjectId(req.params.id) }, { projection: { addressKey: 0 } });
+    const address = await records.findOne({ _id: new ObjectId(req.params.id) }, { projection: { addressKey: 0, name: 0, phone: 0 } });
     if (!address) throw billingError("Office address not found.", 404);
     res.json({ address });
   });
@@ -39,7 +39,7 @@ export function registerOfficeRoutes({ management, db, requireAdmin, realtime })
     if (!validObjectId(req.params.id) || !Number.isInteger(req.body?.version) || req.body.version < 1) throw billingError("Select an office address and its current version.");
     const fields = validateOffice(req.body);
     let address;
-    try { address = await records.findOneAndUpdate({ _id: new ObjectId(req.params.id), version: req.body.version }, { $set: { ...fields, updatedAt: new Date(), updatedBy: req.admin._id }, $inc: { version: 1 } }, { returnDocument: "after", projection: { addressKey: 0 } }); }
+    try { address = await records.findOneAndUpdate({ _id: new ObjectId(req.params.id), version: req.body.version }, { $set: { ...fields, updatedAt: new Date(), updatedBy: req.admin._id }, $unset: { name: "", phone: "" }, $inc: { version: 1 } }, { returnDocument: "after", projection: { addressKey: 0 } }); }
     catch (error) { if (error.code === 11000) throw billingError("This office address is already saved.", 409, { address: "Choose a different address." }); throw error; }
     if (!address) throw billingError("This address changed or was deleted. Refresh before editing.", 409);
     await changed("updated", address._id); res.json({ address });
