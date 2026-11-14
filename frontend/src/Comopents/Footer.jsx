@@ -1,5 +1,17 @@
 import { Link } from "react-router-dom";
 import { Icon, whatsappUrl } from "../Common/SiteUI";
+
+const companyCertificationImages = [
+  "WhatsApp Image 2026-11-13 at 3.24.55 PM.jpeg",
+  "WhatsApp Image 2026-11-13 at 3.26.32 PM.jpeg",
+  "WhatsApp Image 2026-11-13 at 3.27.28 PM.jpeg",
+  "WhatsApp Image 2026-11-13 at 3.30.30 PM.jpeg",
+  "WhatsApp Image 2026-11-13 at 3.33.46 PM.jpeg",
+].map((fileName) => ({
+  src: new URL(`../assets/CompanyCertification/${fileName}`, import.meta.url).href,
+  alt: `Company certification ${fileName}`,
+}));
+
 export default function Footer() {
   return (
     <footer className="site-footer">
@@ -57,6 +69,34 @@ export default function Footer() {
           </p>
         </div>
       </div>
+
+      <div className="container footer-certification-wrap">
+        <div className="footer-certification-header">
+          <span>Company Certification</span>
+        </div>
+        <div
+          className="footer-certification-marquee"
+          role="region"
+          aria-label="Company certifications"
+        >
+          <div className="footer-certification-track">
+            {[false, true].map((isDuplicate) => (
+              <div
+                className="footer-certification-group"
+                key={isDuplicate ? "duplicate" : "original"}
+                aria-hidden={isDuplicate || undefined}
+              >
+                {companyCertificationImages.map((image) => (
+                  <div className="footer-certification-item" key={image.src}>
+                    <img src={image.src} alt={isDuplicate ? "" : image.alt} />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="container footer-bottom">
         <span>
           © {new Date().getFullYear()} Eternal India. All rights reserved.

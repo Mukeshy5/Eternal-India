@@ -614,6 +614,86 @@ main:focus {
   align-items: center;
   gap: 7px;
 }
+.footer-certification-wrap {
+  padding-top: 8px;
+  padding-bottom: 16px;
+}
+.footer-certification-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  color: #f8f3e5;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.footer-certification-marquee {
+  overflow: hidden;
+  position: relative;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  padding-block: 18px;
+  background: rgba(25, 42, 31, 0.12);
+}
+.footer-certification-marquee::before,
+.footer-certification-marquee::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 90px;
+  z-index: 1;
+  pointer-events: none;
+}
+.footer-certification-marquee::before {
+  left: 0;
+  background: linear-gradient(90deg, rgba(17, 33, 24, 1), rgba(17, 33, 24, 0));
+}
+.footer-certification-marquee::after {
+  right: 0;
+  background: linear-gradient(270deg, rgba(17, 33, 24, 1), rgba(17, 33, 24, 0));
+}
+.footer-certification-track {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  animation: footer-certifications-scroll 28s linear infinite;
+}
+.footer-certification-group {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 18px;
+}
+.footer-certification-item {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 170px;
+  height: 110px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.footer-certification-item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.18));
+}
+@keyframes footer-certifications-scroll {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
 .footer-bottom {
   border-top: 1px solid #ffffff20;
   display: flex;
