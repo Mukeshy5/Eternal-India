@@ -1,12 +1,13 @@
-import { voucherCompany as company } from "../../../shared/voucherBilling.js";
+import { voucherCompany as company, voucherOffice, mealPlanLabel } from "../../../shared/voucherBilling.js";
 import { date } from "./voucherClient";
 import "./BillingDocument.css";
 export default function BillingDocument({ voucher: v }) {
+  const office = voucherOffice(v), phone = office.phone || company.phone;
   return <article className="billing-document" aria-label={`Voucher ${v.invoiceNumber}`}>
     <img className="billing-document-watermark" src="/logo.webp" alt="" aria-hidden="true" />
     <header className="billing-document-brand">
       <img src="/logo.webp" alt="Eternal India logo" />
-      <p className="billing-document-subtitle">{company.subtitle}</p><p>{company.address}</p><p>{company.phone} <span> | </span> {company.website}</p>
+      <p className="billing-document-subtitle">{company.subtitle}</p>{office.name !== company.name && <p className="billing-document-office">{office.name}</p>}<p>{office.address}</p><p>{phone} <span> | </span> {company.website}</p>
       <p className="billing-document-gst"><b>GST No.</b> {v.gst.gstNumber}</p>
     </header>
     <dl className="billing-document-meta">
@@ -18,10 +19,11 @@ export default function BillingDocument({ voucher: v }) {
     <dl className="billing-document-facts">{[
       ["Guest name", v.guestName],
       ["Check-in date", date(v.checkInDate)], ["Check-out date", date(v.checkOutDate)],
+      ["Meal plan", mealPlanLabel(v.mealPlan)],
       ["Arrival", `${date(v.arrivalDate)} · ${v.arrivalPlace}`], ["Departure", `${date(v.departureDate)} · ${v.departurePlace}`],
-    ].map(([label, value]) => <div key={label} className={label === "Guest name" ? "billing-document-guest" : undefined}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+    ].map(([label, value]) => <div key={label} className={label === "Guest name" ? "billing-document-guest" : label === "Meal plan" ? "billing-document-meal" : undefined}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
     <section className="billing-requirement"><h4>Your requirement</h4><p>{v.requirement}</p></section>
     <div className="billing-signature">Authorized Signatory</div><p className="billing-document-note">{company.note}</p>
-    <footer><p><b>Address:</b> {company.address}</p><p><b>Phone:</b> {company.phone} <span> | </span> <b>Website:</b> {company.website}</p></footer>
+    <footer><p><b>Address:</b> {office.address}</p><p><b>Phone:</b> {phone} <span> | </span> <b>Website:</b> {company.website}</p></footer>
   </article>;
 }

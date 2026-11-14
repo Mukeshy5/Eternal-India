@@ -108,7 +108,8 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
                 : path.includes("/letters") ? "employment letters"
                 : path.includes("voucher") ? "a journey voucher"
                   : path.includes("hotel") ? "hotel details"
-                    : path.includes("/gst") ? "GST rates"
+                    : path.includes("/gst") ? "GST numbers"
+                      : path.includes("/office-addresses") ? "office addresses"
                       : "workspace settings";
       void enquirySystem.notifications.publish({
         id: `panel:${randomUUID()}`,

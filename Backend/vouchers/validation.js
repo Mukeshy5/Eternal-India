@@ -1,10 +1,10 @@
-import { calculateVoucherPrice, voucherStatuses } from "../../shared/voucherBilling.js";
+import { calculateVoucherPrice, mealPlans, voucherStatuses } from "../../shared/voucherBilling.js";
 export const validObjectId = (value) => typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
 export const validDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= "1900-01-01" && value <= "2199-12-31" && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
 export function billingError(message, status = 400, errors = {}) {
   return Object.assign(new Error(message), { publicMessage: true, status, details: { errors } });
 }
-export function validateVoucher(body) {
+export function validateVoucher(body, previous) {
   const fields = {}, errors = {};
   for (const [key, max] of [["guestName", 160], ["requirement", 6000], ["arrivalPlace", 300], ["departurePlace", 300]]) {
     fields[key] = typeof body?.[key] === "string" ? body[key].trim() : "";
@@ -20,6 +20,10 @@ export function validateVoucher(body) {
     fields[key] = body?.[key];
     if (!validObjectId(fields[key])) errors[key] = "Select a saved record.";
   }
+  fields.officeAddressId = body?.officeAddressId ?? previous?.officeAddressId ?? "";
+  if (!validObjectId(fields.officeAddressId) && !(previous && !previous.officeAddressId && fields.officeAddressId === "")) errors.officeAddressId = "Select a saved office address.";
+  fields.mealPlan = body?.mealPlan ?? previous?.mealPlan ?? "";
+  if ((typeof fields.mealPlan !== "string" || !Object.hasOwn(mealPlans, fields.mealPlan)) && !(previous && !previous.mealPlan && fields.mealPlan === "")) errors.mealPlan = "Choose CP, MAP or AP.";
   fields.status = body?.status ?? "confirmed";
   if (!voucherStatuses.includes(fields.status)) errors.status = "Choose a valid voucher status.";
   if (!calculateVoucherPrice(body?.basePrice, 0)) errors.basePrice = "Enter an amount from 0 to 99999999.99, with at most two decimal places.";
@@ -28,7 +32,7 @@ export function validateVoucher(body) {
 }
 export function voucherFilter(query) {
   const filter = {}, clauses = [];
-  const allowed = new Set(["search", "invoiceNumber", "guestName", "hotelId", "gstId", "status", "from", "to", "page", "pageSize", "format"]);
+  const allowed = new Set(["search", "invoiceNumber", "guestName", "hotelId", "gstId", "officeAddressId", "mealPlan", "status", "from", "to", "page", "pageSize", "format"]);
   if (Object.keys(query).some((key) => !allowed.has(key))) throw billingError("Unknown voucher filter.");
   const text = (key, max = 160) => {
     if (query[key] === undefined || query[key] === "") return "";
@@ -39,7 +43,9 @@ export function voucherFilter(query) {
   const search = text("search");
   if (search) clauses.push({ $or: ["invoiceNumber", "guestName"].map((key) => ({ [key]: pattern(search) })) });
   for (const key of ["invoiceNumber", "guestName"]) { const value = text(key); if (value) filter[key] = pattern(value); }
-  for (const key of ["hotelId", "gstId"]) { const value = text(key); if (value) { if (!validObjectId(value)) throw billingError(`Invalid ${key} filter.`); filter[key] = value; } }
+  for (const key of ["hotelId", "gstId", "officeAddressId"]) { const value = text(key); if (value) { if (!validObjectId(value)) throw billingError(`Invalid ${key} filter.`); filter[key] = value; } }
+  const mealPlan = text("mealPlan");
+  if (mealPlan) { if (!Object.hasOwn(mealPlans, mealPlan)) throw billingError("Choose a valid meal plan filter."); filter.mealPlan = mealPlan; }
   const status = text("status");
   if (status) { if (!voucherStatuses.includes(status)) throw billingError("Invalid status filter."); filter.status = status; }
   const from = text("from"), to = text("to");

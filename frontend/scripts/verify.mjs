@@ -18,6 +18,7 @@ import { verifyVoucher } from "./verify-voucher.mjs";
 import { verifyFestivals } from "./verify-festivals.mjs";
 import { verifyStaff } from "./verify-staff.mjs";
 import { verifyLetters } from "./verify-letters.mjs";
+import { verifyOfficeVouchers } from "./verify-office-vouchers.mjs";
 import { verifyCalendar } from "./verify-calendar.mjs";
 import { verifyOtpGates } from "./verify-otp.mjs";
 import { verifyResponsive } from "./verify-responsive.mjs";
@@ -270,6 +271,7 @@ try {
   await verifyFestivals(server);
   await verifyStaff(server);
   await verifyLetters(server);
+  await verifyOfficeVouchers(server);
   await verifyCalendar(server);
 } finally {
   await server.close();

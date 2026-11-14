@@ -109,7 +109,7 @@ This interactive integration runner uses actual Gmail SMTP, actual received code
 
 Both panels support email password recovery. Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM` in `Backend/.env` using your email provider's credentials. Reset links expire after 30 minutes, work once and revoke the account's existing sessions. The API reports that email is unavailable until SMTP is configured. Reset tokens are hashed in MongoDB and removed after use or during cleanup after expiry.
 
-**Journey Voucher billing and history** are rebuilt in both panels with backend-reserved five-digit invoices, hotel/company GST selection, live pricing, create/edit/delete, filtered totals, Excel/PDF exports and A4 print preview. Add the company GST number to a GST configuration before creating vouchers. See [Journey billing setup, API and verification](docs/JOURNEY_BILLING.md).
+**Journey Voucher billing and history** in both panels include backend-reserved five-digit invoices, saved hotel/GST/office selection, CP/MAP/AP meal plans, create/edit/delete, filtered totals, Excel/PDF exports and A4 print preview. **Address Add** manages shared office addresses; **Add GST** manages registration numbers with a single GST Number field. Master changes update open selectors live; issued vouchers retain their saved details. See [Journey billing setup, API and verification](docs/JOURNEY_BILLING.md).
 
 ## Permanent deletion and database maintenance
 

@@ -10,6 +10,7 @@ export const panelSections = {
   "experience-letters": { label: "Experience Letter", title: "Experience Letters", group: "People", icon: "archive", permission: "view" },
   hotels: { label: "Add hotel", title: "Hotel Inventory", group: "Operations", icon: "pin" },
   gst: { label: "Add GST", title: "GST Management", group: "Operations", icon: "archive" },
+  "office-addresses": { label: "Address Add", title: "Office Addresses", group: "Operations", icon: "pin" },
   vouchers: { label: "Journey Voucher", title: "Journey Vouchers", group: "Operations", icon: "calendar" },
   "voucher-history": { label: "Journey Voucher History", title: "Journey Voucher History", group: "Operations", icon: "archive" },
   accounts: { label: "Panel accounts", title: "Panel Accounts", group: "Administration", icon: "people", adminOnly: true },

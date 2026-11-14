@@ -46,7 +46,7 @@ export async function verifyAdminInteractions(server, technical = false) {
     }
     if (url === `/api${basePath}/gst`) {
       if (options.method === "POST") {
-        const gstRate = { _id: `gst-${gstRates.length + 1}`, ...JSON.parse(options.body) };
+        const gstRate = { _id: `gst-${gstRates.length + 1}`, ...JSON.parse(options.body), version: 1 };
         gstRates.push(gstRate);
         return response({ gstRate }, 201);
       }
@@ -133,20 +133,20 @@ export async function verifyAdminInteractions(server, technical = false) {
     const gstLink = [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "Add GST");
     assert.ok(gstLink, "GST management is available in both panels");
     await act(async () => gstLink.click());
-    await waitFor(() => container.querySelector('input[name="name"]'));
+    await waitFor(() => container.querySelector('input[name="gstNumber"]'));
     await act(async () => {
-      type(container.querySelector('input[name="name"]'), "Standard GST");
-      type(container.querySelector('input[name="rate"]'), "18");
+      type(container.querySelector('input[name="gstNumber"]'), "07ABCDE1234F1Z5");
     });
     await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
     await waitFor(() => container.querySelector(".admin-tool-table tbody tr"));
-    assert.ok(container.querySelector('.admin-success[role="status"]')?.textContent.includes("GST rate added"), "successful GST creation is acknowledged");
+    assert.equal(container.querySelector('input[name="rate"]'), null); assert.equal(container.querySelector('input[name="name"]'), null);
+    assert.ok(container.querySelector('.admin-success[role="status"]')?.textContent.includes("GST number added"), "successful GST creation is acknowledged");
     assert.ok(calls.some((call) => call.url === `/api${basePath}/gst` && call.options.method === "POST"), "GST rates can be added");
-    await act(async () => container.querySelector(".admin-tool-table button").click());
-    await act(async () => type(container.querySelector('input[name="name"]'), "Updated GST"));
+    await act(async () => [...container.querySelectorAll(".admin-tool-table button")].find((button) => button.textContent === "Edit").click());
+    await act(async () => type(container.querySelector('input[name="gstNumber"]'), "29ABCDE1234F1Z5"));
     await act(async () => container.querySelector(".admin-tool-form").dispatchEvent(new testWindow.Event("submit", { bubbles: true, cancelable: true })));
-    await waitFor(() => container.querySelector(".admin-tool-table tbody tr")?.textContent.includes("Updated GST"));
-    assert.ok(container.querySelector('.admin-success[role="status"]')?.textContent.includes("GST rate updated"), "successful GST edits are acknowledged");
+    await waitFor(() => container.querySelector(".admin-tool-table tbody tr")?.textContent.includes("29ABCDE1234F1Z5"));
+    assert.ok(container.querySelector('.admin-success[role="status"]')?.textContent.includes("GST number updated"), "successful GST edits are acknowledged");
     assert.ok(calls.some((call) => call.url.startsWith(`/api${basePath}/gst/`) && call.options.method === "PATCH"), "GST rates can be updated");
     testWindow.confirm = () => true;
     await act(async () => [...container.querySelectorAll(".admin-tool-table button")].find((button) => button.textContent === "Delete").click());

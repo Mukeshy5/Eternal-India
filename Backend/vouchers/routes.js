@@ -3,8 +3,9 @@ import { createHash } from "node:crypto";
 import { rateLimit } from "express-rate-limit";
 import { adminPanelAccess } from "../lib/panel-access.js";
 import { technicalAccess } from "../festivals/permissions.js";
-import { calculateVoucherPrice } from "../../shared/voucherBilling.js";
-import { normalizeGstRecord } from "../../shared/gst.js";
+import { calculateVoucherPrice, voucherOffice } from "../../shared/voucherBilling.js";
+import { companyGstNumber, publicGstRecord } from "../../shared/gst.js";
+import { officeCollection } from "../offices/models.js";
 import { ensureVoucherModels, voucherCollection } from "./model.js";
 import { billingError, validObjectId, validateVoucher, voucherFilter } from "./validation.js";
 import { historyExcel, historyPdf, voucherPdf } from "./documents.js";
@@ -27,26 +28,37 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config }) 
   const publicVoucher = ({ createHash: _hash, ...voucher }) => voucher;
   async function pricingData(body, previous) {
     if (!validObjectId(body?.hotelId) || !validObjectId(body?.gstId)) throw billingError("Select a saved hotel and company GST record.");
-    const [hotelRecord, gstRecord] = await Promise.all([
+    const officeAddressId = body.officeAddressId ?? previous?.officeAddressId ?? "";
+    if (!validObjectId(officeAddressId) && !(previous && !previous.officeAddressId && officeAddressId === "")) throw billingError("Select a saved office address.", 400, { officeAddressId: "Select an office address from Address Add." });
+    const [hotelRecord, gstRecord, officeRecord] = await Promise.all([
       db.collection("hotels").findOne({ _id: new ObjectId(body.hotelId) }),
       db.collection("gst_rates").findOne({ _id: new ObjectId(body.gstId) }),
+      officeAddressId ? db.collection(officeCollection).findOne({ _id: new ObjectId(officeAddressId) }) : null,
     ]);
     const hotel = hotelRecord ? { name: hotelRecord.name, address: hotelRecord.address, starRating: hotelRecord.starRating, amount: hotelRecord.amount } : previous?.hotelId === body.hotelId ? previous.hotel : null;
-    const gst = gstRecord ? { name: gstRecord.name, gstNumber: normalizeGstRecord(gstRecord).gstNumber, rate: gstRecord.rate } : previous?.gstId === body.gstId ? previous.gst : null;
+    const gst = gstRecord ? { gstNumber: companyGstNumber(gstRecord) } : previous?.gstId === body.gstId ? { gstNumber: previous.gst.gstNumber } : null;
+    const officeAddress = officeRecord ? { name: officeRecord.name, address: officeRecord.address, phone: officeRecord.phone } : previous && (previous.officeAddressId || "") === officeAddressId ? voucherOffice(previous) : null;
+    if (!officeAddress) throw billingError("This office address no longer exists. Refresh your selections.", 400, { officeAddressId: "Select an existing office address." });
     if (!hotel || !gst || !gst.gstNumber) throw billingError("Choose an existing hotel and a GST record with a company GST number.");
-    const pricing = calculateVoucherPrice(body.basePrice, gst.rate);
+    // GSTIN registrations carry no percentage. Only existing voucher snapshots
+    // can supply a historical tax rate; new bookings use the entered final amount.
+    const rate = previous?.pricing.gstRate ?? 0;
+    const pricing = calculateVoucherPrice(body.basePrice, rate);
     if (!pricing) throw billingError("Enter a valid base price with up to two decimal places.", 400, { basePrice: "Invalid amount." });
-    if (body.expectedGstRate !== undefined && body.expectedGstRate !== gst.rate) throw billingError("This GST rate changed. Refresh pricing and review the total before saving.", 409);
-    return { hotel, gst, pricing };
+    const gstVersion = gstRecord ? gstRecord.version || 1 : null, officeAddressVersion = officeRecord?.version ?? null;
+    if (body.expectedGstRate !== undefined && body.expectedGstRate !== rate || body.expectedGstVersion !== undefined && body.expectedGstVersion !== gstVersion || body.expectedOfficeVersion !== undefined && body.expectedOfficeVersion !== officeAddressVersion) throw billingError("Selected configuration changed. Refresh the selections and review the voucher before saving.", 409);
+    return { hotel, gst, officeAddress, pricing, pricingMode: rate ? "legacy_tax" : "amount_only", gstVersion, officeAddressVersion };
   }
   management.get("/vouchers/options", ...guard, async (_req, res) => {
-    const [hotels, gstRates, usedHotels, usedGst] = await Promise.all([
+    const [hotels, gstRates, usedHotels, usedGst, officeAddresses, usedOffices] = await Promise.all([
       db.collection("hotels").find({}, { projection: { name: 1, address: 1, starRating: 1, amount: 1 } }).sort({ name: 1 }).limit(500).toArray(),
-      db.collection("gst_rates").find({}, { projection: { name: 1, gstNumber: 1, rate: 1 } }).sort({ name: 1 }).limit(500).toArray(),
+      db.collection("gst_rates").find({}, { projection: { name: 1, gstNumber: 1, version: 1 } }).sort({ gstNumber: 1, _id: 1 }).toArray(),
       records().aggregate([{ $group: { _id: "$hotelId", name: { $first: "$hotel.name" } } }, { $limit: 500 }]).toArray(),
       records().aggregate([{ $group: { _id: "$gstId", gstNumber: { $first: "$gst.gstNumber" } } }, { $limit: 500 }]).toArray(),
+      db.collection(officeCollection).find({}, { projection: { name: 1, address: 1, phone: 1, version: 1 } }).sort({ name: 1, _id: 1 }).toArray(),
+      records().aggregate([{ $match: { officeAddressId: { $type: "string", $ne: "" } } }, { $group: { _id: "$officeAddressId", name: { $first: "$officeAddress.name" }, address: { $first: "$officeAddress.address" } } }]).toArray(),
     ]);
-    res.json({ hotels, gstRates: gstRates.map(normalizeGstRecord), usedHotels, usedGst });
+    res.json({ hotels, gstRates: gstRates.map(publicGstRecord), usedHotels, usedGst, officeAddresses, usedOffices });
   });
   management.post("/vouchers/invoice", ...guard, rateLimit({ windowMs: 60000, limit: 60, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Please wait before reserving another invoice." } }), async (req, res) => {
     if (typeof req.body?.requestId !== "string" || !/^[a-f\d-]{36}$/i.test(req.body.requestId)) throw billingError("Supply a valid invoice request ID.");
@@ -104,7 +116,7 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config }) 
     if (reservation.consumedAt && (reservation.deletedAt || reservation.pendingHash !== hash)) throw billingError("This invoice was already used. Create a new voucher.", 409);
     const data = await pricingData(req.body);
     const now = new Date();
-    const voucher = { _id: reservation._id, schemaVersion: 1, invoiceNumber: reservation.invoiceNumber, ...fields, ...data, revision: 1, createHash: hash, createdAt: now, updatedAt: now, createdBy: actor(req), updatedBy: actor(req) };
+    const voucher = { _id: reservation._id, schemaVersion: 2, invoiceNumber: reservation.invoiceNumber, ...fields, ...data, revision: 1, createHash: hash, createdAt: now, updatedAt: now, createdBy: actor(req), updatedBy: actor(req) };
     // Mark before insert; a failed insert may be retried by the same request hash.
     const claimed = await db.collection("journey_invoice_reservations").updateOne({ _id: reservation._id, $or: [{ consumedAt: { $exists: false } }, { pendingHash: hash, deletedAt: { $exists: false } }] }, { $set: { consumedAt: now, pendingHash: hash } });
     if (!claimed.matchedCount) throw billingError("This invoice is already in use.", 409);
@@ -113,10 +125,10 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config }) 
     res.status(201).json({ voucher: publicVoucher(voucher) });
   });
   management.patch("/vouchers/:id", ...guard, async (req, res) => {
-    const previous = await getVoucher(req.params.id), fields = validateVoucher(req.body);
+    const previous = await getVoucher(req.params.id), fields = validateVoucher(req.body, previous);
     if (!Number.isInteger(req.body.revision) || req.body.revision !== previous.revision) throw billingError("Another user changed this voucher. Reopen it before editing.", 409);
     const data = await pricingData(req.body, previous);
-    const saved = await records().findOneAndUpdate({ _id: previous._id, revision: req.body.revision }, { $set: { ...fields, ...data, updatedAt: new Date(), updatedBy: actor(req) }, $inc: { revision: 1 } }, { returnDocument: "after", projection: { createHash: 0 } });
+    const saved = await records().findOneAndUpdate({ _id: previous._id, revision: req.body.revision }, { $set: { ...fields, ...data, ...(fields.officeAddressId && fields.mealPlan ? { schemaVersion: 2 } : {}), updatedAt: new Date(), updatedBy: actor(req) }, $inc: { revision: 1 } }, { returnDocument: "after", projection: { createHash: 0 } });
     if (!saved) throw billingError("Another user changed or deleted this voucher. Refresh History.", 409);
     res.json({ voucher: saved });
   });

@@ -13,7 +13,8 @@ export async function verifyVoucher(server) {
   }
   const originalFetch = globalThis.fetch;
   const hotel = { _id: "000000000000000000000012", name: "Heritage Stay", address: "12 Heritage Road, Jaipur", amount: 5000.25 };
-  const gst = { _id: "000000000000000000000013", name: "Company GST", gstNumber: "07ABCDE1234F1Z5", rate: 18 };
+  const gst = { _id: "000000000000000000000013", gstNumber: "07ABCDE1234F1Z5", version: 1 };
+  const office = { _id: "000000000000000000000017", name: "Delhi office", address: "12 Office Road, New Delhi 110001", phone: "+91 11 41715155", version: 1 };
   const rateOnly = { _id: "000000000000000000000014", name: "Rate without GSTIN", rate: 5 };
   let gstRates = [gst, rateOnly];
   let vouchers = [], creates = 0, updates = 0, prints = 0;
@@ -26,13 +27,13 @@ export async function verifyVoucher(server) {
     calls.push({ url, options });
     const body = options.body ? JSON.parse(options.body) : {};
     if (url === "/api/admin/vouchers/options") {
-      const response = Response.json({ hotels: [hotel], gstRates, usedHotels: [], usedGst: [] });
+      const response = Response.json({ hotels: [hotel], gstRates, officeAddresses: [office], usedHotels: [], usedGst: [], usedOffices: [] });
       return holdOptions ? new Promise((resolve) => heldOptions.push(() => resolve(response))) : response;
     }
     if (url === "/api/admin/vouchers/invoice") return Response.json({ invoice: { reservationId: "000000000000000000000022", invoiceNumber: "10001" } });
-    if (url === "/api/admin/vouchers/quote") return Response.json({ pricing: calculateVoucherPrice(body.basePrice, gst.rate), gst, hotel });
+    if (url === "/api/admin/vouchers/quote") return Response.json({ pricing: calculateVoucherPrice(body.basePrice, 0), gst, hotel, officeAddress: office });
     if (url === "/api/admin/vouchers" && options.method === "POST") {
-      creates++; const voucher = { ...body, _id: "000000000000000000000022", invoiceNumber: "10001", hotel, gst, pricing: calculateVoucherPrice(body.basePrice, gst.rate), revision: 1 };
+      creates++; const voucher = { ...body, _id: "000000000000000000000022", invoiceNumber: "10001", hotel, gst, officeAddress: office, pricing: calculateVoucherPrice(body.basePrice, 0), revision: 1 };
       vouchers.push(voucher); return Response.json({ voucher }, { status: 201 });
     }
     if (url.startsWith("/api/admin/vouchers?")) {
@@ -44,7 +45,7 @@ export async function verifyVoucher(server) {
     if (url.endsWith("/pdf")) return new Response("%PDF-test", { headers: { "Content-Type": "application/pdf" } });
     if (url.startsWith("/api/admin/vouchers/")) {
       if (options.method === "DELETE") { vouchers = []; return new Response(null, { status: 204 }); }
-      if (options.method === "PATCH") { updates++; vouchers[0] = { ...vouchers[0], ...body, pricing: calculateVoucherPrice(body.basePrice, gst.rate), revision: 2 }; }
+      if (options.method === "PATCH") { updates++; vouchers[0] = { ...vouchers[0], ...body, pricing: calculateVoucherPrice(body.basePrice, 0), revision: 2 }; }
       return Response.json({ voucher: vouchers[0] });
     }
     throw new Error(`Unexpected billing request: ${url}`);
@@ -79,15 +80,15 @@ export async function verifyVoucher(server) {
     assert.ok(button("Create voucher").disabled);
     const gstOption = (id) => container.querySelector(`[name="gstId"] option[value="${id}"]`);
     assert.ok(gstOption(rateOnly._id)?.disabled, "rate-only records remain visible with a missing GSTIN explanation");
-    assert.match(gstOption(rateOnly._id).textContent, /Company GST number required/);
-    await act(async () => { input("hotelId", hotel._id); input("gstId", gst._id); });
+    assert.match(gstOption(rateOnly._id).textContent, /GST number not configured/);
+    await act(async () => { input("hotelId", hotel._id); input("gstId", gst._id); input("officeAddressId", office._id); input("mealPlan", "MAP"); });
     await waitFor(() => container.textContent.includes("Price verified"));
     assert.equal(container.querySelector('[name="basePrice"]').value, "5000.25");
-    assert.ok(container.querySelector(".billing-price-total").textContent.includes("5,900.30"));
+    assert.ok(container.querySelector(".billing-price-total").textContent.includes("5,000.25"));
     await act(async () => input("basePrice", "100.10"));
-    assert.ok(container.querySelector(".billing-price-total").textContent.includes("118.12"), "price changes immediately");
+    assert.ok(container.querySelector(".billing-price-total").textContent.includes("100.10"), "price changes immediately without inventing a tax percentage");
     assert.ok(button("Create voucher").disabled, "waits for matching server quote");
-    const liveGst = { _id: "000000000000000000000015", name: "New company GST", gstNumber: "29ABCDE1234F1Z5", rate: 12 };
+    const liveGst = { _id: "000000000000000000000015", gstNumber: "29ABCDE1234F1Z5", version: 1 };
     await act(async () => {
       input("guestName", "Unsaved guest");
       gstRates = [...gstRates, liveGst];
@@ -108,11 +109,12 @@ export async function verifyVoucher(server) {
       heldOptions.splice(0).forEach((resolve) => resolve());
     });
     await waitFor(() => gstOption(queuedGst._id));
-    await act(async () => { gst.rate = 5; testWindow.dispatchEvent(new testWindow.Event("journey-voucher-options-changed")); });
-    await waitFor(() => container.querySelector(".billing-price-total").textContent.includes("105.11"));
+    await act(async () => { gst.gstNumber = "09ABCDE1234F1Z5"; gst.version++; testWindow.dispatchEvent(new testWindow.Event("journey-voucher-options-changed")); });
+    await waitFor(() => gstOption(gst._id).textContent.includes("09ABCDE1234F1Z5"));
+    assert.ok(container.querySelector(".billing-price-total").textContent.includes("100.10"));
     await waitFor(() => container.textContent.includes("Price verified"));
-    await act(async () => { gst.rate = 18; gstRates = [gst, rateOnly]; testWindow.dispatchEvent(new testWindow.Event("journey-voucher-options-changed")); });
-    await waitFor(() => !gstOption(liveGst._id) && !gstOption(queuedGst._id) && container.querySelector(".billing-price-total").textContent.includes("118.12"));
+    await act(async () => { gst.gstNumber = "07ABCDE1234F1Z5"; gst.version++; gstRates = [gst, rateOnly]; testWindow.dispatchEvent(new testWindow.Event("journey-voucher-options-changed")); });
+    await waitFor(() => !gstOption(liveGst._id) && !gstOption(queuedGst._id) && container.querySelector(".billing-price-total").textContent.includes("100.10"));
     assert.equal(calls.filter((call) => call.url === "/api/admin/vouchers/invoice").length, 1, "live GST refresh reuses the original invoice reservation");
     await act(async () => { for (const [key, value] of Object.entries({ guestName: "Billing Guest", requirement: "Two rooms and transfers.\nVegetarian meals.", checkInDate: "2026-12-01", checkOutDate: "2026-12-03", arrivalDate: "2026-12-01", departureDate: "2026-12-03", arrivalPlace: "Delhi airport", departurePlace: "Jaipur station" })) input(key, value); });
     await waitFor(() => !button("Create voucher").disabled);
@@ -125,6 +127,8 @@ export async function verifyVoucher(server) {
     assert.doesNotMatch(document.textContent, /ETERNAL INDIA|JOURNEY VOUCHER|Base price|Total amount|118\.12|GST \(/, "guest document omits headings and internal pricing");
     assert.ok(document.querySelector(".billing-document-brand").textContent.includes(gst.gstNumber), "GST number appears in the centered company header");
     assert.equal(document.querySelector(".billing-document-hotel h2").textContent, hotel.name);
+    assert.ok(document.querySelector(".billing-document-brand").textContent.includes(office.address));
+    assert.ok(document.textContent.includes("MAP - Breakfast + Dinner"));
     assert.ok(document.querySelector(".billing-document-watermark[aria-hidden='true']"));
     assert.ok(document.textContent.includes("Authorized Signatory"));
     assert.equal(container.querySelectorAll(".billing-table tbody tr").length, 1);

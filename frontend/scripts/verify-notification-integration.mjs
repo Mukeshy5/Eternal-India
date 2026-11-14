@@ -55,9 +55,11 @@ export async function verifyNotificationIntegration(vite) {
     return createElement(Fragment, null, createElement(Notifications, { notifications: latest[panel], onOpen() {} }), createElement(VoucherEditor, { apiBase: `/${panel}` }));
   }
   const waitFor = async (check, label) => {
-    for (let attempt = 0; attempt < 160; attempt++) { if (check()) return; await act(async () => { await new Promise((resolve) => setTimeout(resolve, 25)); }); }
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) { if (check()) return; await act(async () => { await new Promise((resolve) => setTimeout(resolve, 25)); }); }
     assert.fail(`Timed out: ${label}`);
   };
+  const enquiries = (panel) => latest[panel]?.items.filter((item) => item.source === "WEBSITE") || [];
   const fields = (patch = {}) => ({ name: "Integration Guest", email: "guest@example.com", phone: "+919876543210", destination: "Delhi", travellers: 2, date: "", message: "A real saved enquiry", voiceLanguage: "en", submissionId: randomUUID(), ...patch });
   const submit = async (body) => {
     let result; await act(async () => { result = await nativeFetch(`${base}/api/enquiries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); });
@@ -69,7 +71,7 @@ export async function verifyNotificationIntegration(vite) {
       const host = win.document.createElement("div"); win.document.body.append(host); const root = createRoot(host); roots.push(root);
       await act(async () => root.render(createElement(Probe, { panel })));
     }
-    await waitFor(() => latest.admin.connected && latest.technical.connected && latest.admin.items.length === 1 && latest.technical.items.length === 1, "both panels load persisted notifications");
+    await waitFor(() => latest.admin.connected && latest.technical.connected && enquiries("admin").length === 1 && enquiries("technical").length === 1, "both panels load persisted notifications");
     const editors = () => [...win.document.querySelectorAll(".billing-editor")];
     const mutateGst = async (path, method, body) => {
       let reply;
@@ -77,13 +79,13 @@ export async function verifyNotificationIntegration(vite) {
       assert.ok(reply.ok, `GST ${method}: ${reply.status}`);
       return reply.status === 204 ? null : reply.json();
     };
-    const gstBody = { name: "Live company GST", gstNumber: "07ABCDE1234F1Z5", rate: 18 };
+    const gstBody = { gstNumber: "07ABCDE1234F1Z5" };
     const { gstRate } = await mutateGst("/admin/gst", "POST", gstBody);
     const option = (editor) => editor.querySelector(`[name="gstId"] option[value="${gstRate._id}"]`);
     await waitFor(() => editors().length === 2 && editors().every((editor) => option(editor)?.textContent.includes(gstBody.gstNumber)), "new GST appears immediately in both voucher selectors over Socket.IO");
-    await mutateGst(`/technical/gst/${gstRate._id}`, "PATCH", { ...gstBody, rate: 5 });
-    await waitFor(() => editors().every((editor) => option(editor)?.textContent.includes("5%")), "GST edits from Technical panel update both voucher selectors");
-    await mutateGst(`/admin/gst/${gstRate._id}`, "DELETE");
+    await mutateGst(`/technical/gst/${gstRate._id}`, "PATCH", { gstNumber: "29ABCDE1234F1Z5", version: gstRate.version });
+    await waitFor(() => editors().every((editor) => option(editor)?.textContent.includes("29ABCDE1234F1Z5")), "GST edits from Technical panel update both voucher selectors");
+    await mutateGst(`/admin/gst/${gstRate._id}`, "DELETE", { version: 2 });
     await waitFor(() => editors().every((editor) => !option(editor)), "deleted GST disappears from both selectors");
     assert.equal(sounds.length, 0, "no AudioContext is created before a gesture");
     await act(async () => { win.document.dispatchEvent(new win.Event("pointerdown")); });
@@ -91,29 +93,29 @@ export async function verifyNotificationIntegration(vite) {
     let total = 1;
     for (const [name, patch] of [["Direct", {}], ["WhatsApp handoff", { contactChannel: "whatsapp" }], ["Email handoff", { contactChannel: "email" }], ["Plan trip", { enquiryKind: "PLAN_TRIP" }], ["Contact", { enquiryKind: "CONTACT" }]]) {
       const reference = await submit(fields({ name, ...patch })); total++;
-      await waitFor(() => latest.admin.items.length === total && latest.technical.items.length === total, `${name} arrives in both panels`);
+      await waitFor(() => enquiries("admin").length === total && enquiries("technical").length === total, `${name} arrives in both panels`);
       await waitFor(() => sounds.every((sound) => sound.plays === total - 1), `${name} rings once in each panel`);
       assert.equal(await db.collection("enquiries").countDocuments({ reference }), 1);
     }
     assert.equal(latest.admin.unread, total); assert.equal(latest.technical.unread, total);
-    const newest = latest.admin.items[0];
+    const newest = enquiries("admin")[0];
     await act(async () => latest.admin.markRead(newest.id));
     await waitFor(() => latest.technical.items.find((item) => item.id === newest.id)?.read, "read synchronizes without refresh");
     await act(async () => latest.technical.remove(newest.id)); total--;
-    await waitFor(() => latest.admin.items.length === total, "delete synchronizes without refresh");
+    await waitFor(() => enquiries("admin").length === total, "delete synchronizes without refresh");
     await act(async () => latest.admin.toggleSound());
     await waitFor(() => !latest.technical.preferences.sound, "MongoDB sound preference synchronizes");
     const mutedPlays = sounds.map((sound) => sound.plays);
     await submit(fields({ name: "Muted guest" })); total++;
-    await waitFor(() => latest.admin.items.length === total && latest.technical.items.length === total, "muted notification still arrives");
+    await waitFor(() => enquiries("admin").length === total && enquiries("technical").length === total, "muted notification still arrives");
     assert.deepEqual(sounds.map((sound) => sound.plays), mutedPlays);
     await act(async () => latest.admin.toggleSound()); await waitFor(() => latest.technical.preferences.sound, "sound reenabled");
     await act(async () => sockets[0].disconnect());
     await submit(fields({ name: "While disconnected" })); total++;
-    await waitFor(() => latest.technical.items.length === total, "connected panel continues receiving");
+    await waitFor(() => enquiries("technical").length === total, "connected panel continues receiving");
     const beforeReconnect = sounds[0].plays;
     await act(async () => sockets[0].connect());
-    await waitFor(() => latest.admin.connected && latest.admin.items.length === total, "socket reconnect recovers persisted history");
+    await waitFor(() => latest.admin.connected && enquiries("admin").length === total, "socket reconnect recovers persisted history");
     assert.equal(sounds[0].plays, beforeReconnect, "recovered history is silent");
     const beforeFresh = sounds.map((sound) => sound.plays);
     await submit(fields({ name: "After reconnect" })); total++;

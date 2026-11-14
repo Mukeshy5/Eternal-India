@@ -79,7 +79,7 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       assert.equal((await request("/admin/me")).status, 200);
       assert.equal((await request("/admin/history")).status, 200);
     });
-    await t.test("manages GST rates from the administrator panel", async () => {
+    await t.test("manages number-only GST registrations from the administrator panel", async () => {
       assert.equal((await request("/admin/gst", { sessionCookie: "" })).status, 401);
       assert.equal((await request("/admin/gst")).status, 200);
       const invalid = [
@@ -90,15 +90,15 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
         { name: "GST", rate: true },
       ];
       for (const body of invalid) assert.equal((await request("/admin/gst", { method: "POST", body })).status, 400, JSON.stringify(body));
-      const createdReply = await request("/admin/gst", { method: "POST", body: { name: "Standard GST", rate: 18 } });
+      const createdReply = await request("/admin/gst", { method: "POST", body: { gstNumber: "07ABCDE1234F1Z5" } });
       assert.equal(createdReply.status, 201);
       const { gstRate } = await createdReply.json();
-      assert.equal(gstRate.name, "Standard GST");
-      assert.equal(gstRate.rate, 18);
-      assert.equal((await request(`/admin/gst/${gstRate._id}`, { method: "PATCH", body: { name: "Reduced GST", rate: 5.5 } })).status, 200);
-      assert.equal((await (await request("/admin/gst")).json()).gstRates[0].name, "Reduced GST");
+      assert.equal(gstRate.gstNumber, "07ABCDE1234F1Z5");
+      assert.equal(gstRate.rate, undefined); assert.equal(gstRate.name, undefined);
+      assert.equal((await request(`/admin/gst/${gstRate._id}`, { method: "PATCH", body: { gstNumber: "29ABCDE1234F1Z5", version: gstRate.version } })).status, 200);
+      assert.equal((await (await request("/admin/gst")).json()).gstRates[0].gstNumber, "29ABCDE1234F1Z5");
       assert.equal((await request("/admin/gst/not-an-object-id", { method: "DELETE" })).status, 400);
-      assert.equal((await request(`/admin/gst/${gstRate._id}`, { method: "DELETE" })).status, 204);
+      assert.equal((await request(`/admin/gst/${gstRate._id}`, { method: "DELETE", body: { version: 2 } })).status, 204);
       assert.equal((await request(`/admin/gst/${gstRate._id}`, { method: "DELETE" })).status, 404);
       assert.deepEqual((await (await request("/admin/gst")).json()).gstRates, []);
     });
@@ -150,11 +150,11 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       assert.equal(login.status, 200);
       cookie = cookieHeader(login);
       for (const path of ["me", "enquiries", "history", "hotels", "vouchers", "gst"]) assert.equal((await request(`/technical/${path}`)).status, 200, `technical ${path} is available`);
-      const technicalGst = await request("/technical/gst", { method: "POST", body: { name: "Technical GST", rate: 12 } });
+      const technicalGst = await request("/technical/gst", { method: "POST", body: { gstNumber: "07ABCDE1234F1Z5" } });
       assert.equal(technicalGst.status, 201);
       const { gstRate: technicalGstRate } = await technicalGst.json();
-      assert.equal((await request(`/technical/gst/${technicalGstRate._id}`, { method: "PATCH", body: { name: "Updated Technical GST", rate: 12 } })).status, 200);
-      assert.equal((await request(`/technical/gst/${technicalGstRate._id}`, { method: "DELETE" })).status, 204);
+      assert.equal((await request(`/technical/gst/${technicalGstRate._id}`, { method: "PATCH", body: { gstNumber: "29ABCDE1234F1Z5", version: technicalGstRate.version } })).status, 200);
+      assert.equal((await request(`/technical/gst/${technicalGstRate._id}`, { method: "DELETE", body: { version: 2 } })).status, 204);
       const hotelData = { name: "Technical Stay", address: "5 Garden Lane, Agra", starRating: "3-Star (Mid-Scale / First Class)", amount: 3000, gst: 12 };
       const hotelReply = await request("/technical/hotels", { method: "POST", body: hotelData });
       assert.equal(hotelReply.status, 201);
