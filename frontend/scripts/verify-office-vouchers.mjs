@@ -48,7 +48,11 @@ export async function verifyOfficeVouchers(vite) {
   };
   async function click(label, scope = container) { const target = [...scope.querySelectorAll("button")].find((button) => button.textContent.trim() === label); assert.ok(target, label); assert.equal(target.disabled, false, label); await act(async () => target.click()); }
   async function submit(selector) { await act(async () => container.querySelector(selector).dispatchEvent(new win.Event("submit", { bubbles: true, cancelable: true }))); }
-  async function navigate(label) { const target = [...container.querySelectorAll(".panel-navigation button")].find((button) => button.textContent.endsWith(label)); assert.ok(target, label); await act(async () => target.click()); }
+  async function navigate(label) {
+    const target = [...container.querySelectorAll(".panel-navigation button")].find((button) => button.textContent.endsWith(label)); assert.ok(target, label);
+    await waitFor(() => !target.disabled && ![...container.querySelectorAll("fieldset")].some((fieldset) => fieldset.disabled), `current operation finishes before navigating to ${label}`);
+    await act(async () => target.click());
+  }
   try {
     await request("/technical/login", "POST", { email: config.adminEmail, password: config.adminPassword });
     const hotel = (await request("/technical/hotels", "POST", { name: "Office UI Hotel", address: "Hotel Lane, Jaipur", starRating: "4-Star (Upscale / Deluxe)", amount: 1250.25 })).hotel;
@@ -68,7 +72,7 @@ export async function verifyOfficeVouchers(vite) {
     await act(async () => input("gstNumber", "07ABCDE1234F1Z5")); await submit(".gst-manager form");
     await waitFor(async () => await db.collection("gst_rates").countDocuments() === 1 && !!container.querySelector(".gst-manager tbody tr"), "number-only GST persisted");
     const gst = await db.collection("gst_rates").findOne(); assert.equal(gst.rate, undefined); assert.equal(gst.name, undefined);
-    await navigate("Journey Voucher"); await waitFor(() => container.querySelector(`.billing-editor [name=officeAddressId] option[value="${office._id}"]`), "office address fetched into voucher dropdown");
+    await navigate("Journey Voucher"); await waitFor(() => container.querySelector(`.billing-editor [name=officeAddressId] option[value="${office._id}"]`) && !container.querySelector(".billing-editor fieldset")?.disabled, "office address fetched and voucher form ready");
     await act(async () => {
       for (const [name, value] of Object.entries({ hotelId: hotel._id, gstId: gst._id.toString(), officeAddressId: office._id.toString(), mealPlan: "MAP", guestName: "Office UI Guest", checkInDate: "2026-12-01", checkOutDate: "2026-12-03", arrivalDate: "2026-12-01", departureDate: "2026-12-03", arrivalPlace: "Delhi airport", departurePlace: "Jaipur station", requirement: "Two rooms and airport transfers." })) input(name, value, container.querySelector(".billing-editor"));
     });
