@@ -115,7 +115,13 @@ export function registerEnquiryRoutes({ app, management, db, config, requireAdmi
     await notifications.preferencesChanged(req.admin._id.toString(), preferences);
     res.json(preferences);
   });
-  management.get("/enquiry-assignees", requireAdmin, async (_req, res) => res.json({ assignees: await db.collection("admins").find({ status: { $nin: ["pending", "disabled"] } }, { projection: { _id: 1, name: 1, email: 1 } }).sort({ email: 1 }).toArray() }));
+  management.get("/enquiry-assignees", requireAdmin, async (_req, res) => {
+    const [admins, staff] = await Promise.all([
+      db.collection("admins").find({ status: { $nin: ["pending", "disabled"] } }, { projection: { _id: 1, name: 1, email: 1 } }).sort({ email: 1 }).toArray(),
+      db.collection("staff_accounts").aggregate([{ $match: { status: "active" } }, { $lookup: { from: "staff", localField: "staffId", foreignField: "_id", as: "employee" } }, { $unwind: "$employee" }, { $match: { "employee.status": "active", "employee.deletedAt": null } }, { $project: { _id: 1, name: { $concat: ["$employee.name", " (", "$employeeId", ")"] }, email: "$employee.email" } }]).toArray(),
+    ]);
+    res.json({ assignees: [...admins, ...staff] });
+  });
   management.get("/enquiry-integrations", requireAdmin, async (req, res) => res.json({ whatsapp: { configured: whatsapp.configured(), retrying: await db.collection("enquiry_ingestion_jobs").countDocuments({ state: { $ne: "DONE" } }) }, gmail: await gmail.status(), canConnectGmail: req.originalUrl.startsWith("/api/admin/") && canManageAccounts(req.admin, config) }));
   management.post("/enquiry-integrations/gmail/sync", requireAdmin, syncLimit, async (_req, res) => {
     const state = await gmail.status();

@@ -7,6 +7,7 @@ import { ensureLetterModels } from "../letters/models.js";
 import { ensureOfficeModels } from "../offices/models.js";
 import { ensureGstModels } from "../offices/gst-model.js";
 import { ensureInvoiceModels } from "../invoices/model.js";
+import { ensureStaffPortalModels } from "../staff-portal/models.js";
 
 const MAX_CONNECT_RETRIES = 5;
 const RETRY_BASE_DELAY_MS = 3000;
@@ -57,6 +58,7 @@ export async function connectDatabase(config) {
       await ensureOfficeModels(db);
       await ensureGstModels(db);
       await ensureStaffModels(db);
+      await ensureStaffPortalModels(db);
       await ensureLetterModels(db);
       await ensurePaymentModels(db);
       await ensureEnquiryModels(db);

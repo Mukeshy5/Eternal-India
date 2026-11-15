@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { ObjectId } from "mongodb";
 import { enquirySources, enquiryStatus } from "../../shared/enquiries.js";
 import { publicEnquiry } from "./model.js";
+import { publishStaffNotification } from "../staff-portal/notifications.js";
 
 export const enquiryError = (status, message, details = {}) => Object.assign(new Error(message), { status, publicMessage: true, details });
 export const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -29,6 +30,7 @@ export function createEnquiryService({ db, notifications }) {
         await db.collection("enquiry_events").updateOne({ _id: event.id }, { $set: { notificationCreated: true } });
       }
       // Keep the durable retry marker until the notification has also saved.
+      if (record.assignedTo?.staffId) await publishStaffNotification(db, { id: `enquiry:${event.id}`, staffId: new ObjectId(record.assignedTo.staffId), title: "Assigned enquiry updated", message: `${record.reference}: ${record.status}`, enquiryId: record._id.toString(), createdAt: event.at });
       await collection.updateOne({ _id: record._id }, { $pull: { pendingEvents: { id: event.id } } });
       notify(saved);
     }
@@ -72,9 +74,16 @@ export function createEnquiryService({ db, notifications }) {
       if (body.assignedTo === null || body.assignedTo === "") assignedTo = null;
       else {
         if (typeof body.assignedTo !== "string" || !/^[a-f\d]{24}$/i.test(body.assignedTo)) throw enquiryError(400, "Choose a valid assignee.");
-        const account = await db.collection("admins").findOne({ _id: new ObjectId(body.assignedTo), status: { $nin: ["disabled", "pending"] } }, { projection: { _id: 1, name: 1, email: 1 } });
-        if (!account) throw enquiryError(400, "The selected assignee is unavailable.");
-        assignedTo = { id: account._id.toString(), name: account.name || account.email };
+        const staffAccount = await db.collection("staff_accounts").findOne({ _id: new ObjectId(body.assignedTo), status: "active" });
+        if (staffAccount) {
+          const employee = await db.collection("staff").findOne({ _id: staffAccount.staffId, employeeId: staffAccount.employeeId, status: "active", deletedAt: null }, { projection: { name: 1 } });
+          if (!employee) throw enquiryError(400, "The selected employee is unavailable.");
+          assignedTo = { id: staffAccount._id.toString(), name: employee.name, staffId: staffAccount.staffId.toString() };
+        } else {
+          const account = await db.collection("admins").findOne({ _id: new ObjectId(body.assignedTo), status: { $nin: ["disabled", "pending"] } }, { projection: { _id: 1, name: 1, email: 1 } });
+          if (!account) throw enquiryError(400, "The selected assignee is unavailable.");
+          assignedTo = { id: account._id.toString(), name: account.name || account.email };
+        }
       }
     }
     if (body.archive !== undefined && typeof body.archive !== "boolean") throw enquiryError(400, "Choose a valid archive action.");
@@ -82,6 +91,8 @@ export function createEnquiryService({ db, notifications }) {
     for (let attempt = 0; attempt < 8; attempt++) {
       const current = await collection.findOne({ _id: new ObjectId(id) });
       if (!current) throw enquiryError(404, "Enquiry not found.");
+      if (admin.staffAccountId && (current.assignedTo?.id !== admin.staffAccountId || current.archivedAt)) throw enquiryError(404, "Assigned enquiry not found.");
+      if (admin.staffAccountId && body.revision !== current.revision) throw enquiryError(409, "This enquiry changed. Refresh before saving.");
       const changes = {};
       if (status !== undefined && status !== current.status) changes.status = status;
       if (assignedTo !== undefined && JSON.stringify(assignedTo) !== JSON.stringify(current.assignedTo)) changes.assignedTo = assignedTo;
@@ -94,7 +105,7 @@ export function createEnquiryService({ db, notifications }) {
       const set = { ...changes, updatedAt: now, revision };
       const unset = changes.archivedAt === null ? { archivedAt: "" } : undefined;
       if (unset) delete set.archivedAt;
-      const record = await collection.findOneAndUpdate({ _id: current._id, revision: current.revision ?? { $exists: false } }, { $set: set, ...(unset ? { $unset: unset } : {}), $push: { pendingEvents: event, changes: { ...changes, by: admin._id.toString(), at: now } } }, { returnDocument: "after" });
+      const record = await collection.findOneAndUpdate({ _id: current._id, revision: current.revision ?? { $exists: false }, ...(admin.staffAccountId ? { "assignedTo.id": admin.staffAccountId, archivedAt: { $exists: false } } : {}) }, { $set: set, ...(unset ? { $unset: unset } : {}), $push: { pendingEvents: event, changes: { ...changes, by: admin._id.toString(), at: now } } }, { returnDocument: "after" });
       if (!record) continue;
       await flush(record);
       return publicEnquiry(record);

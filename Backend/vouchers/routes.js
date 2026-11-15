@@ -9,19 +9,21 @@ import { officeCollection } from "../offices/models.js";
 import { ensureVoucherModels, voucherCollection } from "./model.js";
 import { billingError, validObjectId, validateVoucher, voucherFilter } from "./validation.js";
 import { historyExcel, historyPdf, voucherPdf } from "./documents.js";
+import { staffActor } from "../staff-portal/auth.js";
 
-export function registerVoucherRoutes({ management, db, requireAdmin, config }) {
+export function registerVoucherRoutes({ management, db, requireAdmin, config, staffMode = false }) {
   let readiness;
   const guard = [requireAdmin, async (req, _res, next) => {
-    if (!adminPanelAccess(req.admin, config) && !technicalAccess(req.admin, config).technical) throw billingError("Your role cannot manage billing.", 403);
+    if (staffMode ? !req.staffAccount : !adminPanelAccess(req.admin, config) && !technicalAccess(req.admin, config).technical) throw billingError("Your role cannot manage billing.", 403);
     readiness ??= ensureVoucherModels(db).catch((error) => { readiness = undefined; throw error; });
     await readiness; next();
   }];
   const records = () => db.collection(voucherCollection);
-  const actor = (req) => req.admin._id.toString();
-  async function getVoucher(id) {
+  const actor = (req) => staffMode ? staffActor(req.employee._id) : req.admin._id.toString();
+  const scope = (req) => staffMode ? { createdBy: actor(req) } : {};
+  async function getVoucher(req, id) {
     if (!validObjectId(id)) throw billingError("Choose a valid voucher.");
-    const voucher = await records().findOne({ _id: new ObjectId(id) });
+    const voucher = await records().findOne({ _id: new ObjectId(id), ...scope(req) });
     if (!voucher) throw billingError("Voucher not found.", 404);
     return voucher;
   }
@@ -49,14 +51,14 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config }) 
     if (body.expectedGstRate !== undefined && body.expectedGstRate !== rate || body.expectedGstVersion !== undefined && body.expectedGstVersion !== gstVersion || body.expectedOfficeVersion !== undefined && body.expectedOfficeVersion !== officeAddressVersion) throw billingError("Selected configuration changed. Refresh the selections and review the voucher before saving.", 409);
     return { hotel, gst, officeAddress, pricing, pricingMode: rate ? "legacy_tax" : "amount_only", gstVersion, officeAddressVersion };
   }
-  management.get("/vouchers/options", ...guard, async (_req, res) => {
+  management.get("/vouchers/options", ...guard, async (req, res) => {
     const [hotels, gstRates, usedHotels, usedGst, officeAddresses, usedOffices] = await Promise.all([
       db.collection("hotels").find({}, { projection: { name: 1, address: 1, starRating: 1, amount: 1 } }).sort({ name: 1 }).limit(500).toArray(),
       db.collection("gst_rates").find({}, { projection: { name: 1, gstNumber: 1, version: 1 } }).sort({ gstNumber: 1, _id: 1 }).toArray(),
-      records().aggregate([{ $group: { _id: "$hotelId", name: { $first: "$hotel.name" } } }, { $limit: 500 }]).toArray(),
-      records().aggregate([{ $group: { _id: "$gstId", gstNumber: { $first: "$gst.gstNumber" } } }, { $limit: 500 }]).toArray(),
+      records().aggregate([{ $match: scope(req) }, { $group: { _id: "$hotelId", name: { $first: "$hotel.name" } } }, { $limit: 500 }]).toArray(),
+      records().aggregate([{ $match: scope(req) }, { $group: { _id: "$gstId", gstNumber: { $first: "$gst.gstNumber" } } }, { $limit: 500 }]).toArray(),
       db.collection(officeCollection).find({}, { projection: { address: 1, version: 1 } }).sort({ address: 1, _id: 1 }).toArray(),
-      records().aggregate([{ $match: { officeAddressId: { $type: "string", $ne: "" } } }, { $group: { _id: "$officeAddressId", name: { $first: "$officeAddress.name" }, address: { $first: "$officeAddress.address" } } }]).toArray(),
+      records().aggregate([{ $match: { ...scope(req), officeAddressId: { $type: "string", $ne: "" } } }, { $group: { _id: "$officeAddressId", name: { $first: "$officeAddress.name" }, address: { $first: "$officeAddress.address" } } }]).toArray(),
     ]);
     res.json({ hotels, gstRates: gstRates.map(publicGstRecord), usedHotels, usedGst, officeAddresses, usedOffices });
   });
@@ -73,12 +75,12 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config }) 
     res.status(201).json({ invoice: { reservationId: reservation._id, invoiceNumber: reservation.invoiceNumber } });
   });
   management.post("/vouchers/quote", ...guard, async (req, res) => {
-    const previous = req.body?.voucherId ? await getVoucher(req.body.voucherId) : null;
+    const previous = req.body?.voucherId ? await getVoucher(req, req.body.voucherId) : null;
     res.json(await pricingData(req.body, previous));
   });
   management.get("/vouchers/export", ...guard, async (req, res) => {
     if (!["xlsx", "pdf"].includes(req.query.format)) throw billingError("Choose Excel or PDF export.");
-    const filter = voucherFilter(req.query);
+    const filter = { ...voucherFilter(req.query), ...scope(req) };
     if (await records().countDocuments(filter) > 5000) throw billingError("Narrow your filters to 5,000 vouchers or fewer before exporting.");
     const vouchers = await records().find(filter).sort({ voucherDate: -1, _id: -1 }).limit(5000).toArray();
     const excel = req.query.format === "xlsx";
@@ -86,7 +88,7 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config }) 
     res.set({ "Content-Type": excel ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/pdf", "Content-Disposition": `attachment; filename="journey-voucher-history.${excel ? "xlsx" : "pdf"}"` }).send(Buffer.from(output));
   });
   management.get("/vouchers", ...guard, async (req, res) => {
-    const filter = voucherFilter(req.query);
+    const filter = { ...voucherFilter(req.query), ...scope(req) };
     const requestedPage = Number(req.query.page ?? 1), pageSize = Number(req.query.pageSize ?? 20);
     if (!Number.isInteger(requestedPage) || requestedPage < 1 || requestedPage > 100000 || ![10, 20, 50].includes(pageSize)) throw billingError("Choose a valid page and page size.");
     const [total, totals] = await Promise.all([records().countDocuments(filter), records().aggregate([{ $match: filter }, { $group: { _id: null, totalBillingPaise: { $sum: "$pricing.totalPaise" } } }]).toArray()]);
@@ -95,12 +97,12 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config }) 
     res.json({ vouchers, total, page, pages, pageSize, totalBillingPaise: totals[0]?.totalBillingPaise ?? 0 });
   });
   management.get("/vouchers/:id/pdf", ...guard, async (req, res) => {
-    const voucher = await getVoucher(req.params.id);
+    const voucher = await getVoucher(req, req.params.id);
     const output = await voucherPdf(voucher);
     res.set({ "Content-Type": "application/pdf", "Content-Disposition": `${req.query.inline === "1" ? "inline" : "attachment"}; filename="journey-voucher-${voucher.invoiceNumber}.pdf"` }).send(output);
   });
-  management.get("/vouchers/:id/print-data", ...guard, async (req, res) => res.json({ voucher: publicVoucher(await getVoucher(req.params.id)) }));
-  management.get("/vouchers/:id", ...guard, async (req, res) => res.json({ voucher: publicVoucher(await getVoucher(req.params.id)) }));
+  management.get("/vouchers/:id/print-data", ...guard, async (req, res) => res.json({ voucher: publicVoucher(await getVoucher(req, req.params.id)) }));
+  management.get("/vouchers/:id", ...guard, async (req, res) => res.json({ voucher: publicVoucher(await getVoucher(req, req.params.id)) }));
   management.post("/vouchers", ...guard, async (req, res) => {
     const fields = validateVoucher(req.body);
     if (!validObjectId(req.body.reservationId)) throw billingError("Reserve an invoice number before saving.");
@@ -125,7 +127,7 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config }) 
     res.status(201).json({ voucher: publicVoucher(voucher) });
   });
   management.patch("/vouchers/:id", ...guard, async (req, res) => {
-    const previous = await getVoucher(req.params.id), fields = validateVoucher(req.body, previous);
+    const previous = await getVoucher(req, req.params.id), fields = validateVoucher(req.body, previous);
     if (!Number.isInteger(req.body.revision) || req.body.revision !== previous.revision) throw billingError("Another user changed this voucher. Reopen it before editing.", 409);
     const data = await pricingData(req.body, previous);
     const saved = await records().findOneAndUpdate({ _id: previous._id, revision: req.body.revision }, { $set: { ...fields, ...data, ...(fields.officeAddressId && fields.mealPlan ? { schemaVersion: 2 } : {}), updatedAt: new Date(), updatedBy: actor(req) }, $inc: { revision: 1 } }, { returnDocument: "after", projection: { createHash: 0 } });
@@ -133,7 +135,7 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config }) 
     res.json({ voucher: saved });
   });
   management.delete("/vouchers/:id", ...guard, async (req, res) => {
-    const previous = await getVoucher(req.params.id);
+    const previous = await getVoucher(req, req.params.id);
     if (String(previous.revision) !== req.query.revision) throw billingError("This voucher changed. Refresh it before deleting.", 409);
     // Tombstone first: a concurrent create/retry must never resurrect a deleted invoice.
     await db.collection("journey_invoice_reservations").updateOne({ _id: previous._id }, { $set: { deletedAt: new Date() } });

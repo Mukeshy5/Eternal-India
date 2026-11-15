@@ -9,6 +9,7 @@ import { attendanceExcel, attendancePdf, cardPdf } from "./exports.js";
 import { cardPng, cardSvg, validateStaffPhoto } from "./card.js";
 import { attendancePolicy, indiaDate } from "../../shared/staff.js";
 import { calendarDates, registerStaffCalendar } from "./calendar.js";
+import { publishStaffNotification } from "../staff-portal/notifications.js";
 
 const projection = { photo: 0 };
 const id = (value) => typeof value === "string" && /^[a-f\d]{24}$/i.test(value) ? new ObjectId(value) : null;
@@ -28,6 +29,13 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
   const guard = (permission = "view") => staffGuard(requireAdmin, config, permission);
   const staff = db.collection("staff"), attendance = db.collection("staff_attendance");
   const events = new EventEmitter(); events.setMaxListeners(0);
+  router.use((req, res, next) => {
+    const since = new Date();
+    res.once("finish", () => {
+      if (!["POST", "PATCH", "PUT"].includes(req.method) || res.statusCode >= 300 || !req.path.includes("attendance")) return;
+      void attendance.find({ updatedAt: { $gte: since } }).limit(5000).toArray().then((rows) => Promise.all(rows.map((row) => publishStaffNotification(db, { id: `attendance:${row._id}:${row.version}`, staffId: row.staffId, title: "Attendance updated", message: `${row.date}: ${row.status.replaceAll("_", " ")}`, createdAt: row.updatedAt })))).catch((error) => console.error("Staff attendance notification failed:", error.name));
+    }); next();
+  });
   const changed = async () => {
     const revision = await db.collection("staff_runtime").findOneAndUpdate({ _id: "revision" }, { $inc: { value: 1 }, $set: { updatedAt: new Date() } }, { upsert: true, returnDocument: "after" });
     events.emit("change", revision.value);
@@ -115,6 +123,10 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     const fields = await prepareStaff(req, res, current); if (!fields) return;
     const record = await staff.findOneAndUpdate({ _id: current._id, version: current.version, deletedAt: null }, { $set: { ...fields, updatedAt: new Date(), updatedBy: req.admin._id }, $inc: { version: 1 } }, { returnDocument: "after", projection });
     if (!record) return res.status(409).json({ message: "This staff record changed. Refresh before editing." });
+    if (record.status !== "active") {
+      const account = await db.collection("staff_accounts").findOneAndUpdate({ staffId: current._id }, { $inc: { authVersion: 1, version: 1 }, $set: { updatedAt: new Date() } }, { returnDocument: "after" });
+      if (account) await db.collection("staff_tokens").deleteMany({ accountId: account._id });
+    }
     await changed();
     res.json({ staff: record });
   });

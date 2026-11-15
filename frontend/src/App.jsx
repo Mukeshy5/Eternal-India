@@ -13,6 +13,7 @@ import TourPackage from "./Comopents/TourPackage";
 import DestinationsInIndia from "./Comopents/DestinationsInIndia";
 import India from "./Comopents/India";
 import Admin from "./Pages/Admin";
+import StaffPanel from "./Common/staff-portal/StaffPanel";
 import TravelDetail from "./Pages/TravelDetail";
 import BuddhistToursInIndia from "./Pages/BuddhistToursInIndia";
 import Blog from "./Pages/Blog";
@@ -46,10 +47,10 @@ const titles = {
 };
 export default function App() {
   const { pathname, hash, search, key } = useLocation();
-  const isAdmin = /^\/(admin|technical)(?:\/|$)/.test(pathname);
+  const isAdmin = /^\/(admin|technical|staff)(?:\/|$)/.test(pathname);
   useEffect(() => {
     const base = pathname.startsWith("/technical") ? "/technical" : "/admin";
-    document.title = `${titles[pathname] || (isAdmin && panelSections[panelSection(pathname, base)]?.title) || "Page not found"} | Eternal India`;
+    document.title = `${pathname.startsWith("/staff") ? "Staff Panel" : titles[pathname] || (isAdmin && panelSections[panelSection(pathname, base)]?.title) || "Page not found"} | Eternal India`;
   }, [pathname, isAdmin]);
   useLayoutEffect(() => {
     if (hash) document.getElementById(hash.slice(1))?.scrollIntoView();
@@ -93,6 +94,7 @@ export default function App() {
           <Route path="/request-quote" element={<RequestQuote />} />
           <Route path="/admin/*" element={<Admin key="admin" />} />
           <Route path="/technical/*" element={<Admin key="technical" technical />} />
+          <Route path="/staff/*" element={<StaffPanel />} />
           <Route path="/online-payment" element={<OnlinePayment />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-and-conditions" element={<TermsConditions />} />

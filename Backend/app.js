@@ -29,6 +29,7 @@ import { registerGstRoutes } from "./lib/gst.js";
 import { createEnquirySystem } from "./enquiries/index.js";
 import { registerEnquiryRoutes, registerWhatsAppWebhook } from "./enquiries/routes.js";
 import { authenticatePanel } from "./lib/panel-auth.js";
+import { registerStaffPortal } from "./staff-portal/routes.js";
 
 export function createApp({ client, db, config, schedulerOptions, sendPasswordReset, paymentGateway, gmailProviderFactory }) {
   const app = express();
@@ -75,7 +76,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   const enquirySystem = createEnquirySystem({ db, config, gmailProviderFactory });
   registerWhatsAppWebhook({ app, whatsapp: enquirySystem.whatsapp });
   app.use(["/api/admin/staff-attendance/bulk", "/api/technical/staff-attendance/bulk"], express.json({ limit: "128kb" }));
-  app.use(["/api/admin/vouchers", "/api/technical/vouchers"], express.json({ limit: "64kb" }));
+  app.use(["/api/admin/vouchers", "/api/technical/vouchers", "/api/staff/vouchers"], express.json({ limit: "64kb" }));
   app.use(["/api/invoices", "/api/admin/invoices", "/api/technical/invoices"], express.json({ limit: "64kb" }));
   app.use(["/api/admin/letters", "/api/technical/letters"], express.json({ limit: "128kb" }));
   app.use(express.json({ limit: "16kb" }));
@@ -231,6 +232,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   registerGstRoutes({ management, db, requireAdmin, realtime: enquirySystem.realtime });
   registerOfficeRoutes({ management, db, requireAdmin, realtime: enquirySystem.realtime });
   registerStaffRoutes({ management, db, requireAdmin, config });
+  registerStaffPortal({ app, management, db, requireAdmin, config, enquiries: enquirySystem.enquiries });
   registerLetterRoutes({ management, db, requireAdmin, config });
   app.use(["/api/admin", "/api/technical"], management);
   app.use("/api", (_req, res) => res.status(404).json({ message: "API endpoint not found." }));

@@ -4,6 +4,7 @@ export const panelSections = {
   payments: { label: "Online Payments", title: "Online Payments", group: "Operations", icon: "archive", adminPanelOnly: true },
   invoices: { label: "Billing / Invoice", title: "Billing / Invoice", group: "Operations", icon: "archive" },
   staff: { label: "Staff Management", title: "Staff Management", group: "People", icon: "people", permission: "view" },
+  "staff-accounts": { label: "Staff Login Accounts", title: "Staff Login Accounts", group: "People", icon: "people", technical: true },
   "staff-attendance": { label: "Staff Attendance", title: "Attendance Calendar", group: "People", icon: "calendar", permission: "view" },
   "staff-cards": { label: "Download ID Card", title: "Employee ID Cards", group: "People", icon: "archive", permission: "export" },
   "staff-reports": { label: "Attendance Reports", title: "Attendance Reports", group: "People", icon: "clock", permission: "view" },

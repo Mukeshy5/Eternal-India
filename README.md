@@ -17,6 +17,7 @@ npm run dev
 - Website and enquiry form: `http://localhost:5173/request-quote`
 - Admin sign-in: `http://localhost:5173/admin/login`
 - Technical panel: `http://localhost:5173/technical/login`
+- Staff panel: `http://localhost:5173/staff/login` — accounts are created in Technical Panel → Staff Login Accounts.
 - API health: `http://localhost:5000/api/health`
 
 `npm run dev` also works inside `frontend`. The launcher starts the backend, waits for its health check and then opens Vite; this prevents form submissions from reaching a missing API. If a healthy Eternal India backend is already running, it is reused. Stopping the launcher stops only the services it started. For backend source watching, start `npm run dev` inside `Backend` first; the frontend launcher will reuse it.

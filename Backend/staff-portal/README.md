@@ -1,0 +1,17 @@
+The Staff Panel is available at `/staff/login`. In the Technical Panel, open **Staff Login Accounts** (`/technical/staff-accounts`). Verify an Employee ID from Staff Management, enter or generate credentials, and create the account. Staff have no registration endpoint.
+
+Only the `/api/technical` namespace and an authenticated technical role can create, activate, deactivate, reset or delete login accounts. Employee status is also checked on every staff request. Account changes revoke all staff sessions; employee deactivation revokes existing sessions even if the employee is later reactivated. Deleting a login retains employee, attendance, enquiry, invoice and voucher records.
+
+Staff authentication uses the existing bcrypt password helper, a separate JWT audience, a separate HttpOnly cookie, MongoDB session records and a revocation version. Use the existing `AUTH_TOKEN_SECRET` configuration (or its existing session-secret fallback). No new environment variables or database credentials are needed. Production requires HTTPS, as with the existing panels.
+
+Enquiries are assigned from the existing Admin/Technical enquiry assignment control. Active linked staff appear alongside existing panel assignees. Staff may update only the status of their currently assigned, unarchived enquiries, using the current revision. They cannot assign, archive or delete enquiries.
+
+Journey vouchers use the existing voucher editor, pricing, numbering, PDF, export and CRUD implementation. A staff owner is stored as `staff:<employee MongoDB ID>` in `createdBy`, keeping journey ownership stable when a login is deleted and recreated. Technical/Admin panels retain their existing voucher access. Shared hotel, office and GST configuration remains available for voucher creation.
+
+Billing invoices remain read-only for staff. In **Manage access** for a staff account, search invoices and grant or revoke each invoice. The authorization uses `authorizedStaffIds` on the existing `billing_invoices` record. Account deletion retains those grants for the same employee; revoke grants before deleting if access should not return when the employee is provisioned again.
+
+Staff see their own attendance and ID card through the existing staff records and document generator. Targeted enquiry, attendance, account and invoice notifications are stored in `staff_notifications`. A credentialed server-sent event stream checks session validity and compares scoped database revisions every three seconds. The frontend also refreshes on focus and periodically reconnects/refreshes if streaming is interrupted. Staff never join the broad Admin/Technical notification channels.
+
+New collections: `staff_accounts`, `staff_tokens`, `staff_notifications`, `staff_account_audit`. Unique indexes enforce one login per employee and username. Startup creates these collections/indexes without migrating or deleting existing business records.
+
+Run the isolated MongoDB integration suite with `node --test test/staff-portal.test.js` from `Backend`, or `npm run test:backend` from the repository root. Tests create and remove only a uniquely named `eternal_india_test_staff_*` database; they require the configured MongoDB server and credentials to allow temporary test databases. Run the complete React/API staff flow with `npm --prefix frontend run verify:staff-panel`, which uses a separate `eternal_india_test_spui_*` database. Frontend production validation: `npm run build`.
