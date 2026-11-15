@@ -6,3 +6,5 @@ dist/
 *.log
 .npm-cache/
 .staff-qa/
+Backend/var/
+.data-control-qa/

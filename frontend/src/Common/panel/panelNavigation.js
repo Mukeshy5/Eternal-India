@@ -1,6 +1,7 @@
 export const panelSections = {
   enquiries: { label: "All enquiries", title: "Enquiries", group: "Workspace", icon: "inbox" },
   notifications: { label: "Notifications", title: "Notifications", group: "Workspace", icon: "bell" },
+  "data-control": { label: "Data Control", title: "Data Control", group: "Administration", icon: "archive", technical: true },
   payments: { label: "Online Payments", title: "Online Payments", group: "Operations", icon: "archive", adminPanelOnly: true },
   invoices: { label: "Billing / Invoice", title: "Billing / Invoice", group: "Operations", icon: "archive" },
   staff: { label: "Staff Management", title: "Staff Management", group: "People", icon: "people", permission: "view" },

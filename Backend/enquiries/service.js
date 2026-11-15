@@ -8,7 +8,7 @@ export const enquiryError = (status, message, details = {}) => Object.assign(new
 export const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 export const notificationPreferences = (account) => ({ popup: account.enquiryNotifications?.popup !== false, sound: account.enquiryNotifications?.sound !== false });
 
-export function createEnquiryService({ db, notifications }) {
+export function createEnquiryService({ db, notifications, storageControl }) {
   const collection = db.collection("enquiries");
   const deletedSubmissions = db.collection("enquiry_deleted_submissions");
   let notify = () => {};
@@ -35,7 +35,7 @@ export function createEnquiryService({ db, notifications }) {
       notify(saved);
     }
   }
-  async function create(fields, { submissionId, submissionHash } = {}) {
+  async function createUnchecked(fields, { submissionId, submissionHash } = {}) {
     const source = fields.source || "WEBSITE";
     if (!Object.hasOwn(enquirySources, source)) throw enquiryError(400, "Choose a valid enquiry source.");
     if (source !== "WEBSITE" && (typeof fields.externalMessageId !== "string" || !fields.externalMessageId || fields.externalMessageId.length > 300)) throw enquiryError(400, "The external message ID is missing or invalid.");
@@ -134,6 +134,9 @@ export function createEnquiryService({ db, notifications }) {
     ]);
     const saved = await db.collection("enquiry_events").findOneAndUpdate({ _id: event._id }, { $setOnInsert: event }, { upsert: true, returnDocument: "after" });
     notify(saved);
+  }
+  async function create(fields, options) {
+    return storageControl ? storageControl.withWrite(() => createUnchecked(fields, options), Math.max(262144, Buffer.byteLength(JSON.stringify(fields)) * 3)) : createUnchecked(fields, options);
   }
   async function reconcile() { for await (const record of collection.find({ "pendingEvents.0": { $exists: true } }).limit(100)) await flush(record); }
   return { create, update, permanentlyDelete, reconcile, onEvent(callback) { notify = callback; } };

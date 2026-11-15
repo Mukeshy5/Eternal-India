@@ -30,6 +30,8 @@ import { createEnquirySystem } from "./enquiries/index.js";
 import { registerEnquiryRoutes, registerWhatsAppWebhook } from "./enquiries/routes.js";
 import { authenticatePanel } from "./lib/panel-auth.js";
 import { registerStaffPortal } from "./staff-portal/routes.js";
+import { createDataControl } from "./data-control/service.js";
+import { registerDataControl, storageWriteGuard } from "./data-control/routes.js";
 
 export function createApp({ client, db, config, schedulerOptions, sendPasswordReset, paymentGateway, gmailProviderFactory }) {
   const app = express();
@@ -68,17 +70,23 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   const tokenCookieName = "eternal_india.auth";
   const management = express.Router();
   app.use(cookieParser());
+  const dataControl = createDataControl({ db, config });
+  const dataControlReady = dataControl.initialize();
+  dataControlReady.catch(() => {});
+  app.use("/api", async (_req, _res, next) => { try { await dataControlReady; next(); } catch (error) { next(error); } });
+  app.use("/api", storageWriteGuard(dataControl, { config }));
   app.use(["/api/admin", "/api/technical", "/api/auth"], session({ name: "eternal_india.sid", secret: config.sessionSecret, store, resave: false, saveUninitialized: false, rolling: true, cookie }));
 
   // JSON is parsed for ordinary routes after the raw Razorpay webhook route.
   // Payment admin handlers use the same cookie/JWT authentication as the panel.
   registerPaymentRoutes({ app, db, config, requireAdmin, gateway: paymentGateway });
-  const enquirySystem = createEnquirySystem({ db, config, gmailProviderFactory });
+  const enquirySystem = createEnquirySystem({ db, config, gmailProviderFactory, storageControl: dataControl });
   registerWhatsAppWebhook({ app, whatsapp: enquirySystem.whatsapp });
   app.use(["/api/admin/staff-attendance/bulk", "/api/technical/staff-attendance/bulk"], express.json({ limit: "128kb" }));
   app.use(["/api/admin/vouchers", "/api/technical/vouchers", "/api/staff/vouchers"], express.json({ limit: "64kb" }));
   app.use(["/api/invoices", "/api/admin/invoices", "/api/technical/invoices"], express.json({ limit: "64kb" }));
   app.use(["/api/admin/letters", "/api/technical/letters"], express.json({ limit: "128kb" }));
+  app.use("/api/technical/data-control", express.json({ limit: "128kb" }));
   app.use(express.json({ limit: "16kb" }));
 
   const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
@@ -234,6 +242,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   registerStaffRoutes({ management, db, requireAdmin, config });
   registerStaffPortal({ app, management, db, requireAdmin, config, enquiries: enquirySystem.enquiries });
   registerLetterRoutes({ management, db, requireAdmin, config });
+  registerDataControl({ app, control: dataControl, db, config });
   app.use(["/api/admin", "/api/technical"], management);
   app.use("/api", (_req, res) => res.status(404).json({ message: "API endpoint not found." }));
 
@@ -260,5 +269,5 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     const unavailable = /^Mongo(?:Network|ServerSelection|TopologyClosed|NotConnected)/.test(error.name);
     res.status(unavailable ? 503 : 500).json({ message: "We couldn't complete your request. Please try again shortly." });
   });
-  return { app, store, drainSessions, enquirySystem, decorationScheduler: festivals.scheduler, decorationsReady: festivals.ready };
+  return { app, store, drainSessions, enquirySystem, dataControl, dataControlReady, decorationScheduler: festivals.scheduler, decorationsReady: festivals.ready };
 }

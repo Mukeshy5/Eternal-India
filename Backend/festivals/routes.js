@@ -10,6 +10,8 @@ import { asId, validId, validDate, validateDecoration, validateSchedule, validat
 import { currentOccurrence, occurrenceKey, schedulesConflict } from "./scheduling.js";
 import { createDecorationScheduler } from "./scheduler.js";
 import { activityForFestival, removeUnusedImage } from "../lib/database-cleanup.js";
+import { optimizedImage } from "../data-control/optimization.js";
+import { createHash } from "node:crypto";
 
 const fail = (res, errors) => res.status(400).json({ message: Object.values(errors).join(" "), errors });
 const actorFor = (req) => ({ id: req.admin._id.toString(), email: req.admin.email, role: "technical" });
@@ -91,7 +93,7 @@ export function registerFestivalRoutes({ app, db, requireAdmin, config, schedule
     const changes = { ...decoration, published: false, updatedBy: actorFor(req), updatedAt: scheduler.clock() };
     await db.collection("festival_decorations").updateOne({ _id: previous._id }, { $set: changes });
     if (decoration.bannerImage) await db.collection("decoration_assets").updateOne({ _id: asId(decoration.bannerImage.split("/").at(-1)) }, { $unset: { expiresAt: "" } });
-    if (previous.bannerImage !== decoration.bannerImage) await removeUnusedImage(db, previous.bannerImage, "decoration_assets", "festival_decorations", "bannerImage");
+    // Replaced images are retained until backup-gated Data Control optimization.
     await audit(req, "festival_updated", previous, { ...previous, ...changes });
     await scheduler.reconcile(); res.json({ festival: { ...previous, ...changes } });
   };
@@ -233,8 +235,10 @@ export function registerFestivalRoutes({ app, db, requireAdmin, config, schedule
   router.post("/festival-assets", ...allow(["createFestival", "editFestival"]), (req, res, next) => upload(req, res, (error) => error ? res.status(400).json({ message: "Upload one image up to 2 MB." }) : next()), async (req, res) => {
     const contentType = req.file && imageType(req.file.buffer);
     if (!contentType) return fail(res, { image: "Use a JPG, PNG, WebP or GIF image." });
-    const result = await db.collection("decoration_assets").insertOne({ data: req.file.buffer, contentType, createdAt: scheduler.clock(), expiresAt: new Date(Date.now() + 86400000), createdBy: actorFor(req) });
-    res.status(201).json({ image: `/api/public/festival-assets/${result.insertedId}` });
+    let image; try { image = await optimizedImage(req.file.buffer, contentType); } catch { return res.status(400).json({ message: "This image could not be decoded safely." }); }
+    const sha256 = createHash("sha256").update(image.bytes).digest("hex"), createdBy = actorFor(req);
+    const result = await db.collection("decoration_assets").findOneAndUpdate({ sha256, "createdBy.id": createdBy.id }, { $setOnInsert: { data: image.bytes, contentType: image.contentType, createdAt: scheduler.clock(), expiresAt: new Date(Date.now() + 86400000), createdBy } }, { upsert: true, returnDocument: "after" });
+    res.status(201).json({ image: `/api/public/festival-assets/${result._id}` });
   });
   app.use("/api/technical", router);
   app.get("/api/public/festival-assets/:id", async (req, res) => {

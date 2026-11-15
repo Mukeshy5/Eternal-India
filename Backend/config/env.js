@@ -66,6 +66,7 @@ export function readConfig(env = process.env) {
     adminPassword: env.ADMIN_PASSWORD || "",
     technicalEmail: (env.TECHNICAL_EMAIL || "").trim().toLowerCase(),
     companyName: env.COMPANY_NAME || "Eternal India",
+    dataControl: { backupDirectory: env.DATA_CONTROL_BACKUP_DIR || "", uploadDirectory: env.DATA_CONTROL_UPLOAD_DIR || "", tempDirectory: env.DATA_CONTROL_TEMP_DIR || "" },
     otpSecret: env.OTP_HASH_SECRET || env.SESSION_SECRET,
     enquiries: {
       tokenSecret: env.INTEGRATION_TOKEN_SECRET || env.SESSION_SECRET,

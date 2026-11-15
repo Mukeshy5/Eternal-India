@@ -2,7 +2,6 @@ import { readConfig } from "./config/env.js";
 import { connectDatabase } from "./config/database.js";
 import { ensureInitialAdmin } from "./lib/passwords.js";
 import { createApp } from "./app.js";
-import { cleanupDatabase } from "./lib/database-cleanup.js";
 import { createMailer } from "./lib/mailer.js";
 
 let connection;
@@ -31,10 +30,9 @@ async function start() {
   connection = await connectDatabase(config);
   await ensureInitialAdmin(connection.db, config);
 
-  await cleanupDatabase(connection.db, { apply: true });
-
-  const { app, drainSessions, decorationScheduler, decorationsReady, enquirySystem } = createApp({ ...connection, config });
+  const { app, drainSessions, decorationScheduler, decorationsReady, enquirySystem, dataControl, dataControlReady } = createApp({ ...connection, config });
   await decorationsReady;
+  await dataControlReady;
 
   server = app.listen(config.port, config.host, () => {
     console.log(`Eternal India API listening on ${config.host}:${config.port}`);
@@ -56,6 +54,7 @@ async function start() {
   });
   enquirySystem.realtime.attach(server);
   enquirySystem.start();
+  dataControl.start();
 
   const closeDatabase = async () => {
     if (closing) return;
@@ -83,6 +82,7 @@ async function start() {
     try {
       await decorationScheduler.stop();
       await enquirySystem.stop();
+      await dataControl.stop();
     } catch {}
     server.close(async () => {
       try {

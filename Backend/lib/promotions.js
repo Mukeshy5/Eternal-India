@@ -2,6 +2,8 @@ import multer from "multer";
 import { ObjectId } from "mongodb";
 import { promotionTargets } from "../../shared/travelCatalog.js";
 import { removeUnusedImage } from "./database-cleanup.js";
+import { optimizedImage } from "../data-control/optimization.js";
+import { createHash } from "node:crypto";
 
 const targetIds = new Set(promotionTargets.map((target) => target.id));
 const imagePath = /^\/api\/offer-images\/([a-f\d]{24})$/i;
@@ -67,12 +69,11 @@ export function registerPromotions({ app, management, db, requireAdmin }) {
     if (Object.keys(errors).length) return res.status(400).json({ message: "Please check the amount and offer details.", errors });
     if (promotion.offerImage && !await db.collection("offer_images").findOne({ _id: new ObjectId(promotion.offerImage.match(imagePath)[1]) }, { projection: { _id: 1 } })) return res.status(400).json({ message: "This offer image is unavailable. Upload it again." });
     const saved = { ...promotion, updatedAt: new Date() };
-    const previous = await db.collection("tour_promotions").findOne({ _id: req.params.targetId }, { projection: { offerImage: 1 } });
     const empty = promotion.amount === null && promotion.offerAmount === null && !promotion.offerEnabled && !promotion.offerTitle && !promotion.offerImage && !promotion.offerText;
     if (empty) await db.collection("tour_promotions").deleteOne({ _id: req.params.targetId });
     else await db.collection("tour_promotions").updateOne({ _id: req.params.targetId }, { $set: { ...saved, updatedBy: req.admin._id } }, { upsert: true });
     if (promotion.offerImage) await db.collection("offer_images").updateOne({ _id: new ObjectId(promotion.offerImage.match(imagePath)[1]) }, { $unset: { expiresAt: "" } });
-    if (previous?.offerImage !== promotion.offerImage) await removeUnusedImage(db, previous?.offerImage);
+    // Replaced images are retained until backup-gated Data Control optimization.
     publicCache = null;
     res.json({ promotion: { targetId: req.params.targetId, ...saved } });
   });
@@ -92,8 +93,10 @@ export function registerPromotions({ app, management, db, requireAdmin }) {
   }, async (req, res) => {
     const contentType = req.file && imageType(req.file.buffer);
     if (!contentType) return res.status(400).json({ message: "Choose a JPG, PNG, WebP or GIF image." });
-    const result = await db.collection("offer_images").insertOne({ data: req.file.buffer, contentType, createdAt: new Date(), expiresAt: new Date(Date.now() + 86400000), uploadedBy: req.admin._id });
-    res.status(201).json({ image: `/api/offer-images/${result.insertedId}` });
+    let image; try { image = await optimizedImage(req.file.buffer, contentType); } catch { return res.status(400).json({ message: "This image could not be decoded safely." }); }
+    const sha256 = createHash("sha256").update(image.bytes).digest("hex");
+    const result = await db.collection("offer_images").findOneAndUpdate({ sha256, uploadedBy: req.admin._id }, { $setOnInsert: { data: image.bytes, contentType: image.contentType, createdAt: new Date(), expiresAt: new Date(Date.now() + 86400000), uploadedBy: req.admin._id } }, { upsert: true, returnDocument: "after" });
+    res.status(201).json({ image: `/api/offer-images/${result._id}` });
   });
   management.delete("/offer-images/:id", requireAdmin, async (req, res) => {
     if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid offer image." });

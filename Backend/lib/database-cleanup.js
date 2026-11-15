@@ -3,7 +3,7 @@ import { ObjectId } from "mongodb";
 export async function removeUnusedImage(db, path, collection = "offer_images", owners = "tour_promotions", field = "offerImage") {
   const prefix = collection === "offer_images" ? "/api/offer-images/" : "/api/public/festival-assets/";
   if (typeof path !== "string" || !path.startsWith(prefix) || !/^[a-f\d]{24}$/i.test(path.slice(prefix.length))) return 0;
-  if (await db.collection(owners).findOne({ [field]: path }, { projection: { _id: 1 } })) return 0;
+  if (await db.collection(owners).findOne({ [field]: { $regex: `^${prefix}${path.slice(prefix.length)}$`, $options: "i" } }, { projection: { _id: 1 } })) return 0;
   return (await db.collection(collection).deleteOne({ _id: new ObjectId(path.slice(prefix.length)) })).deletedCount;
 }
 
