@@ -9,6 +9,7 @@
     "build": "vite build",
     "verify": "node scripts/verify.mjs",
     "verify:vouchers": "node scripts/verify-billing.mjs",
+    "verify:invoices": "node scripts/verify-invoices.mjs",
     "verify:payments": "node scripts/verify-razorpay.mjs",
     "verify:enquiries": "node scripts/verify-unified-enquiries.mjs",
     "verify:notifications": "node scripts/verify-notification-integration.mjs",

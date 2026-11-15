@@ -69,6 +69,7 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     catch (error) { console.error("GST live refresh recovery could not be saved:", error.name); }
   }
   function emitRecord(event) {
+    if (event.type === "invoice-change") return emitInvoiceChange(event);
     if (event.type === "voucher-options-change") return emitVoucherOptionsChange(event);
     if (event.type === "gst-change") return emitGstChange(event);
     if (event.type === "notification-change") return emitNotification({ ...event.event, eventId: event._id });
@@ -80,6 +81,16 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     io.to("enquiries").emit("enquiry:event", { id: event._id, type: event.type, enquiryId: event.enquiryId, name: event.name, source: event.source, at: event.at, publishedAt: event.publishedAt });
   }
   enquiries.onEvent(emit);
+  function emitInvoiceChange(event) {
+    if (!io || !remember(`invoice:${event._id}`)) return;
+    io.to("enquiries").emit("invoices:changed", { action: event.action, invoiceId: event.invoiceId });
+  }
+  async function invoicesChanged(action, id) {
+    const event = { _id: randomUUID(), type: "invoice-change", action, invoiceId: id.toString(), publishedAt: new Date() };
+    emitInvoiceChange(event);
+    try { await db.collection("enquiry_events").insertOne(event); }
+    catch (error) { console.error("Invoice live refresh recovery could not be saved:", error.name); }
+  }
   function emitVoucherOptionsChange(event) {
     if (!io || !remember(`voucher-options:${event._id}`)) return;
     io.to("enquiries").emit("voucher-options:changed", { kind: event.kind, action: event.action, recordId: event.recordId });
@@ -122,7 +133,9 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
       const since = Date.parse(socket.handshake.auth?.since || "");
       if (Number.isFinite(since) && since <= Date.now() && since > Date.now() - 86400000) void db.collection("enquiry_events").find({ publishedAt: { $gte: new Date(since - 5000) } }).sort({ publishedAt: 1 }).limit(5000).toArray().then((events) => {
         for (const event of events) {
-          if (event.type === "voucher-options-change") {
+          if (event.type === "invoice-change") {
+            socket.emit("invoices:changed", { action: event.action, invoiceId: event.invoiceId });
+          } else if (event.type === "voucher-options-change") {
             socket.emit("voucher-options:changed", { kind: event.kind, action: event.action, recordId: event.recordId });
           } else if (event.type === "gst-change") {
             socket.emit("gst:changed", { action: event.action, gstId: event.gstId });
@@ -154,5 +167,5 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     poller.unref?.();
     return io;
   }
-  return { attach, issueTicket, gstChanged, voucherOptionsChanged, async stop() { clearInterval(poller); unsubscribe(); if (io) await new Promise((resolve) => io.close(resolve)); } };
+  return { attach, issueTicket, gstChanged, voucherOptionsChanged, invoicesChanged, async stop() { clearInterval(poller); unsubscribe(); if (io) await new Promise((resolve) => io.close(resolve)); } };
 }

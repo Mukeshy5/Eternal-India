@@ -11,6 +11,7 @@ export async function authenticatePanel({ db, config, token, panel = "admin" }) 
   if (!saved) return { status: 401 };
   const admin = await db.collection("admins").findOne({ _id: new ObjectId(claims.sub) });
   if (!admin || ["pending", "disabled"].includes(admin.status) || admin.passwordChangedAt && saved.createdAt <= admin.passwordChangedAt) return { status: 401 };
-  if (panel === "technical" ? !technicalAccess(admin, config).technical : !adminPanelAccess(admin, config)) return { status: 403 };
+  const allowed = panel === "either" ? adminPanelAccess(admin, config) || technicalAccess(admin, config).technical : panel === "technical" ? technicalAccess(admin, config).technical : adminPanelAccess(admin, config);
+  if (!allowed) return { status: 403 };
   return { admin, claims };
 }

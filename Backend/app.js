@@ -22,6 +22,7 @@ import { canManageAccounts, registerAccounts } from "./lib/accounts.js";
 import { gmailAccountFilter, gmailIdentity } from "./lib/email-identity.js";
 import { registerPaymentRoutes } from "./payments/routes.js";
 import { registerVoucherRoutes } from "./vouchers/routes.js";
+import { registerInvoiceRoutes } from "./invoices/routes.js";
 import { registerLetterRoutes } from "./letters/routes.js";
 import { registerOfficeRoutes } from "./offices/routes.js";
 import { registerGstRoutes } from "./lib/gst.js";
@@ -75,6 +76,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   registerWhatsAppWebhook({ app, whatsapp: enquirySystem.whatsapp });
   app.use(["/api/admin/staff-attendance/bulk", "/api/technical/staff-attendance/bulk"], express.json({ limit: "128kb" }));
   app.use(["/api/admin/vouchers", "/api/technical/vouchers"], express.json({ limit: "64kb" }));
+  app.use(["/api/invoices", "/api/admin/invoices", "/api/technical/invoices"], express.json({ limit: "64kb" }));
   app.use(["/api/admin/letters", "/api/technical/letters"], express.json({ limit: "128kb" }));
   app.use(express.json({ limit: "16kb" }));
 
@@ -214,6 +216,14 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     res.status(204).send();
   });
   registerVoucherRoutes({ management, db, requireAdmin, config });
+  registerInvoiceRoutes({ router: management, db, requireAccount: requireAdmin, realtime: enquirySystem.realtime });
+  const invoiceApi = express.Router();
+  registerInvoiceRoutes({ router: invoiceApi, db, realtime: enquirySystem.realtime, requireAccount: async (req, res, next) => {
+    const result = await authenticatePanel({ db, config, token: req.cookies?.[tokenCookieName], panel: "either" });
+    if (!result.admin) return res.status(result.status).json({ message: result.status === 403 ? "Your role cannot manage invoices." : "Please sign in to continue." });
+    req.admin = result.admin; next();
+  } });
+  app.use("/api", invoiceApi);
   registerEnquiryRoutes({ app, management, db, config, requireAdmin, ...enquirySystem });
   registerAccounts({ app, management, db, requireAdmin, config, sendPasswordReset, notifications: enquirySystem.notifications });
   const festivals = registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions });

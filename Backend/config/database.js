@@ -6,6 +6,7 @@ import { ensureEnquiryModels } from "../enquiries/model.js";
 import { ensureLetterModels } from "../letters/models.js";
 import { ensureOfficeModels } from "../offices/models.js";
 import { ensureGstModels } from "../offices/gst-model.js";
+import { ensureInvoiceModels } from "../invoices/model.js";
 
 const MAX_CONNECT_RETRIES = 5;
 const RETRY_BASE_DELAY_MS = 3000;
@@ -52,6 +53,7 @@ export async function connectDatabase(config) {
         db.collection("enquiries").createIndex({ status: 1, createdAt: -1 }),
       ]);
       await ensureVoucherModels(db);
+      await ensureInvoiceModels(db);
       await ensureOfficeModels(db);
       await ensureGstModels(db);
       await ensureStaffModels(db);

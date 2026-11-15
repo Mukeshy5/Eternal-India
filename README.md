@@ -111,6 +111,8 @@ Both panels support email password recovery. Configure `SMTP_HOST`, `SMTP_PORT`,
 
 **Journey Voucher billing and history** in both panels include backend-reserved five-digit invoices, saved hotel/GST/office selection, CP/MAP/AP meal plans, create/edit/delete, filtered totals, Excel/PDF exports and A4 print preview. **Address Add** manages shared office addresses; **Add GST** manages registration numbers with a single GST Number field. Master changes update open selectors live; issued vouchers retain their saved details. See [Journey billing setup, API and verification](docs/JOURNEY_BILLING.md).
 
+**Billing / Invoice** is available under Operations in both panels, with sequential invoice numbers, client/person/rate billing, server-calculated totals, search/date filters, audit details, shared live updates, and A4 PDF preview/download/print containing the original payment QR and complete bank details. See [Invoice workflow, API and verification](docs/INVOICES.md).
+
 ## Permanent deletion and database maintenance
 
 Deleting staff permanently removes their profile, photo and attendance records. Individual attendance records can be deleted from the calendar details. Deleting an offer removes its `tour_promotions` document and any image no other offer uses. Removing or replacing an offer image also deletes the unused image. `offer_images` contains uploaded image bytes, content type, upload time and uploader identity; it does not contain login passwords.

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 import React from "react";
 import { renderToString } from "react-dom/server";
@@ -81,7 +82,7 @@ try {
     }
     for (const [, src] of html.matchAll(/<img[^>]*src="([^"]+)"/g)) {
       assert.ok(
-        existsSync(resolve(src.startsWith("/src/") ? "." : "public", decodeURIComponent(src.slice(1)).split("?")[0])),
+        existsSync(src.startsWith("file:") ? fileURLToPath(src) : resolve(src.startsWith("/src/") ? "." : "public", decodeURIComponent(src.slice(1)).split("?")[0])),
         `${route}: missing image ${src}`,
       );
     }
