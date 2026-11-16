@@ -23,25 +23,36 @@ export function socketServerUrl() {
 }
 
 export async function api(path, options = {}) {
-  const { timeoutMs = options.method === "DELETE" ? 120000 : 60000, ...requestOptions } = options;
-  let response;
-  try {
-    response = await fetch(apiUrl(path), {
-      ...requestOptions,
-      credentials: "include",
-      headers: { ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...options.headers },
-      signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
-    });
-  } catch (error) {
-    if (options.signal?.aborted) throw error;
-    throw new ApiError("We couldn't connect. Please check your connection and try again.", 0);
+  const { timeoutMs = options.method === "DELETE" ? 300000 : 60000, maxRetries = 3, ...requestOptions } = options;
+  let lastError;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    let response;
+    try {
+      response = await fetch(apiUrl(path), {
+        ...requestOptions,
+        credentials: "include",
+        headers: { ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...options.headers },
+        signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
+      });
+    } catch (error) {
+      if (options.signal?.aborted) throw error;
+      throw new ApiError("We couldn't connect. Please check your connection and try again.", 0);
+    }
+    if (response.status === 204) return null;
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message = data?.message || ({ 401: "Please sign in to continue.", 403: "Your account does not have permission for this action.", 404: "This item could not be found. Refresh the workspace and try again." }[response.status] || "The server is unavailable. Please try again shortly.");
+      // Retry automatically when another storage operation is running; the lock will free shortly.
+      if (response.status === 409 && data?.code === "STORAGE_BUSY" && attempt < maxRetries) {
+        lastError = new ApiError(message, response.status, data?.errors, data || {});
+        const wait = Math.min(Number(data?.retryAfter) * 1000 || 1000, 30000);
+        await new Promise(resolve => setTimeout(resolve, wait));
+        continue;
+      }
+      throw new ApiError(message, response.status, data?.errors, data || {});
+    }
+    if (!data) throw new ApiError("The server returned an unexpected response. Please try again.", response.status);
+    return data;
   }
-  if (response.status === 204) return null;
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    const message = data?.message || ({ 401: "Please sign in to continue.", 403: "Your account does not have permission for this action.", 404: "This item could not be found. Refresh the workspace and try again." }[response.status] || "The server is unavailable. Please try again shortly.");
-    throw new ApiError(message, response.status, data?.errors, data || {});
-  }
-  if (!data) throw new ApiError("The server returned an unexpected response. Please try again.", response.status);
-  return data;
+  throw lastError;
 }

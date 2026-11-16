@@ -82,7 +82,7 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
       let acquired = false, busy;
       try {
         const now = clock();
-        await runtime.updateOne({ _id: "operation", until: { $lte: now } }, { $set: { owner, until: new Date(now.getTime() + 120000) } }, { upsert: true });
+        await runtime.updateOne({ _id: "operation", until: { $lte: now } }, { $set: { owner, until: new Date(now.getTime() + 60000) } }, { upsert: true });
         acquired = true;
         if (!admitWrite && await runtime.findOne({ _id: /^write:/, until: { $gt: clock() } })) busy = fail(409, "A data update is still running. Retry maintenance shortly.");
       } catch (error) {
@@ -99,7 +99,7 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
       await delay(Math.min(100, deadline - Date.now()), undefined, { signal });
     }
     let lost = false, checkedAt = 0;
-    const pulse = setInterval(() => { void runtime.updateOne({ _id: "operation", owner }, { $set: { until: new Date(clock().getTime() + 120000) } }).then(result => { if (!result.matchedCount) lost = true; }).catch(() => { lost = true; }); }, 20000); pulse.unref();
+    const pulse = setInterval(() => { void runtime.updateOne({ _id: "operation", owner }, { $set: { until: new Date(clock().getTime() + 60000) } }).then(result => { if (!result.matchedCount) lost = true; }).catch(() => { lost = true; }); }, 10000); pulse.unref();
     const check = async () => {
       signal?.throwIfAborted();
       if (lost) throw fail(409, "The storage operation lock expired. No further changes were made.");
@@ -116,7 +116,7 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
   function withQueuedLock(action, options = {}) {
     // Separate from write admission: an existing writer may itself need to
     // admit another write before it can finish and release its lease.
-    const operation = maintenanceQueue.then(() => withLock(action, { waitMs: 45000, ...options }));
+    const operation = maintenanceQueue.then(() => withLock(action, { waitMs: 240000, ...options }));
     maintenanceQueue = operation.catch(() => {});
     return operation;
   }
