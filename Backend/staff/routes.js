@@ -10,6 +10,7 @@ import { cardPng, cardSvg, validateStaffPhoto } from "./card.js";
 import { attendancePolicy, indiaDate } from "../../shared/staff.js";
 import { calendarDates, registerStaffCalendar } from "./calendar.js";
 import { publishStaffNotification } from "../staff-portal/notifications.js";
+import { broadcastChanged } from "../staff-portal/livehub.js";
 
 const projection = { photo: 0 };
 const id = (value) => typeof value === "string" && /^[a-f\d]{24}$/i.test(value) ? new ObjectId(value) : null;
@@ -33,7 +34,7 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     const since = new Date();
     res.once("finish", () => {
       if (!["POST", "PATCH", "PUT"].includes(req.method) || res.statusCode >= 300 || !req.path.includes("attendance")) return;
-      void attendance.find({ updatedAt: { $gte: since } }).limit(5000).toArray().then((rows) => Promise.all(rows.map((row) => publishStaffNotification(db, { id: `attendance:${row._id}:${row.version}`, staffId: row.staffId, title: "Attendance updated", message: `${row.date}: ${row.status.replaceAll("_", " ")}`, createdAt: row.updatedAt })))).catch((error) => console.error("Staff attendance notification failed:", error.name));
+      void attendance.find({ updatedAt: { $gte: since } }).limit(5000).toArray().then((rows) => Promise.all(rows.map((row) => { void broadcastChanged(row.staffId.toString()); return publishStaffNotification(db, { id: `attendance:${row._id}:${row.version}`, staffId: row.staffId, title: "Attendance updated", message: `${row.date}: ${row.status.replaceAll("_", " ")}`, createdAt: row.updatedAt }); }))).catch((error) => console.error("Staff attendance notification failed:", error.name));
     }); next();
   });
   const changed = async () => {

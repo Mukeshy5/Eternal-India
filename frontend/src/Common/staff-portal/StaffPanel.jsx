@@ -30,10 +30,11 @@ function Workspace() {
   const navigate = useNavigate(), location = useLocation(), navigation = usePanelNavigation();
   const navigateRef = useRef(navigate); navigateRef.current = navigate;
   const [staff, setStaff] = useState(null), [checking, setChecking] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState("");
-  const [refresh, setRefresh] = useState(0), [connected, setConnected] = useState(false), [unread, setUnread] = useState(0);
+  const [refresh, setRefresh] = useState(0), [connected, setConnected] = useState(false), [unread, setUnread] = useState(0), [toasts, setToasts] = useState([]);
   const path = location.pathname.replace(/\/+$/, ""), section = path === "/staff" ? "enquiries" : path.slice(7);
   const initialPath = useRef(path), lock = useRef(false);
   const unauthorized = useCallback((message) => { setStaff(null); setUnread(0); setNotice(typeof message === "string" ? message : "Your staff session expired or access was disabled. Please sign in again."); navigateRef.current("/staff/login", { replace: true }); }, []);
+  const dismissToast = useCallback((id) => setToasts((current) => current.filter((item) => item.id !== id)), []);
   useEffect(() => {
     const controller = new AbortController();
     api("/staff/me", { signal: controller.signal }).then((result) => {
@@ -63,6 +64,14 @@ function Workspace() {
       source.onerror = () => { if (!disposed) setConnected(false); };
       source.addEventListener("changed", update);
       source.addEventListener("revoked", () => { source.close(); unauthorized(); });
+      source.addEventListener("notification:event", (event) => {
+        if (disposed) return;
+        try {
+          const notification = JSON.parse(event.data);
+          setToasts((current) => [notification, ...current].slice(0, 10));
+          void load();
+        } catch { /* ignore malformed notification events */ }
+      });
     }
     const fallback = window.setInterval(() => { if (!document.hidden) update(); }, 30000);
     window.addEventListener("focus", update); window.addEventListener("online", update);
@@ -87,6 +96,7 @@ function Workspace() {
     <PanelErrorBoundary key={section} onHome={() => go("enquiries")}>
       {section === "enquiries" ? <Enquiries refresh={refresh} onUnauthorized={unauthorized} /> : section === "notifications" ? <Notifications refresh={refresh} onUnauthorized={unauthorized} onChanged={() => setRefresh((value) => value + 1)} onOpen={() => go("enquiries")} /> : ["vouchers", "voucher-history"].includes(section) ? <JourneyBillingWorkspace key={section} apiBase="/staff" initialCreate={section === "vouchers"} onUnauthorized={unauthorized} /> : section === "attendance" ? <Attendance refresh={refresh} onUnauthorized={unauthorized} /> : section === "id-card" ? <IdCard staff={staff} refresh={refresh} onUnauthorized={unauthorized} /> : section === "invoices" ? <Invoices refresh={refresh} onUnauthorized={unauthorized} /> : section === "change-password" ? <PasswordForm onUnauthorized={unauthorized} onChanged={(message) => { setStaff(null); setNotice(message); navigate("/staff/login", { replace: true }); }} /> : <div className="staff-portal staff-surface"><h1>Section not found</h1><button onClick={() => go("enquiries")}>Open my enquiries</button></div>}
     </PanelErrorBoundary>
+    {toasts.length > 0 && <div className="staff-toast-shell" role="status" aria-live="polite" aria-label="New notifications">{toasts.map((item) => <NotificationToast key={item.id} item={item} dismiss={dismissToast} />)}</div>}
   </PanelLayout></div>;
 }
 
@@ -100,6 +110,20 @@ function StaffLogin({ busy, error, notice, onLogin }) {
       </form>
     </div>
   </section>;
+}
+
+function NotificationToast({ item, dismiss }) {
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    if (paused) return;
+    const timer = window.setTimeout(() => dismiss(item.id), 10000);
+    return () => window.clearTimeout(timer);
+  }, [item.id, dismiss, paused]);
+  return <article onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} className="staff-notification-toast">
+    <div><strong>{item.title}</strong><p>{item.message}</p></div>
+    {item.enquiryId && <button type="button" onClick={() => { dismiss(item.id); return false; }}>View enquiries</button>}
+    <button type="button" aria-label={`Dismiss notification: ${item.title}`} onClick={() => dismiss(item.id)}>×</button>
+  </article>;
 }
 
 function useRecords(path, refresh, onUnauthorized) {

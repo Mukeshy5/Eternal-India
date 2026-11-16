@@ -19,6 +19,7 @@ import { cardSvg } from "../staff/card.js";
 import { authenticateStaff, publicStaff, staffActor, staffCookie, staffJwt, staffPasswordValid } from "./auth.js";
 import { ensureStaffPortalModels } from "./models.js";
 import { publishStaffNotification } from "./notifications.js";
+import { registerStaffLiveConnection, unregisterStaffLiveConnection, broadcastChanged } from "./livehub.js";
 
 const objectId = (value) => typeof value === "string" && /^[a-f\d]{24}$/i.test(value) ? new ObjectId(value) : null;
 const usernameOf = (value) => typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -71,6 +72,7 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     catch (error) { if (error.code !== 11000) throw error; throw enquiryError(409, "This employee already has a Staff Login account, or the username is already taken."); }
     await audit(req, "created", record);
     await publishStaffNotification(db, { id: `account:${record._id}`, staffId: employee._id, title: "Welcome to your Staff Panel", message: "Your Technical Panel administrator has activated your staff workspace." });
+    void broadcastChanged(employee._id.toString());
     res.status(201).json({ message: "Staff Login account created. Share the assigned credentials securely.", account: { _id: record._id, staffId: record.staffId, employeeId: record.employeeId, username, status: record.status, version: 1 } });
   });
   management.patch("/staff-accounts/:id", ...technical, async (req, res) => {
@@ -110,6 +112,7 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     if (!invoice) throw enquiryError(404, "Invoice not found.");
     await audit(req, `invoice-${req.body.authorized ? "granted" : "revoked"}:${invoiceId}`, account);
     await publishStaffNotification(db, { id: `invoice:${invoiceId}:${account.staffId}:${invoice.version}`, staffId: account.staffId, title: "Invoice access updated", message: `${invoice.invoiceNumber}: access ${req.body.authorized ? "granted" : "revoked"} by the Technical Panel.` });
+    void broadcastChanged(account.staffId.toString());
     res.json({ message: "Invoice access updated." });
   });
 
@@ -167,6 +170,7 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
   router.patch("/enquiries/:id", requireStaff, async (req, res) => {
     if (Object.keys(req.body || {}).some((key) => !["status", "revision"].includes(key)) || !Number.isInteger(req.body?.revision) || !enquiryStatus(req.body?.status)) throw enquiryError(400, "Choose a status and the current enquiry revision.");
     res.json({ message: "Enquiry updated.", enquiry: await enquiries.update(req.params.id, req.body, { _id: req.staffAccount._id, staffAccountId: req.staffAccount._id.toString() }) });
+    void broadcastChanged(req.staffAccount._id.toString());
   });
   router.get("/attendance", requireStaff, async (req, res) => {
     const range = reportRange(req.query.from || req.query.to || req.query.month ? req.query : { month: indiaDate().slice(0, 7) });
@@ -217,6 +221,7 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     if ((connections.get(key) || 0) >= 5) throw enquiryError(429, "Too many live workspace connections. Close another staff tab.");
     connections.set(key, (connections.get(key) || 0) + 1);
     res.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" }); res.flushHeaders();
+    registerStaffLiveConnection(key, res);
     let closed = false, running = false, previous = "", timer;
     const send = (event, value) => { if (!closed) { res.write(`event: ${event}\ndata: ${JSON.stringify(value)}\n\n`); res.flush?.(); } };
     const tick = async () => {
@@ -235,7 +240,7 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
       } catch { send("retry", { message: "Live updates interrupted. Reconnecting…" }); res.end(); }
       finally { running = false; }
     };
-    res.once("close", () => { closed = true; clearInterval(timer); const count = (connections.get(key) || 1) - 1; if (count) connections.set(key, count); else connections.delete(key); });
+    res.once("close", () => { closed = true; clearInterval(timer); unregisterStaffLiveConnection(key); const count = (connections.get(key) || 1) - 1; if (count) connections.set(key, count); else connections.delete(key); });
     timer = setInterval(() => void tick(), 3000); timer.unref?.(); await tick();
   });
   app.use("/api/staff", router);

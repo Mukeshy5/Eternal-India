@@ -3,6 +3,7 @@ import { ObjectId } from "mongodb";
 import { enquirySection, enquirySources, enquiryStatus } from "../../shared/enquiries.js";
 import { publicEnquiry } from "./model.js";
 import { publishStaffNotification } from "../staff-portal/notifications.js";
+import { broadcastChanged } from "../staff-portal/livehub.js";
 
 export const enquiryError = (status, message, details = {}) => Object.assign(new Error(message), { status, publicMessage: true, details });
 export const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -31,6 +32,7 @@ export function createEnquiryService({ db, notifications }) {
       }
       // Keep the durable retry marker until the notification has also saved.
       if (record.assignedTo?.staffId) await publishStaffNotification(db, { id: `enquiry:${event.id}`, staffId: new ObjectId(record.assignedTo.staffId), title: "Assigned enquiry updated", message: `${record.reference}: ${record.status}`, enquiryId: record._id.toString(), createdAt: event.at });
+      void broadcastChanged(record.assignedTo.staffId);
       await collection.updateOne({ _id: record._id }, { $pull: { pendingEvents: { id: event.id } } });
       notify(saved);
     }
@@ -133,6 +135,7 @@ export function createEnquiryService({ db, notifications }) {
       db.collection("staff_notifications").deleteMany({ enquiryId }),
       ...(deletedRecord.externalMessageId ? [db.collection("enquiry_ingestion_jobs").deleteOne({ _id: `${deletedRecord.source}:${deletedRecord.externalMessageId}` })] : []),
     ]);
+    if (deletedRecord.assignedTo?.staffId) void broadcastChanged(deletedRecord.assignedTo.staffId);
     const saved = await db.collection("enquiry_events").findOneAndUpdate({ _id: event._id }, { $setOnInsert: event }, { upsert: true, returnDocument: "after" });
     notify(saved);
   }
