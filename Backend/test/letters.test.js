@@ -10,7 +10,7 @@ import { connectDatabase } from "../config/database.js";
 import { ensureAdmin } from "../lib/passwords.js";
 import { cookieHeader } from "../lib/cookies.js";
 import { createApp } from "../app.js";
-import { defaultLetterContent, employmentDuration, letterCompany } from "../../shared/employmentLetters.js";
+import { defaultLetterContent, employmentDuration, letterCompany, letterFacts } from "../../shared/employmentLetters.js";
 import { validateLetter } from "../letters/validation.js";
 import { defaultCertificationImageId } from "../../shared/companyCertifications.js";
 
@@ -19,6 +19,12 @@ const input = { type: "joining", company: letterCompany, issueDate: "2026-11-14"
 
 test("letter validation, precise money and inclusive calendar durations", () => {
   assert.ok(defaultLetterContent({ type: "joining", employee: null, company: letterCompany }).includes("[Employee name]"));
+  const joiningContent = defaultLetterContent({ type: "joining", joiningDate: input.joiningDate, employee, company: letterCompany, salaryPaise: 5000050, salaryPeriod: "month" });
+  assert.doesNotMatch(joiningContent, /gross salary|50,000/i);
+  const experienceContent = defaultLetterContent({ type: "experience", joiningDate: input.joiningDate, lastWorkingDate: "2026-10-31", employee, company: letterCompany });
+  assert.doesNotMatch(experienceContent, /employment duration|a period of/i);
+  assert.ok(letterFacts({ ...input, employee, lastWorkingDate: "2026-10-31" }).every(([label]) => label !== "Gross salary" && label !== "Employment duration"));
+  assert.ok(letterFacts({ ...input, type: "experience", employee, lastWorkingDate: "2026-10-31" }).every(([label]) => label !== "Gross salary" && label !== "Employment duration"));
   assert.equal(employmentDuration("2024-01-01", "2024-12-31"), "1 year");
   assert.equal(employmentDuration("2024-02-29", "2025-02-28"), "1 year, 1 day");
   assert.equal(employmentDuration("2026-01-31", "2026-02-27"), "1 month");

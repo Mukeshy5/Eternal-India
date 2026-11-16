@@ -15,6 +15,8 @@ Company defaults reuse the existing company configuration and shared voucher bra
 
 Both letter footers include **Company certification**, a centered image and a separate contact line. In **Company & signatory**, upload the actual company PNG/JPEG/WebP (up to 5 MB and 16 megapixels), then choose **Save company details for future letters** to share the selection between both panels and letter types. Without a custom selection, the backend builds the footer from the five existing company-supplied artworks in `frontend/src/assets/CompanyCertification/`. No placeholder artwork or remote image URL is used.
 
+The live document print layout is A4 portrait with 12 mm margins, and generated PDFs use A4 pages. The standard document wording and summary omit gross salary and employment duration; the editor and saved employment records retain those values.
+
 Uploads are fully decoded, oriented, bounded to 1800 × 420 and normalized to PNG before storage in `employment_letter_images`. An immutable SHA-256 image ID is saved in company defaults and each issued letter snapshot. Authenticated image retrieval returns a PNG data URL, avoiding relative-path, cross-origin cookie and print-time network failures. PDFs embed the image bytes on every A4 page with a reserved footer margin. Keep the image collection and bundled original artwork in deployments/backups. Old PDFs remain intact; to add the new footer to a previously issued PDF, open **Edit letter**, review it and **Save changes & regenerate PDF**. Changing company defaults does not alter issued PDFs or their image snapshots.
 
 ## Storage and permissions

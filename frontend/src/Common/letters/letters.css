@@ -114,3 +114,42 @@
 @media (max-width: 1200px) { .letter-compose { grid-template-columns: minmax(0, 1fr); } .letter-live-preview { max-width: 794px; width: 100%; margin: auto; } .letter-hero { align-items: start; } .letter-hero-actions { flex-shrink: 1; } }
 @media (max-width: 700px) { .letter-workspace { padding: 16px; } .letter-hero { flex-direction: column; padding: 22px; gap: 20px; } .letter-hero-actions { width: 100%; justify-content: start; } .letter-filters { grid-template-columns: 1fr 1fr; padding: 18px; gap: 12px; } .letter-filters > label:first-child { grid-column: 1 / -1; } .letter-card-heading, .letter-history-heading { padding: 18px; } .letter-editor fieldset { padding: 0 18px 18px; } .letter-pdf-overlay { padding: 8px; } .letter-pdf-dialog { height: 96dvh; } .letter-pdf-dialog > header { padding: 16px; } .letter-pdf-dialog .letter-actions { gap: 6px; } .letter-pdf-dialog button, .letter-pdf-dialog a { font-size: 11px; min-height: 38px; padding: 8px 10px; } }
 @media (max-width: 420px) { .letter-form-grid { grid-template-columns: minmax(0, 1fr); } .letter-selected-employee { flex-wrap: wrap; } .letter-paper { padding: 20px; font-size: 11px; } .letter-paper h2 { font-size: 16px; } .letter-facts { padding: 12px; } .letter-editor-actions > button { width: 100%; } .letter-detail-toolbar .letter-actions { width: 100%; } .letter-history-badge { display: none; } }
+
+@page { size: A4 portrait; margin: 12mm; }
+@media print {
+  .letter-workspace { padding: 0 !important; }
+  .letter-workspace > :not(.letter-detail), .letter-detail-toolbar, .letter-pdf-overlay, .letter-footnote { display: none !important; }
+  .letter-detail { display: block !important; }
+  .letter-detail > .letter-paper {
+    display: flex !important;
+    width: 100%;
+    max-width: none;
+    min-height: 273mm;
+    height: auto;
+    aspect-ratio: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    overflow: visible;
+    font-size: 9.5pt;
+    line-height: 1.5;
+    color: #243d4b;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .letter-letterhead { align-items: center; padding-bottom: 12px; }
+  .letter-paper h2 { margin: 18px 0 8px; font-size: 16pt; }
+  .letter-reference { padding-bottom: 10px; }
+  .letter-facts { gap: 8px 16px; margin: 14px 0 18px; padding: 12px; }
+  .letter-body { margin: 12px 0; }
+  .letter-paper h3 { margin: 18px 0 6px; }
+  .letter-signature { margin-top: 22px; break-inside: avoid; }
+  .letter-signature strong { margin-top: 22px; }
+  .letter-acceptance { margin-top: 18px; break-inside: avoid; }
+  .letter-document-footer { margin-top: 16px; padding-top: 8px; }
+  .letter-certification-heading { margin-bottom: 5px; }
+  .letter-certification-image { min-height: 52px; }
+  .letter-certification-image img { height: 58px; }
+  .letter-footer-contact { margin-top: 5px; padding-top: 6px; }
+}

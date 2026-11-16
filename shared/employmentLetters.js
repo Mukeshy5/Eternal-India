@@ -29,10 +29,10 @@ export function employmentDuration(from, to) {
 }
 
 export function defaultLetterContent(letter) {
-  const { type, joiningDate, lastWorkingDate, salaryPaise = 0, salaryPeriod = "month" } = letter;
+  const { type, joiningDate, lastWorkingDate } = letter;
   const employee = letter.employee || {}, company = letter.company || {};
-  if (type === "experience") return `To whom it may concern,\n\nThis is to certify that ${employee.name || "[Employee name]"} (Employee ID: ${employee.employeeId || "[Employee ID]"}) was employed with ${company.name || "[Company name]"} as ${employee.designation || "[Designation]"} in the ${employee.department || "[Department]"} department from ${letterDate(joiningDate)} to ${letterDate(lastWorkingDate)}, a period of ${employmentDuration(joiningDate, lastWorkingDate) || "[Employment duration]"}.\n\nWe thank them for their service and wish them success in their future endeavours.`;
-  return `Dear ${employee.name || "[Employee name]"},\n\nWe are pleased to confirm your appointment as ${employee.designation || "[Designation]"} in the ${employee.department || "[Department]"} department at ${company.name || "[Company name]"}, effective ${letterDate(joiningDate)}. Your employee ID is ${employee.employeeId || "[Employee ID]"}.\n\nYour agreed gross salary is ${letterMoney(salaryPaise)} per ${salaryPeriod}, subject to applicable statutory deductions.\n\nWe welcome you to the team and look forward to working with you.`;
+  if (type === "experience") return `To whom it may concern,\n\nThis is to certify that ${employee.name || "[Employee name]"} (Employee ID: ${employee.employeeId || "[Employee ID]"}) was employed with ${company.name || "[Company name]"} as ${employee.designation || "[Designation]"} in the ${employee.department || "[Department]"} department from ${letterDate(joiningDate)} to ${letterDate(lastWorkingDate)}.\n\nWe thank them for their service and wish them success in their future endeavours.`;
+  return `Dear ${employee.name || "[Employee name]"},\n\nWe are pleased to confirm your appointment as ${employee.designation || "[Designation]"} in the ${employee.department || "[Department]"} department at ${company.name || "[Company name]"}, effective ${letterDate(joiningDate)}. Your employee ID is ${employee.employeeId || "[Employee ID]"}.\n\nWe welcome you to the team and look forward to working with you.`;
 }
 
 export function letterFacts(letter) {
@@ -40,8 +40,6 @@ export function letterFacts(letter) {
     ["Employee name", letter.employee.name], ["Employee ID", letter.employee.employeeId],
     ["Designation", letter.employee.designation], ["Department", letter.employee.department],
     ["Date of joining", letterDate(letter.joiningDate)],
-    ...(letter.type === "joining" ? [["Gross salary", `${letterMoney(letter.salaryPaise)} / ${letter.salaryPeriod}`]] : [
-      ["Last working date", letterDate(letter.lastWorkingDate)], ["Employment duration", employmentDuration(letter.joiningDate, letter.lastWorkingDate)],
-    ]),
+    ...(letter.type === "experience" ? [["Last working date", letterDate(letter.lastWorkingDate)]] : []),
   ];
 }

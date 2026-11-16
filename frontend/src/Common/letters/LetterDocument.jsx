@@ -1,4 +1,4 @@
-import { defaultLetterContent, employmentDuration, letterDate, letterFacts, letterTypes } from "../../../../shared/employmentLetters.js";
+import { defaultLetterContent, letterDate, letterFacts, letterTypes } from "../../../../shared/employmentLetters.js";
 import LetterCertification from "./LetterCertification";
 
 export default function LetterDocument({ letter, apiBase, draft = false }) {
@@ -16,6 +16,5 @@ export default function LetterDocument({ letter, apiBase, draft = false }) {
     {letter.type === "joining" && <p className="letter-acceptance">Employee acceptance<br />Signature: ____________________ &nbsp; Date: ______________</p>}
     </div>
     <footer className="letter-document-footer"><div className="letter-certification-heading">Company certification</div><LetterCertification imageId={letter.company.certificationImageId} apiBase={apiBase} /><div className="letter-footer-contact">{[letter.company.phone, letter.company.website].filter(Boolean).join(" · ")}</div></footer>
-    {letter.type === "experience" && <span className="letter-sr-only">{employmentDuration(letter.joiningDate, letter.lastWorkingDate)}</span>}
   </article>;
 }

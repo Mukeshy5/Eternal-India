@@ -73,6 +73,7 @@ export async function verifyLetters(vite) {
     await act(async () => container.querySelector(".letter-employee-results button").click());
     await waitFor(() => container.querySelector('[name="salary"]').value === "45000.75", "employee salary and joining date dynamically fetched");
     assert.equal(container.querySelector('[name="joiningDate"]').value, "2025-01-01"); assert.ok(container.querySelector(".letter-paper").textContent.includes(person.employeeId));
+    assert.ok(container.querySelector('[name="salary"]')); assert.doesNotMatch(container.querySelector(".letter-paper").textContent, /gross salary|45,000/i);
     await act(async () => { type("terms", "UI agreed terms: 30 days notice."); type("content", "Dear Letter UI Employee,\n\nThis is the edited joining letter body."); });
     await click("Preview PDF");
     await waitFor(() => testWindow.document.querySelector(".letter-pdf-dialog iframe"), "backend draft PDF preview");
@@ -97,7 +98,8 @@ export async function verifyLetters(vite) {
     await waitFor(() => container.querySelector(".letter-employee-results button"), "experience employee selector"); await act(async () => container.querySelector(".letter-employee-results button").click());
     await waitFor(() => container.querySelector(".letter-selected-employee"), "experience employee auto-filled");
     await act(async () => { type("issueDate", "2026-11-14"); type("lastWorkingDate", "2026-10-31"); type("responsibilities", "Guest service and itinerary management."); type("performance", "Professional, dependable performance throughout employment."); });
-    assert.ok(container.querySelector(".letter-paper").textContent.includes("1 year, 10 months")); await submit();
+    assert.ok([...container.querySelectorAll(".letter-editor input[readonly]")].some((field) => field.value === "1 year, 10 months"));
+    assert.doesNotMatch(container.querySelector(".letter-paper").textContent, /employment duration|1 year, 10 months/i); await submit();
     await waitFor(async () => await db.collection("employment_letters").countDocuments() === 2 && !!container.querySelector(".letter-detail"), "experience letter saved");
     const experience = await db.collection("employment_letters").findOne({ type: "experience" }); assert.equal(experience.company.certificationImageId, joining.company.certificationImageId);
     await waitFor(() => container.querySelector(".letter-document-footer img"), "experience certification visible");
