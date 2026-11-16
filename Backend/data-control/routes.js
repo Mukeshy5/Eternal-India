@@ -51,7 +51,7 @@ export function registerDataControl({ app, control, db, config }) {
 
 export function storageWriteGuard(control, { config } = {}) {
   return async (req, res, next) => {
-    if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method) || /^\/(?:technical\/data-control|(?:admin|technical|staff|auth)\/(?:login|logout|me|password|forgot-password|reset-password|socket-ticket))\b/.test(req.path)) return next();
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method) || /^\/(?:technical\/data-control|(?:admin|technical|staff|auth)\/(?:login|logout|me|password|forgot-password|reset-password|socket-ticket)|enquiries)\b/.test(req.path)) return next();
     try {
       const businessDelete = req.method === "DELETE" && /^\/(?:(?:admin|technical)\/)?(?:enquiries|invoices|vouchers|staff(?:-attendance|-calendar)?|hotels|gst|office-addresses|letters|festival-decorations|festivals|festival-schedules|decoration-history|promotions|offer-images)(?:\/|$)/.test(req.path);
       if (businessDelete && config) {

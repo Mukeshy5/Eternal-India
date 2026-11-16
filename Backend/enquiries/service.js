@@ -8,7 +8,7 @@ export const enquiryError = (status, message, details = {}) => Object.assign(new
 export const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 export const notificationPreferences = (account) => ({ popup: account.enquiryNotifications?.popup !== false, sound: account.enquiryNotifications?.sound !== false });
 
-export function createEnquiryService({ db, notifications, storageControl }) {
+export function createEnquiryService({ db, notifications }) {
   const collection = db.collection("enquiries");
   const deletedSubmissions = db.collection("enquiry_deleted_submissions");
   let notify = () => {};
@@ -137,7 +137,7 @@ export function createEnquiryService({ db, notifications, storageControl }) {
     notify(saved);
   }
   async function create(fields, options) {
-    return storageControl ? storageControl.withWrite(() => createUnchecked(fields, options), Math.max(262144, Buffer.byteLength(JSON.stringify(fields)) * 3)) : createUnchecked(fields, options);
+    return createUnchecked(fields, options);
   }
   async function reconcile() { for await (const record of collection.find({ "pendingEvents.0": { $exists: true } }).limit(100)) await flush(record); }
   return { create, update, permanentlyDelete, reconcile, onEvent(callback) { notify = callback; } };
