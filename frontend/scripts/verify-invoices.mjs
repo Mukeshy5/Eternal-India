@@ -44,7 +44,7 @@ try {
   await click("+ Create invoice");
   await act(async () => { input("clientName", "Invoice UI Client"); input("totalPerson", "4"); input("perPersonAmount", "15000"); input("recipientDetails", "Accounts\nNew Delhi"); });
   assert.ok(container.querySelector("output").textContent.includes("60,000.00"));
-  assert.ok(container.querySelector(".invoice-document").textContent.includes("921020029366590")); assert.ok(container.querySelector(".invoice-qr img").src.includes("payment-QR.png"));
+  assert.ok(container.querySelector(".invoice-document").textContent.includes("921020029366590")); assert.ok(container.querySelector(".invoice-qr img").src.includes("payment-QR.png")); assert.doesNotMatch(container.querySelector(".invoice-document").textContent, /For ETERNAL INDIA PVT\. LTD\./);
   await submit(); await waitFor(() => container.querySelector(".invoice-detail") && !container.querySelector(".invoice-detail button").disabled, "invoice saved through UI");
   let saved = await db.collection("billing_invoices").findOne(); assert.equal(saved.totalAmount, 60000); assert.equal(saved.recipientDetails, "Accounts\nNew Delhi");
   await click("Download PDF", container.querySelector(".invoice-detail")); await waitFor(() => downloads.length === 1 && !container.querySelector(".invoice-detail button").disabled, "PDF download"); assert.equal(downloads[0], `Invoice-${saved.invoiceNumber}.pdf`);

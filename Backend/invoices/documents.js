@@ -87,7 +87,6 @@ export async function invoicePdf(invoice) {
       }
       ensure(74);
       const signatureY = doc.y + 12;
-      text(`For ${invoiceCompany}`, right - 225, signatureY, 8, ink, { width: 225, align: "center" });
       rule(signatureY + 42, right - 215, right - 10, gold);
       text("Authorized Signature / Company Stamp", right - 225, signatureY + 48, 7.5, muted, { width: 225, align: "center" });
       const range = doc.bufferedPageRange();

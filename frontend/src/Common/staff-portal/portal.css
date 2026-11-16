@@ -54,5 +54,201 @@
 .staff-password-form button { justify-self: start; }
 .staff-message { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; }
 .staff-invoice-preview { overflow: auto; margin-top: 20px; }
-.staff-login .admin-login-story { background: #edf5ef; color: #294c3d; }
+.staff-login {
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse at 12% 18%, #dcece4 0, transparent 34%),
+    radial-gradient(ellipse at 88% 82%, #e8e4f2 0, transparent 32%),
+    #f6f8fb;
+}
+.staff-login .admin-header {
+  min-height: 84px;
+  background: #ffffffd9;
+  border-bottom-color: #e4e9ef;
+  backdrop-filter: blur(12px);
+}
+.staff-login .admin-header > a:last-child {
+  margin-left: auto;
+  color: #385e50;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.staff-login .admin-login-layout {
+  grid-template-columns: minmax(0, 1.08fr) minmax(400px, .92fr);
+  width: min(1120px, calc(100% - 48px));
+  max-width: 1120px;
+  min-height: 560px;
+  margin: clamp(32px, 7vh, 72px) auto;
+  border-color: #dce7e1;
+  border-radius: 24px;
+  box-shadow: 0 28px 80px #173a2917;
+  background: #fff;
+}
+.staff-login .admin-login-story {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: clamp(34px, 5vw, 64px);
+  background: linear-gradient(145deg, #173b34, #205d4b 57%, #294b50);
+  color: #f7fbf8;
+}
+.staff-login .admin-login-story::before,
+.staff-login .admin-login-story::after {
+  position: absolute;
+  z-index: -1;
+  content: "";
+  pointer-events: none;
+}
+.staff-login .admin-login-story::before {
+  width: 340px;
+  height: 340px;
+  top: -150px;
+  right: -120px;
+  border: 1px solid #ffffff24;
+  border-radius: 50%;
+  box-shadow: 0 0 0 34px #ffffff08, 0 0 0 72px #ffffff06;
+}
+.staff-login .admin-login-story::after {
+  width: 260px;
+  height: 260px;
+  right: -110px;
+  bottom: -155px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #9dd5b42a, transparent 68%);
+}
+.staff-login .admin-login-story .admin-eyebrow {
+  width: fit-content;
+  padding: 8px 11px;
+  border: 1px solid #ffffff2a;
+  border-radius: 999px;
+  color: #d6ebde;
+  font-size: 10px;
+  letter-spacing: .14em;
+}
+.staff-login .admin-login-story h1 {
+  margin: 30px 0 0;
+  color: #fff;
+  font-size: clamp(40px, 4vw, 58px);
+  line-height: 1.12;
+  letter-spacing: -.055em;
+}
+.staff-login .admin-login-story h1 em { color: #b7dfc8; }
+.staff-login .admin-login-story > p {
+  max-width: 390px;
+  margin-top: 22px;
+  color: #d0e0d9;
+  font-size: 15px;
+  line-height: 1.8;
+}
+.staff-login .admin-story-foot {
+  color: #d0e0d9;
+  font-size: 12px;
+}
+.staff-login .admin-story-foot::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8bd1a3;
+  box-shadow: 0 0 0 4px #8bd1a326;
+  content: "";
+}
+.staff-login .admin-login-form {
+  justify-content: center;
+  padding: clamp(32px, 5vw, 62px);
+}
+.staff-login .admin-login-form > .admin-eyebrow {
+  color: #39705c;
+}
+.staff-login .admin-login-form h2 {
+  margin-top: 12px;
+  font-size: clamp(27px, 3vw, 34px);
+  letter-spacing: -.04em;
+}
+.staff-login .admin-login-form > p:not(.admin-error, .staff-error, .staff-success) {
+  margin: 12px 0 28px;
+  color: #68786f;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.staff-login .admin-login-form fieldset {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+.staff-login .admin-login-form label {
+  margin-bottom: 8px;
+  color: #354d43;
+  font-size: 12px;
+}
+.staff-login .admin-login-form input {
+  min-height: 49px;
+  margin-bottom: 20px;
+  border-color: #d9e3dd;
+  border-radius: 9px;
+  background: #fbfdfb;
+  font-size: 14px;
+}
+.staff-login .admin-login-form input:focus-visible {
+  outline: 3px solid #a8cbb7;
+  outline-offset: 2px;
+  border-color: #75a68a;
+}
+.staff-login .admin-login-form .admin-password-field { margin-bottom: 8px; }
+.staff-login .admin-login-form .admin-password-field input { padding-right: 68px; }
+.staff-login .admin-login-form .admin-password-field button {
+  color: #47715e;
+  font-weight: 600;
+}
+.staff-login .admin-login-button {
+  min-height: 50px;
+  margin-top: 8px;
+  border: 1px solid #28644d;
+  border-radius: 9px;
+  background: #28644d;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color .16s, transform .16s;
+}
+.staff-login .admin-login-button:hover:not(:disabled) {
+  background: #1d513d;
+  transform: translateY(-1px);
+}
+.staff-login .admin-login-button:focus-visible {
+  outline: 3px solid #a8cbb7;
+  outline-offset: 3px;
+}
+.staff-login .admin-login-button:disabled { opacity: .6; cursor: wait; }
+.staff-login .admin-login-note {
+  margin-top: 20px;
+  color: #6d7c73;
+  font-size: 11px;
+  line-height: 1.7;
+}
+@media(max-width: 760px) {
+  .staff-login .admin-login-layout {
+    grid-template-columns: 1fr;
+    width: min(540px, calc(100% - 32px));
+    min-height: 0;
+    margin: 26px auto 38px;
+  }
+  .staff-login .admin-login-story { min-height: 300px; padding: 32px; }
+  .staff-login .admin-login-story h1 { margin-top: 23px; font-size: 42px; }
+  .staff-login .admin-login-story > p { margin-top: 15px; }
+  .staff-login .admin-story-foot { padding-top: 25px; }
+  .staff-login .admin-login-form { padding: 32px; }
+}
+@media(max-width: 420px) {
+  .staff-login .admin-header { min-height: 72px; padding-inline: 16px; }
+  .staff-login .admin-header img { width: 135px; }
+  .staff-login .admin-login-layout { width: calc(100% - 24px); margin: 16px auto 28px; border-radius: 18px; }
+  .staff-login .admin-login-story, .staff-login .admin-login-form { padding: 24px; }
+  .staff-login .admin-login-story { min-height: 270px; }
+  .staff-login .admin-login-story h1 { font-size: 36px; }
+}
 @media(max-width: 640px) { .staff-fields { align-items: stretch; }.staff-fields label { flex-basis: 100%; max-width: none; }.staff-card-view { grid-template-columns: 1fr; }.staff-card-view img { max-width: 230px; }.staff-session-strip { font-size: 11px; }.staff-notification-button { font-size: 10px; padding: 7px; }.staff-pagination { justify-content: center; } }

@@ -12,7 +12,7 @@ export default function InvoiceTemplate({ invoice }) {
     <div className="invoice-total"><span>Total amount</span><strong>{invoiceMoney(invoice.totalAmount)}</strong></div>
     <section className="invoice-payment"><div className="invoice-qr"><img src={paymentQr} alt="Original Eternal India payment QR code" /><strong>SCAN &amp; PAY</strong></div><div className="invoice-bank"><h3>BANK ACCOUNT DETAILS</h3><dl>{Object.entries(bankLabels).map(([key, label]) => <div key={key}><dt>{label}:</dt><dd>{bank[key]}</dd></div>)}</dl></div></section>
     {invoice.notes && <section className="invoice-notes"><h3>Notes</h3><ol>{invoice.notes.split("\n").filter(Boolean).map((note, index) => <li key={index}>{note}</li>)}</ol></section>}
-    <div className="invoice-signature"><span>For {invoiceCompany}</span><div aria-label="Company stamp and signature space" /><small>Authorized Signature / Company Stamp</small></div>
+    <div className="invoice-signature"><div aria-label="Company stamp and signature space" /><small>Authorized Signature / Company Stamp</small></div>
     <footer><strong>{invoiceCompany}</strong><span>Thank you for choosing Eternal India!</span></footer>
   </article>;
 }
