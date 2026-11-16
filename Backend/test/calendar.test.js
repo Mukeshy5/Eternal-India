@@ -74,7 +74,9 @@ test("calendar, weekly offs, live events, permissions and 500+ staff against Mon
       const day = await (await request("/technical/staff-attendance?date=2026-02-01")).json(); assert.equal(day.staff.length, 50); assert.equal(day.stats.weekly_off, 500); assert.equal(day.pages, 11);
     });
     await t.test("pushes a MongoDB revision to the other panel after attendance changes", async () => {
-      const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 12000);
+      // Includes stream authorization and two database writes; leave room for
+      // contention when the full integration suite shares the database server.
+      const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 30000);
       let reader;
       try {
         const stream = await request("/technical/staff-events", { signal: controller.signal }); assert.equal(stream.status, 200); reader = stream.body.getReader();

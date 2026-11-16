@@ -14,7 +14,7 @@ export async function verifyAdminInteractions(server, technical = false) {
   }
   const originalFetch = globalThis.fetch;
   const calls = [];
-  let signedIn = false, backendAvailable = true;
+  let signedIn = false, backendAvailable = true, enquiryDeleted = false, deleteFailure = false;
   const accounts = [];
   let gstRates = [];
   let vouchers = [{ _id: "000000000000000000000002", invoiceNumber: "10001", voucherDate: "2026-11-01", guestName: "History Guest", hotelId: "000000000000000000000012", gstId: "000000000000000000000013", hotel: { name: "Test Hotel", address: "Test address", amount: 2000 }, gst: { name: "Company GST", gstNumber: "07ABCDE1234F1Z5", rate: 18 }, pricing: { basePaise: 200000, gstPaise: 36000, totalPaise: 236000, gstRate: 18 }, checkInDate: "2026-12-01", checkOutDate: "2026-12-03", arrivalDate: "2026-12-01", arrivalPlace: "Delhi", departureDate: "2026-12-03", departurePlace: "Jaipur", requirement: "Saved requirement", status: "confirmed", revision: 1 }];
@@ -37,7 +37,7 @@ export async function verifyAdminInteractions(server, technical = false) {
     }
     if (url === `/api${basePath}/forgot-password`) return response({ message: "Password reset link sent." });
     if (url === `/api${basePath}/reset-password`) return response({ message: "Password updated." });
-    if (url === `/api${basePath}/me`) return response({ message: "Please sign in." }, 401);
+    if (url === `/api${basePath}/session`) return response({ admin: null });
     if (url === `/api${basePath}/logout`) { signedIn = false; return response(null, 204); }
     if (!signedIn) return response({ message: "Please sign in." }, 401);
     if (url === `/api${basePath}/accounts`) {
@@ -73,9 +73,13 @@ export async function verifyAdminInteractions(server, technical = false) {
     if (url === `/api${basePath}/enquiry-notification-settings`) return response({ popup: true, sound: false, unread: 1 });
     if (url === `/api${basePath}/enquiry-summary`) return response({ unread: 1 });
     if (url === `/api${basePath}/enquiry-assignees`) return response({ assignees: [] });
+    if (url === `/api${basePath}/enquiries/${entry._id}/permanent` && options.method === "DELETE") {
+      if (deleteFailure) return response({ message: "Enquiry delete failed. Please retry." }, 500);
+      enquiryDeleted = true; return response(null, 204);
+    }
     if (url === `/api${basePath}/enquiries/${entry._id}` && !options.method) return response({ enquiry: entry });
     if (options.method === "PATCH") { entry.status = JSON.parse(options.body).status; return response({ message: "Updated" }); }
-    if (url.startsWith(`/api${basePath}/enquiries?`)) return response({ enquiries: [entry], total: 1, page: 1, pages: 1, stats: { total: 1, new: entry.status === "NEW" ? 1 : 0, contacted: entry.status === "IN_PROGRESS" ? 1 : 0, closed: 0 } });
+    if (url.startsWith(`/api${basePath}/enquiries?`)) return response({ enquiries: enquiryDeleted ? [] : [entry], total: enquiryDeleted ? 0 : 1, page: 1, pages: 1, stats: { total: enquiryDeleted ? 0 : 1, new: entry.status === "NEW" ? 1 : 0, contacted: entry.status === "IN_PROGRESS" ? 1 : 0, closed: 0 } });
     throw new Error(`Unexpected API request: ${url}`);
   };
   const { createRoot } = await import("react-dom/client");
@@ -211,6 +215,21 @@ export async function verifyAdminInteractions(server, technical = false) {
     testWindow.confirm = () => true;
     await act(async () => [...container.querySelectorAll(".billing-table button")].find((button) => button.textContent === "Delete").click());
     await waitFor(() => container.textContent.includes("0 saved vouchers"));
+    await act(async () => [...container.querySelectorAll(".dashboard-status-navigation button")].find((button) => button.textContent === "All enquiries").click());
+    await waitFor(() => container.querySelector(".enquiry-delete"));
+    let confirmation = "";
+    testWindow.confirm = (message) => { confirmation = message; return false; };
+    await act(async () => container.querySelector(".enquiry-delete").click());
+    assert.ok(confirmation.includes(entry.name) && confirmation.includes(entry.reference));
+    assert.equal(calls.some((call) => call.url.endsWith("/permanent")), false, "cancelled deletion never calls the backend");
+    testWindow.confirm = () => true; deleteFailure = true;
+    await act(async () => container.querySelector(".enquiry-delete").click());
+    await waitFor(() => container.querySelector('.dashboard-error[role="alert"]')?.textContent.includes("Enquiry delete failed"));
+    assert.equal(container.querySelectorAll(".dashboard-table tbody tr").length, 1, "failed deletion keeps the enquiry");
+    deleteFailure = false;
+    await act(async () => container.querySelector(".enquiry-delete").click());
+    await waitFor(() => container.querySelector('.dashboard-feedback[role="status"]')?.textContent.includes("Enquiry deleted successfully"));
+    assert.equal(container.querySelectorAll(".dashboard-table tbody tr").length, 0);
     await act(async () => container.querySelector(".dashboard-sign-out-button").click());
     assert.ok(container.querySelector(".admin-login-form"));
     assert.equal(container.querySelector(".dashboard-table"), null, "logout removes guest information from the screen");

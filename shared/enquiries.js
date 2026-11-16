@@ -2,6 +2,14 @@ export const enquirySources = { WEBSITE: "Direct Website", WHATSAPP: "WhatsApp",
 export const enquiryStatusLabels = { NEW: "New / Unread", PENDING: "Pending", IN_PROGRESS: "In Progress", FOLLOW_UP: "Follow-up", RESOLVED: "Completed", CANCELLED: "Cancelled", CLOSED: "Closed" };
 export const enquirySorts = { newest: "Newest first", oldest: "Oldest first", status: "Status", updated: "Recently updated" };
 export const enquiryKinds = { DIRECT: "Direct enquiry", WHATSAPP_LINK: "WhatsApp enquiry", EMAIL: "Email enquiry", CONTACT: "Contact enquiry", PLAN_TRIP: "Plan your trip" };
+// Keep the ingestion source intact for provider deduplication. The inbox section
+// also accounts for website forms handed off to WhatsApp or the email app.
+export function enquirySection(entry) {
+  if (entry.source === "WHATSAPP" || entry.source === "GMAIL") return entry.source;
+  if (entry.contactChannel === "whatsapp") return "WHATSAPP";
+  if (entry.contactChannel === "email") return "GMAIL";
+  return "WEBSITE";
+}
 export function enquiryKind(entry) {
   if (entry.source === "WHATSAPP" || entry.source === "GMAIL") return entry.source;
   if (entry.contactChannel === "whatsapp") return "WHATSAPP_LINK";

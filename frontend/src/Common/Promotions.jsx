@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, useEffect, useRef, useState } from "react";
+import { createContext, memo, useContext, useEffect, useState } from "react";
 import { api } from "./api";
 import { formatAmount } from "./promotionFormatting";
 import "./Promotions.css";
@@ -7,20 +7,20 @@ const PromotionsContext = createContext({});
 
 export function PromotionsProvider({ enabled = true, children }) {
   const [promotions, setPromotions] = useState({});
-  const lastRefresh = useRef(0);
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
+    const refreshState = { lastRefresh: 0 };
     const refresh = async () => {
-      if (Date.now() - lastRefresh.current < 10000) return;
-      lastRefresh.current = Date.now();
+      if (Date.now() - refreshState.lastRefresh < 10000) return;
+      refreshState.lastRefresh = Date.now();
       try {
         const result = await api("/promotions", { signal: controller.signal });
         if (!controller.signal.aborted) setPromotions(Object.fromEntries(result.promotions.map((promotion) => [promotion.targetId, promotion])));
       } catch { /* Travel content remains available when the API is temporarily offline. */ }
     };
     void refresh();
-    const timer = window.setInterval(refresh, 60000);
+    const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 60000);
     window.addEventListener("focus", refresh);
     return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, [enabled]);

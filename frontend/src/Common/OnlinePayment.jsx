@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Eyebrow, Icon } from "./SiteUI";
 import { bankDetails, QR_DISPLAY_MS, qrSecondsRemaining, formatQrTime } from "./payments";
-import bankTransferImage from "../assets/paymentpng/banktrasfer.png";
+const bankTransferImage = "/images/site/bank-transfer.webp";
 import generateQrAnimation from "../assets/paymentpng/Generate QR.gif";
 import paymentQrImage from "../assets/paymentpng/payment-QR.png";
 import "./PaymentPage.css";

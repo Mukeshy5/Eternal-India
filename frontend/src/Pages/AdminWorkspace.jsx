@@ -19,6 +19,7 @@ import useEnquiryNotifications from "../Common/useEnquiryNotifications";
 import EnquiryNotifications from "../Common/EnquiryNotifications";
 import NotificationCenter from "../Common/NotificationCenter";
 import StorageOverview from "../Common/data-control/StorageOverview";
+import "../Common/panel/PanelTheme.css";
 
 const FestivalManagement = lazy(() => import("../Common/festivals/FestivalManagement"));
 const StaffWorkspace = lazy(() => import("../Common/staff/StaffWorkspace"));
@@ -38,7 +39,7 @@ function Workspace({ technical }) {
   const route = useRef(""); route.current = location.pathname + location.search;
   const initial = useRef({ path: route.current, from: location.state?.from });
   const [admin, setAdmin] = useState(null), [checking, setChecking] = useState(true);
-  const [busy, setBusy] = useState(false), [updating, setUpdating] = useState(""), [error, setError] = useState("");
+  const [busy, setBusy] = useState(false), [updating, setUpdating] = useState(""), [error, setError] = useState(""), [success, setSuccess] = useState("");
   const [response, setResponse] = useState(null), [loading, setLoading] = useState(false), [lastUpdated, setLastUpdated] = useState(null);
   const [searchInput, setSearchInput] = useState(""), [refresh, setRefresh] = useState(0), [selectedId, setSelectedId] = useState("");
   const actionLock = useRef(false), actionController = useRef(null), alive = useRef(true);
@@ -70,9 +71,14 @@ function Workspace({ technical }) {
   }, [basePath, clearAccount]);
   useEffect(() => {
     const controller = new AbortController();
-    api(`${basePath}/me`, { signal: controller.signal }).then(({ admin: account }) => {
+    api(`${basePath}/session`, { signal: controller.signal }).then(({ admin: account, code, message }) => {
       if (controller.signal.aborted) return;
       setAdmin(account);
+      if (!account) {
+        if (code === "PANEL_ACCESS_DENIED") setError(message);
+        if (!["register", "forgot-password", "reset-password"].includes(panelSection(initial.current.path.split("?")[0], basePath))) navigateRef.current(`${basePath}/login`, { replace: true, state: { from: safePanelDestination(initial.current.path, basePath) } });
+        return;
+      }
       if (panelSection(initial.current.path.split("?")[0], basePath) === "login") navigateRef.current(safePanelDestination(initial.current.from, basePath), { replace: true });
     }).catch((failure) => {
       if (controller.signal.aborted) return;
@@ -86,6 +92,7 @@ function Workspace({ technical }) {
   }, [technical, section, basePath, navigate]);
 
   function enquiryQuery(patch, replace = false) {
+    setError(""); setSuccess("");
     const next = { search, status, source, kind, from, to, page, archived, sort, ...patch }, query = new URLSearchParams();
     for (const key of ["kind", "from", "to"]) if (next[key]) query.set(key, next[key]);
     if (next.sort !== "newest") query.set("sort", next.sort);
@@ -102,7 +109,11 @@ function Workspace({ technical }) {
     }).catch((failure) => { if (!controller.signal.aborted) { setError(failure.message); if (failure.status === 401) handleUnauthorized(); } }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [admin, section, queryKey, refresh, page, search, status, source, kind, from, to, archived, sort, basePath, navigate, handleUnauthorized]);
-  const notifications = useEnquiryNotifications({ admin, apiBase: basePath, onRefresh: () => setRefresh((value) => value + 1), onUnauthorized: handleUnauthorized });
+  const notifications = useEnquiryNotifications({ admin, apiBase: basePath, onRefresh: () => setRefresh((value) => value + 1), onDeleted: (id) => {
+    setSelectedId((current) => current === id ? "" : current);
+    setDetail((current) => current?._id === id ? null : current);
+    setResponse((current) => current ? { ...current, data: { ...current.data, enquiries: current.data.enquiries.filter((entry) => entry._id !== id) } } : current);
+  }, onUnauthorized: handleUnauthorized });
   useEffect(() => {
     if (!admin || !selectedId) return;
     const controller = new AbortController();
@@ -110,11 +121,11 @@ function Workspace({ technical }) {
     api(`${basePath}/enquiry-assignees`, { signal: controller.signal }).then((result) => { if (!controller.signal.aborted) setAssignees(result.assignees); }).catch((failure) => { if (!controller.signal.aborted) { setError(failure.message); if (failure.status === 401) handleUnauthorized(); } });
     return () => controller.abort();
   }, [admin, selectedId, refresh, basePath, handleUnauthorized]);
-  function openEnquiry(id) { if (!navigation.confirmNavigation()) return; setSelectedId(id); setDetail(null); if (section !== "enquiries") navigate(basePath); }
+  function openEnquiry(id) { if (!navigation.confirmNavigation()) return false; setSelectedId(id); setDetail(null); if (section !== "enquiries") navigate(basePath); return true; }
   async function perform(action, onSuccess, updatingId = "") {
     if (actionLock.current) return; actionLock.current = true;
     const controller = new AbortController(); actionController.current = controller;
-    if (updatingId) setUpdating(updatingId); else setBusy(true); setError("");
+    if (updatingId) setUpdating(updatingId); else setBusy(true); setError(""); setSuccess("");
     try { const result = await action(controller.signal); if (alive.current && !controller.signal.aborted) onSuccess(result); }
     catch (failure) { if (alive.current && !controller.signal.aborted) { setError(Object.values(failure.errors || {}).join(" ") || failure.message); if (failure.status === 401 && admin) handleUnauthorized(); } }
     finally { actionLock.current = false; if (alive.current) { setBusy(false); setUpdating(""); } }
@@ -143,8 +154,13 @@ function Workspace({ technical }) {
     }, id);
   }
   function permanentlyDeleteEnquiry(id) {
-    if (actionLock.current || !window.confirm("Permanently delete this enquiry and its message? This cannot be undone.")) return;
-    void perform((signal) => api(`${basePath}/enquiries/${id}/permanent`, { method: "DELETE", signal }), () => { setSelectedId(""); setRefresh((value) => value + 1); }, id);
+    const entry = data.enquiries.find((item) => item._id === id) || detail;
+    if (actionLock.current || !window.confirm(`Permanently delete the enquiry${entry ? ` from ${entry.name} (${entry.reference})` : ""} and its message? This cannot be undone.`)) return;
+    void perform((signal) => api(`${basePath}/enquiries/${id}/permanent`, { method: "DELETE", signal }), () => {
+      setSelectedId(""); setDetail(null); setSuccess("Enquiry deleted successfully.");
+      setResponse((current) => current ? { ...current, data: { ...current.data, enquiries: current.data.enquiries.filter((item) => item._id !== id), total: Math.max(0, current.data.total - 1) } } : current);
+      setRefresh((value) => value + 1);
+    }, id);
   }
   const toolError = useCallback((message) => setError(message), []);
   const sectionInfo = panelSections[section];
@@ -158,7 +174,7 @@ function Workspace({ technical }) {
       {!forbidden && technical && section === "enquiries" && <StorageOverview compact onUnauthorized={handleUnauthorized} />}
       {!forbidden && technical && section === "data-control" && <DataControl onUnauthorized={handleUnauthorized} />}
       {!forbidden && section === "invoices" && <InvoiceDashboard apiBase={basePath} onUnauthorized={handleUnauthorized} />}
-      {forbidden ? <section className="panel-failure"><h1>Access restricted</h1><p>Your account does not have permission to open this section.</p><button className="dashboard-button" onClick={() => go("enquiries")}>Back to enquiries</button></section> : section === "notifications" ? <NotificationCenter notifications={notifications} onOpenEnquiry={openEnquiry} /> : section === "payments" ? <PaymentManagement onUnauthorized={handleUnauthorized} /> : section === "accounts" ? <AccountManager apiBase={basePath} admin={admin} onUnauthorized={handleUnauthorized} /> : section === "office-addresses" ? <OfficeAddressManager apiBase={basePath} onUnauthorized={handleUnauthorized} /> : section === "gst" ? <GstManager apiBase={basePath} onUnauthorized={handleUnauthorized} /> : section === "security" && technical ? <TechnicalSecurity apiBase={basePath} admin={admin} onUnauthorized={handleUnauthorized} onPasswordChanged={passwordChanged} /> : section === "voucher-history" ? <VoucherHistory apiBase={basePath} onUnauthorized={handleUnauthorized} /> : ["joining-letters", "experience-letters"].includes(section) ? <LetterWorkspace key={section} type={section === "joining-letters" ? "joining" : "experience"} apiBase={basePath} admin={admin} onUnauthorized={handleUnauthorized} /> : section === "staff-accounts" ? <StaffAccountManager onUnauthorized={handleUnauthorized} /> : section.startsWith("staff") ? <StaffWorkspace key={section} apiBase={basePath} technical={technical} admin={admin} section={section} onSection={go} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} onLogout={logout} /> : section === "festivals" ? <FestivalManagement admin={admin} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} onLogout={logout} /> : section === "promotions" ? <PromotionManager apiBase={basePath} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} /> : ["hotels", "vouchers"].includes(section) ? <AdminTools key={section} apiBase={basePath} technical={technical} tool={section} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} onError={toolError} error={error} /> : ["invoices", "data-control"].includes(section) ? null : section !== "enquiries" ? <section className="panel-failure"><h1>Section not found</h1><p>Choose a section from the workspace navigation.</p><button className="dashboard-button" onClick={() => go("enquiries")}>Back to enquiries</button></section> : <AdminDashboard kind={kind} from={from} to={to} onKind={(value) => enquiryQuery({ kind: value, source: "", page: 1 })} onDateRange={(patch) => enquiryQuery({ ...patch, page: 1 })} sort={sort} onSort={(value) => enquiryQuery({ sort: value, page: 1 })} archived={archived} onToggleArchived={(value) => enquiryQuery({ archived: value, page: 1 })} source={source} onSource={(value) => enquiryQuery({ source: value, kind: "", page: 1 })} apiBase={basePath} onUnauthorized={handleUnauthorized} assignees={assignees} onAssign={(id, assignedTo) => { void perform((signal) => api(`${basePath}/enquiries/${id}`, { method: "PATCH", body: JSON.stringify({ assignedTo }), signal }), () => setRefresh((value) => value + 1), id); }} technical={technical} admin={admin} data={data} loaded={loaded} loading={loading} updating={updating} error={error} searchInput={searchInput} search={search} status={status} page={page} lastUpdated={lastUpdated} selected={selected} onSearchInput={(value) => { setSearchInput(value); if (!value && search) enquiryQuery({ search: "", page: 1 }); }} onSearch={(event) => { event.preventDefault(); enquiryQuery({ search: searchInput.trim(), page: 1 }); }} onStatusFilter={(value) => enquiryQuery({ status: value, page: 1 })} onSelectStatus={(value) => enquiryQuery({ status: value, search: "", page: 1 })} onClearFilters={() => enquiryQuery({ status: "", search: "", source: "", kind: "", from: "", to: "", page: 1 })} onPage={(value) => enquiryQuery({ page: value })} onOpen={openEnquiry} onClose={() => setSelectedId("")} onUpdate={updateStatus} onArchive={archiveEnquiry} onPermanentDelete={permanentlyDeleteEnquiry} onRefresh={() => { setError(""); setRefresh((value) => value + 1); }} onLogout={logout} onTool={go} />}
+      {forbidden ? <section className="panel-failure"><h1>Access restricted</h1><p>Your account does not have permission to open this section.</p><button className="dashboard-button" onClick={() => go("enquiries")}>Back to enquiries</button></section> : section === "notifications" ? <NotificationCenter notifications={notifications} onOpenEnquiry={openEnquiry} /> : section === "payments" ? <PaymentManagement onUnauthorized={handleUnauthorized} /> : section === "accounts" ? <AccountManager apiBase={basePath} admin={admin} onUnauthorized={handleUnauthorized} /> : section === "office-addresses" ? <OfficeAddressManager apiBase={basePath} onUnauthorized={handleUnauthorized} /> : section === "gst" ? <GstManager apiBase={basePath} onUnauthorized={handleUnauthorized} /> : section === "security" && technical ? <TechnicalSecurity apiBase={basePath} admin={admin} onUnauthorized={handleUnauthorized} onPasswordChanged={passwordChanged} /> : section === "voucher-history" ? <VoucherHistory apiBase={basePath} onUnauthorized={handleUnauthorized} /> : ["joining-letters", "experience-letters"].includes(section) ? <LetterWorkspace key={section} type={section === "joining-letters" ? "joining" : "experience"} apiBase={basePath} admin={admin} onUnauthorized={handleUnauthorized} /> : section === "staff-accounts" ? <StaffAccountManager onUnauthorized={handleUnauthorized} /> : section.startsWith("staff") ? <StaffWorkspace key={section} apiBase={basePath} technical={technical} admin={admin} section={section} onSection={go} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} onLogout={logout} /> : section === "festivals" ? <FestivalManagement admin={admin} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} onLogout={logout} /> : section === "promotions" ? <PromotionManager apiBase={basePath} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} /> : ["hotels", "vouchers"].includes(section) ? <AdminTools key={section} apiBase={basePath} technical={technical} tool={section} onBack={() => go("enquiries")} onUnauthorized={handleUnauthorized} onError={toolError} error={error} /> : ["invoices", "data-control"].includes(section) ? null : section !== "enquiries" ? <section className="panel-failure"><h1>Section not found</h1><p>Choose a section from the workspace navigation.</p><button className="dashboard-button" onClick={() => go("enquiries")}>Back to enquiries</button></section> : <AdminDashboard success={success} kind={kind} from={from} to={to} onKind={(value) => enquiryQuery({ kind: value, source: "", page: 1 })} onDateRange={(patch) => enquiryQuery({ ...patch, page: 1 })} sort={sort} onSort={(value) => enquiryQuery({ sort: value, page: 1 })} archived={archived} onToggleArchived={(value) => enquiryQuery({ archived: value, page: 1 })} source={source} onSource={(value) => enquiryQuery({ source: value, kind: "", page: 1 })} apiBase={basePath} onUnauthorized={handleUnauthorized} assignees={assignees} onAssign={(id, assignedTo) => { void perform((signal) => api(`${basePath}/enquiries/${id}`, { method: "PATCH", body: JSON.stringify({ assignedTo }), signal }), () => setRefresh((value) => value + 1), id); }} technical={technical} admin={admin} data={data} loaded={loaded} loading={loading} updating={updating} error={error} searchInput={searchInput} search={search} status={status} page={page} lastUpdated={lastUpdated} selected={selected} onSearchInput={(value) => { setSearchInput(value); if (!value && search) enquiryQuery({ search: "", page: 1 }); }} onSearch={(event) => { event.preventDefault(); enquiryQuery({ search: searchInput.trim(), page: 1 }); }} onStatusFilter={(value) => enquiryQuery({ status: value, page: 1 })} onSelectStatus={(value) => enquiryQuery({ status: value, search: "", page: 1 })} onClearFilters={() => enquiryQuery({ status: "", search: "", source: "", kind: "", from: "", to: "", page: 1 })} onPage={(value) => enquiryQuery({ page: value })} onOpen={openEnquiry} onClose={() => setSelectedId("")} onUpdate={updateStatus} onArchive={archiveEnquiry} onPermanentDelete={permanentlyDeleteEnquiry} onRefresh={() => { setError(""); setRefresh((value) => value + 1); }} onLogout={logout} onTool={go} />}
     </Suspense></PanelErrorBoundary>
   </PanelLayout></div>;
 }

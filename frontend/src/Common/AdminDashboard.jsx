@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import "./AdminDashboard.css";
-import { enquirySources, enquiryStatus, enquiryStatusLabels, enquirySorts, enquiryKinds, enquiryKind } from "../../../shared/enquiries.js";
+import { enquirySources, enquiryStatus, enquiryStatusLabels, enquirySorts, enquiryKinds, enquiryKind, enquirySection } from "../../../shared/enquiries.js";
 import EnquiryIntegrations from "./EnquiryIntegrations";
 import "./UnifiedEnquiries.css";
 
@@ -35,6 +35,7 @@ export function DashboardIcon({ name = "inbox", size = 20, className = "" }) {
     right: <path d="m10 6 6 6-6 6" />,
     down: <path d="m8 10 4 4 4-4" />,
     close: <path d="m6 6 12 12M6 18 18 6" />,
+    trash: <><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" /></>,
     search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,
     refresh: <><path d="M20 8a8 8 0 1 0 0 8M20 3v5h-5" /></>,
     globe: <><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><path d="M3 12h18" /></>,
@@ -52,10 +53,8 @@ export function DashboardIcon({ name = "inbox", size = 20, className = "" }) {
 const sourceIcons = { WEBSITE: "globe", WHATSAPP: "chat", GMAIL: "mail" };
 const statusIcons = { NEW: "spark", PENDING: "clock", IN_PROGRESS: "chat", FOLLOW_UP: "calendar", RESOLVED: "check", CANCELLED: "cancel", CLOSED: "archive" };
 function SourceBadge({ entry }) {
-  const kind = enquiryKind(entry);
-  const icon = { DIRECT: "globe", WHATSAPP_LINK: "chat", EMAIL: "mail", CONTACT: "phone", PLAN_TRIP: "pin" }[kind] || sourceIcons[kind];
-  const style = { DIRECT: "website", WHATSAPP_LINK: "whatsapp", EMAIL: "email", CONTACT: "contact", PLAN_TRIP: "plan" }[kind] || kind.toLowerCase();
-  return <span className={`enquiry-source-badge enquiry-source-${style}`}><DashboardIcon name={icon} size={13} />{enquiryKinds[kind] || enquirySources[kind]}</span>;
+  const section = enquirySection(entry), kind = enquiryKind(entry);
+  return <span className={`enquiry-source-badge enquiry-source-${section.toLowerCase()}`} title={enquiryKinds[kind] || enquirySources[section]}><DashboardIcon name={sourceIcons[section]} size={13} />{enquirySources[section]}</span>;
 }
 
 function StatusSelect({ entry, prefix = "status", updating, loading, onChange }) {
@@ -111,8 +110,8 @@ function EnquiryDrawer({ entry, onClose, onUpdate, onArchive, onPermanentDelete,
   </dialog>;
 }
 
-export default function AdminDashboard({ technical = false, data, loaded, loading, updating, error, searchInput, search, status, page, lastUpdated, selected, onSearchInput, onSearch, onStatusFilter, onSelectStatus, onClearFilters, onPage, onOpen, onClose, onUpdate, onArchive, onPermanentDelete, onRefresh, source = "", onSource, kind = "", onKind, from = "", to = "", onDateRange, sort = "newest", onSort, archived = false, onToggleArchived, onAssign, assignees, apiBase, onUnauthorized }) {
-  const viewButton = (entry) => <button className="dashboard-view dashboard-icon-button" type="button" aria-label={`View enquiry from ${entry.name}`} aria-haspopup="dialog" aria-controls="enquiry-details" onClick={() => onOpen(entry._id)}><DashboardIcon name="right" size={17} /></button>;
+export default function AdminDashboard({ technical = false, data, loaded, loading, updating, error, success, searchInput, search, status, page, lastUpdated, selected, onSearchInput, onSearch, onStatusFilter, onSelectStatus, onClearFilters, onPage, onOpen, onClose, onUpdate, onArchive, onPermanentDelete, onRefresh, source = "", onSource, kind = "", onKind, from = "", to = "", onDateRange, sort = "newest", onSort, archived = false, onToggleArchived, onAssign, assignees, apiBase, onUnauthorized }) {
+  const viewButton = (entry) => <div className="enquiry-row-actions"><button className="dashboard-view dashboard-icon-button" type="button" aria-label={`View enquiry from ${entry.name}`} aria-haspopup="dialog" aria-controls="enquiry-details" onClick={() => onOpen(entry._id)}><DashboardIcon name="right" size={17} /></button><button className="dashboard-button dashboard-button-danger enquiry-delete" type="button" aria-label={`Delete enquiry from ${entry.name}`} disabled={loading || Boolean(updating)} onClick={() => onPermanentDelete(entry._id)}><DashboardIcon name="trash" size={16} />{updating === entry._id ? "Please wait…" : "Delete"}</button></div>;
   const stats = data.stats;
   const count = (key) => loaded ? number(stats[key]) : "—";
   return <div className="dashboard-layout">
@@ -128,10 +127,11 @@ export default function AdminDashboard({ technical = false, data, loaded, loadin
             <label className="enquiry-category-filter">Category<select aria-label="Enquiry category" value={kind} onChange={(event) => onKind?.(event.target.value)}><option value="">All categories</option>{Object.entries(enquiryKinds).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
             <label>From<input type="date" value={from} max={to || undefined} onChange={(event) => onDateRange?.({ from: event.target.value })} /></label>
             <label>To<input type="date" value={to} min={from || undefined} onChange={(event) => onDateRange?.({ to: event.target.value })} /></label>
-            <span>Received date ? IST</span>
+            <span>Received date · IST</span>
           </div>
           {(status || search || source || kind || from || to) && <div className="dashboard-active-filters"><span>Showing{status ? ` ${adminStatuses[status].toLowerCase()}` : " all"} enquiries{search ? ` matching “${search}”` : ""}</span><button type="button" onClick={onClearFilters}>Clear filters<DashboardIcon name="close" size={13} /></button></div>}
           {error && !selected && <p className="admin-error dashboard-error" role="alert">{error}</p>}
+          {success && <p className="admin-success dashboard-feedback" role="status">{success}</p>}
           <div className="dashboard-desktop-list" aria-busy={loading}><table className="dashboard-table"><caption className="admin-sr-only">Shared enquiries from Website, WhatsApp and Gmail</caption><thead><tr><th scope="col">Guest</th><th scope="col">Subject & message</th><th scope="col">Received</th><th scope="col">Status</th><th scope="col"><span className="admin-sr-only">View enquiry</span></th></tr></thead><tbody>{data.enquiries.map((entry) => <tr key={entry._id} className={enquiryStatus(entry.status) === "NEW" ? "enquiry-is-new" : undefined}><th scope="row"><div className="dashboard-guest"><GuestAvatar name={entry.name} /><div><strong>{entry.name}</strong>{entry.email && <a href={`mailto:${entry.email}`}>{entry.email}</a>}<span className="dashboard-reference">{entry.reference}</span><SourceBadge entry={entry} /></div></div></th><td><div className="dashboard-destination"><DashboardIcon name="pin" size={15} /><strong>{entry.subject || entry.destination || "Enquiry"}</strong></div><p className="enquiry-message-preview">{entry.message}</p><span className="dashboard-trip-meta">{entry.phone || "Phone not provided"}{entry.travellers ? ` \u00b7 ${entry.travellers} travellers` : ""}{entry.date ? ` \u00b7 ${dateLabel(`${entry.date}T12:00:00+05:30`)}` : ""}</span></td><td><span className="dashboard-received-date">{dateLabel(entry.receivedAt || entry.createdAt)}</span><span className="dashboard-received-time">{dateLabel(entry.receivedAt || entry.createdAt, true)} IST</span></td><td><StatusSelect entry={entry} updating={updating} loading={loading} onChange={onUpdate} /></td><td>{viewButton(entry)}</td></tr>)}</tbody></table></div>
           <div className="dashboard-mobile-list" aria-busy={loading}>{data.enquiries.map((entry) => <article key={entry._id} className={`dashboard-mobile-card${enquiryStatus(entry.status) === "NEW" ? " enquiry-is-new" : ""}`}><div className="dashboard-mobile-card-top"><GuestAvatar name={entry.name} /><div><h3>{entry.name}</h3>{entry.email && <a href={`mailto:${entry.email}`}>{entry.email}</a>}</div>{viewButton(entry)}</div><div className="dashboard-mobile-trip"><SourceBadge entry={entry} /><strong><DashboardIcon name="pin" size={16} />{entry.subject || entry.destination || "Enquiry"}</strong><p className="enquiry-message-preview">{entry.message}</p><span>{entry.phone || "Phone not provided"}{entry.travellers ? ` \u00b7 ${entry.travellers} travellers` : ""}{entry.date ? ` \u00b7 ${dateLabel(`${entry.date}T12:00:00+05:30`)}` : ""}</span></div><div className="dashboard-mobile-card-bottom"><div><span className="dashboard-reference">{entry.reference}</span><span>{dateLabel(entry.receivedAt || entry.createdAt)}</span></div><StatusSelect entry={entry} prefix="mobile-status" updating={updating} loading={loading} onChange={onUpdate} /></div></article>)}</div>
           {!data.enquiries.length && <div className="dashboard-empty" role={loading ? "status" : undefined}><span className={`dashboard-empty-icon${loading ? " dashboard-loading-icon" : ""}`}><DashboardIcon name={loading ? "refresh" : "inbox"} size={28} className={loading ? "dashboard-spin" : ""} /></span><h3>{loading ? "Bringing your enquiries together…" : error ? "Enquiries couldn't be loaded." : status || search || source || kind || from || to ? "No matching enquiries." : "A new journey is on its way."}</h3><p>{loading ? "Your latest guest requests will be here in a moment." : error ? "Try refreshing your inbox to reconnect." : status || search || source || kind || from || to ? "Try a different search or clear your filters." : "Incoming website, WhatsApp Business and Gmail enquiries appear here."}</p>{!loading && (error ? <button className="dashboard-button" type="button" onClick={onRefresh}>Try again<DashboardIcon name="refresh" size={16} /></button> : status || search || source || kind || from || to ? <button className="dashboard-button" type="button" onClick={onClearFilters}>Clear filters</button> : <Link className="dashboard-button" to="/request-quote">View enquiry form<DashboardIcon name="diagonal" size={16} /></Link>)}</div>}

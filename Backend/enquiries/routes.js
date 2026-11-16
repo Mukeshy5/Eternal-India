@@ -6,6 +6,7 @@ import { validateEnquiry } from "../lib/validation.js";
 import { canManageAccounts } from "../lib/accounts.js";
 import { publicEnquiry } from "./model.js";
 import { enquiryError, notificationPreferences, sha256 } from "./service.js";
+import { enquirySectionExpression, enquirySectionFilter } from "./filters.js";
 
 export function registerWhatsAppWebhook({ app, whatsapp }) {
   const webhookLimit = rateLimit({ windowMs: 60000, limit: 300, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Too many WhatsApp webhook requests. Please retry shortly." } });
@@ -59,10 +60,13 @@ export function registerEnquiryRoutes({ app, management, db, config, requireAdmi
     const sortOrder = sort === "oldest" ? { receivedAt: 1, _id: 1 } : sort === "updated" ? { updatedAt: -1, _id: -1 } : sort === "status" ? { statusOrder: 1, receivedAt: -1, _id: -1 } : { receivedAt: -1, _id: -1 };
     const filter = { archivedAt: archived ? { $exists: true } : { $exists: false } }, page = Math.max(1, Math.min(100000, Number.parseInt(req.query.page, 10) || 1)), limit = 20;
     if (req.query.status) { const status = enquiryStatus(req.query.status); if (!status) throw enquiryError(400, "Choose a valid enquiry status."); filter.status = status; }
-    if (req.query.source) { if (!Object.hasOwn(enquirySources, req.query.source)) throw enquiryError(400, "Choose a valid enquiry source."); filter.source = req.query.source; }
+    if (req.query.source) {
+      if (typeof req.query.source !== "string" || !Object.hasOwn(enquirySources, req.query.source)) throw enquiryError(400, "Choose a valid enquiry source.");
+      filter.$and = [enquirySectionFilter(req.query.source)];
+    }
     if (req.query.kind) {
       if (typeof req.query.kind !== "string" || !Object.hasOwn(enquiryKinds, req.query.kind)) throw enquiryError(400, "Choose a valid enquiry category.");
-      filter.$and = [{ source: "WEBSITE" }];
+      (filter.$and ||= []).push({ source: "WEBSITE" });
       if (req.query.kind === "EMAIL" || req.query.kind === "WHATSAPP_LINK") filter.contactChannel = req.query.kind === "EMAIL" ? "email" : "whatsapp";
       else {
         filter.contactChannel = { $nin: ["email", "whatsapp"] };
@@ -82,14 +86,17 @@ export function registerEnquiryRoutes({ app, management, db, config, requireAdmi
     if (req.query.from && req.query.to && req.query.from > req.query.to) throw enquiryError(400, "The start date must be before the end date.");
     const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 120) : "";
     if (search) { const pattern = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); filter.$or = ["name", "email", "phone", "subject", "message", "destination", "reference", "externalMessageId"].map((key) => ({ [key]: { $regex: pattern, $options: "i" } })); }
-    const collection = db.collection("enquiries"), visible = { archivedAt: { $exists: false } };
-    const [entries, total, groups, sources, archivedCount] = await Promise.all([
+    const collection = db.collection("enquiries");
+    const [entries, total, groups] = await Promise.all([
       collection.aggregate([{ $match: filter }, ...(sort === "status" ? [{ $set: { statusOrder: { $indexOfArray: [Object.keys(enquiryStatusLabels), "$status"] } } }] : []), { $sort: sortOrder }, { $skip: (page - 1) * limit }, { $limit: limit }, { $set: { messageTruncated: { $gt: [{ $strLenCP: { $ifNull: ["$message", ""] } }, 2000] }, message: { $substrCP: [{ $ifNull: ["$message", ""] }, 0, 2000] } } }, { $project: { statusOrder: 0, originalPayload: 0, pendingEvents: 0, submissionId: 0, submissionHash: 0 } }]).toArray(),
-      collection.countDocuments(filter), collection.aggregate([{ $match: visible }, { $group: { _id: "$status", count: { $sum: 1 } } }]).toArray(), collection.aggregate([{ $match: visible }, { $group: { _id: "$source", count: { $sum: 1 } } }]).toArray(), collection.countDocuments({ archivedAt: { $exists: true } }),
+      collection.countDocuments(filter), collection.aggregate([{ $group: { _id: { status: "$status", section: enquirySectionExpression, archived: { $ne: [{ $type: "$archivedAt" }, "missing"] } }, count: { $sum: 1 } } }]).toArray(),
     ]);
-    const stats = { total: 0, archived: archivedCount, ...Object.fromEntries(Object.keys(enquiryStatusLabels).map((key) => [key, 0])), sources: { WEBSITE: 0, WHATSAPP: 0, GMAIL: 0 } };
-    for (const group of groups) { stats[group._id] = group.count; stats.total += group.count; }
-    for (const group of sources) stats.sources[group._id] = group.count;
+    const stats = { total: 0, archived: 0, ...Object.fromEntries(Object.keys(enquiryStatusLabels).map((key) => [key, 0])), sources: { WEBSITE: 0, WHATSAPP: 0, GMAIL: 0 } };
+    for (const { _id: group, count } of groups) {
+      if (group.archived) stats.archived += count;
+      else { stats[group.status] = (stats[group.status] || 0) + count; stats.total += count; }
+      if (group.archived === archived) stats.sources[group.section] += count;
+    }
     Object.assign(stats, { new: stats.NEW, pending: stats.IN_PROGRESS + stats.PENDING, contacted: stats.IN_PROGRESS, confirmed: stats.RESOLVED, closed: stats.CLOSED, cancelled: stats.CANCELLED });
     res.json({ enquiries: entries.map(publicEnquiry), total, page, pages: Math.max(1, Math.ceil(total / limit)), stats });
   });

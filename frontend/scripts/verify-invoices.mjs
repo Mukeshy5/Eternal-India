@@ -15,7 +15,7 @@ const config = { ...readConfig(), databaseName: `eternal_india_test_${randomUUID
 const { client, db } = await connectDatabase(config); await ensureAdmin(db, config);
 const backend = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await backend.decorationsReady;
 const server = backend.app.listen(0, "127.0.0.1"); await once(server, "listening"); const origin = `http://127.0.0.1:${server.address().port}`;
-const io = backend.enquirySystem.realtime.attach(server), vite = await createServer({ server: { middlewareMode: true, hmr: false, watch: null }, appType: "custom" });
+const io = backend.enquirySystem.realtime.attach(server), vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false, watch: null }, appType: "custom" });
 const win = new Window({ url: `${origin}/admin/invoices` }), previous = new Map(), nativeFetch = globalThis.fetch;
 const createURL = URL.createObjectURL, revokeURL = URL.revokeObjectURL; let cookie = "", confirms = 0, invoiceEvents = 0; const downloads = [];
 for (const [key, value] of Object.entries({ window: win, document: win.document, navigator: win.navigator, HTMLElement: win.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) { previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value }); }

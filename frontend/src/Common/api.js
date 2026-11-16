@@ -23,7 +23,7 @@ export function socketServerUrl() {
 }
 
 export async function api(path, options = {}) {
-  const { timeoutMs = 60000, ...requestOptions } = options;
+  const { timeoutMs = options.method === "DELETE" ? 120000 : 60000, ...requestOptions } = options;
   let response;
   try {
     response = await fetch(apiUrl(path), {

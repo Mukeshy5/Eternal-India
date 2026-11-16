@@ -7,7 +7,7 @@ import { voucherOptionsChanged } from "./voucherClient";
 const initialPreferences = { popup: true, sound: true };
 const maxNotifications = 20;
 
-export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onUnauthorized, socketFactory = io }) {
+export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onDeleted, onUnauthorized, socketFactory = io }) {
   const adminId = admin?.id || admin?._id;
   const [items, setItems] = useState([]), [unread, setUnread] = useState(0);
   const [preferences, setPreferences] = useState(initialPreferences), [toasts, setToasts] = useState([]);
@@ -15,8 +15,8 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onU
   const [error, setError] = useState(""), [connectionNotice, setConnectionNotice] = useState("");
   const [soundReady, setSoundReady] = useState(false), [soundNotice, setSoundNotice] = useState(""), [savingPreferences, setSavingPreferences] = useState(false);
   const runtime = useRef(null), itemsRef = useRef([]), preferencesRef = useRef(initialPreferences);
-  const callbacks = useRef({ onRefresh, onUnauthorized });
-  useEffect(() => { callbacks.current = { onRefresh, onUnauthorized }; }, [onRefresh, onUnauthorized]);
+  const callbacks = useRef({ onRefresh, onDeleted, onUnauthorized });
+  useEffect(() => { callbacks.current = { onRefresh, onDeleted, onUnauthorized }; }, [onRefresh, onDeleted, onUnauthorized]);
   const updateItems = useCallback((update) => {
     const next = typeof update === "function" ? update(itemsRef.current) : update;
     itemsRef.current = next; setItems(next);
@@ -24,6 +24,7 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onU
   const updatePreferences = useCallback((next) => {
     preferencesRef.current = next; setPreferences(next);
     if (!next.sound) runtime.current?.audio.stop();
+    if (!next.popup) setToasts([]);
   }, []);
   const failure = useCallback((err) => {
     if (err.name === "AbortError") return;
@@ -47,19 +48,20 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onU
     } catch (err) { if (runtime.current === current) failure(err); }
     finally { current.loadingMore = false; if (runtime.current === current) setLoading(false); }
   }, [request, failure, updateItems]);
-  const mutate = useCallback(async (path, method) => {
+  const mutate = useCallback(async (path, method, onSaved) => {
     const current = runtime.current;
     if (!current) return;
     try {
       await request(path, { method });
       if (runtime.current !== current) return;
+      onSaved?.();
       await current.refresh(); setError("");
     } catch (err) { if (runtime.current === current) failure(err); }
   }, [request, failure]);
   const markRead = useCallback((id) => { dismiss(id); return mutate(`/notifications/${encodeURIComponent(id)}/read`, "PATCH"); }, [mutate, dismiss]);
-  const markAllRead = useCallback(() => mutate("/notifications/read-all", "PATCH"), [mutate]);
+  const markAllRead = useCallback(() => mutate("/notifications/read-all", "PATCH", () => setToasts([])), [mutate]);
   const remove = useCallback((id) => { dismiss(id); return mutate(`/notifications/${encodeURIComponent(id)}`, "DELETE"); }, [mutate, dismiss]);
-  const clearAll = useCallback(() => mutate("/notifications", "DELETE"), [mutate]);
+  const clearAll = useCallback(() => mutate("/notifications", "DELETE", () => setToasts([])), [mutate]);
   const unlockSound = useCallback(() => runtime.current?.audio.unlock(), []);
   const savePreference = useCallback(async (key, value) => {
     const current = runtime.current;
@@ -112,6 +114,10 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onU
       })().finally(() => { current.refreshing = null; });
       return current.refreshing;
     };
+    const scheduleRefresh = () => {
+      window.clearTimeout(current.notificationRefresh);
+      current.notificationRefresh = window.setTimeout(() => { if (active()) void current.refresh().catch(report); }, 120);
+    };
     const socket = socketFactory(socketServerUrl(), {
       autoConnect: false, path: "/api/enquiries/socket.io",
       auth: (done) => { void call("/socket-ticket", { method: "POST", body: "{}" }).then(({ ticket }) => {
@@ -124,11 +130,16 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onU
       current.revision++;
       if (event.action === "settings") { updatePreferences(event.preferences); return; }
       if (event.action === "created" && event.notification?.id) {
-        const item = { ...event.notification, read: Boolean(event.notification.read || event.actorId === adminId) };
+        const existing = itemsRef.current.find((entry) => entry.id === event.notification.id);
+        const item = { ...event.notification, read: Boolean(event.notification.read || event.actorId === adminId || existing?.read) };
         if (current.liveSeen.has(item.id)) return;
-        current.liveSeen.add(item.id);
+        // A recovery snapshot can overtake a fresh socket event on reconnect.
+        // Replays update history without consuming that event's one live alert.
+        if (!event.replay) current.liveSeen.add(item.id);
+        if (current.liveSeen.size > 5000) current.liveSeen.delete(current.liveSeen.values().next().value);
+        const known = Boolean(existing);
         updateItems((items) => [item, ...items.filter((entry) => entry.id !== item.id)].slice(0, maxNotifications));
-        if (!item.read) setUnread((count) => count + 1);
+        if (!item.read && !known) setUnread((count) => count + 1);
         // Initial loads and recovered history never produce audio or popups.
         if (!event.replay && !item.read && current.settingsLoaded && (event.fresh === true || Date.parse(item.createdAt) >= current.startedAt)) {
           if (preferencesRef.current.sound) void current.audio.play(item.id, () => active() && preferencesRef.current.sound && itemsRef.current.some((entry) => entry.id === item.id && !entry.read));
@@ -145,7 +156,7 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onU
         updateItems((items) => event.action === "cleared" ? items.filter((item) => !affected(item)) : items.map((item) => affected(item) ? { ...item, read: true } : item));
         setToasts((items) => items.filter((item) => !affected(item)));
       }
-      void current.refresh().catch(report);
+      scheduleRefresh();
     };
     const onConnect = () => { if (active()) { current.retries = 0; window.clearTimeout(current.retry); setConnected(true); setConnectionNotice(""); voucherOptionsChanged(); window.dispatchEvent(new window.Event("invoices-changed")); void current.refresh().catch(report); if (!current.settingsLoaded) void current.loadSettings().catch(report); } };
     const reconnect = () => {
@@ -155,7 +166,21 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onU
     };
     const onError = (err) => { if (active()) { setConnectionNotice(err.message || "Live connection interrupted. Reconnecting…"); reconnect(); } };
     const onDisconnect = () => { if (active()) reconnect(); };
-    const refreshData = () => { if (active()) { callbacks.current.onRefresh?.(); void current.refresh().catch(report); if (!current.settingsLoaded) void current.loadSettings().catch(report); } };
+    const refreshData = (event) => {
+      if (!active()) return;
+      if (event?.type === "deleted" && event.enquiryId) {
+        current.revision++;
+        updateItems((items) => items.filter((item) => item.enquiryId !== event.enquiryId));
+        setToasts((items) => items.filter((item) => item.enquiryId !== event.enquiryId));
+        callbacks.current.onDeleted?.(event.enquiryId);
+      }
+      // One enquiry can produce multiple live events during ingestion/recovery.
+      // Keep the inbox current without restarting its request for every event.
+      window.clearTimeout(current.dataRefresh);
+      current.dataRefresh = window.setTimeout(() => { if (active()) callbacks.current.onRefresh?.(); }, 120);
+      scheduleRefresh();
+      if (!current.settingsLoaded) void current.loadSettings().catch(report);
+    };
     const onOnline = () => { if (!socket.connected) socket.connect(); refreshData(); };
     const onInvoicesChanged = (event) => { if (active()) window.dispatchEvent(new window.CustomEvent("invoices-changed", { detail: event })); };
     const onGstChanged = () => { if (active()) voucherOptionsChanged(); };
@@ -166,7 +191,7 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onU
     return () => {
       current.controller.abort(); runtime.current = null;
       document.removeEventListener("pointerdown", prime); document.removeEventListener("keydown", prime); document.removeEventListener("touchend", prime);
-      window.removeEventListener("online", onOnline); window.removeEventListener("focus", refreshData); window.clearInterval(interval); window.clearTimeout(current.retry);
+      window.removeEventListener("online", onOnline); window.removeEventListener("focus", refreshData); window.clearInterval(interval); window.clearTimeout(current.retry); window.clearTimeout(current.dataRefresh); window.clearTimeout(current.notificationRefresh);
       socket.off("connect", onConnect); socket.off("connect_error", onError); socket.off("disconnect", onDisconnect); socket.off("enquiry:event", refreshData); socket.off("notification:event", receive); socket.off("gst:changed", onGstChanged); socket.off("voucher-options:changed", onGstChanged); socket.off("invoices:changed", onInvoicesChanged); socket.disconnect(); current.audio.dispose();
     };
   }, [adminId, apiBase, socketFactory, dismiss, failure, updateItems, updatePreferences]);

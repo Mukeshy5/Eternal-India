@@ -7,6 +7,7 @@ import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { createGzip, createGunzip } from "node:zlib";
 import { createInterface } from "node:readline";
+import { setTimeout as delay } from "node:timers/promises";
 import { BSON } from "mongodb";
 import { catalog, businessCollections, assetCollections, CAPACITY, DAY, fail, ejson, parse, bytesOf, sectionFor, buildFilter, storageStatus, publicRecord } from "./catalog.js";
 
@@ -48,6 +49,8 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
   if (new Set([backupRoot, uploadRoot, tempRoot]).size !== 3) throw new Error("Backup, upload and temporary directories must be separate.");
   const backups = db.collection("data_control_backups"), runtime = db.collection("data_control_runtime");
   let timer, ticking = false, stopped = false, tickPromise;
+  let writeAdmission = Promise.resolve();
+  let maintenanceQueue = Promise.resolve();
   const audit = (actor, action, details = {}) => db.collection("data_control_audit").insertOne({ actor: String(actor?._id || actor || "scheduler"), action, ...details, at: clock() });
   async function initialize() {
     await Promise.all([mkdir(backupRoot, { recursive: true }), mkdir(uploadRoot, { recursive: true }), mkdir(tempRoot, { recursive: true })]);
@@ -69,23 +72,53 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
     }
     await runtime.createIndex({ until: 1 }, { expireAfterSeconds: 0 });
   }
-  async function withLock(action, { admitWrite = false } = {}) {
-    const owner = randomUUID(), now = clock();
-    try { await runtime.updateOne({ _id: "operation", until: { $lte: now } }, { $set: { owner, until: new Date(now.getTime() + 120000) } }, { upsert: true }); }
-    catch (error) { if (error.code === 11000) throw fail(409, "Another storage operation is running. Try again when it finishes."); throw error; }
+  async function withLock(action, { admitWrite = false, waitMs = 0, signal } = {}) {
+    const owner = randomUUID(), deadline = Date.now() + waitMs;
+    const release = () => runtime.updateOne({ _id: "operation", owner }, { $set: { until: new Date(0) } });
+    // Retry admission only. A backup or business validation failure must never
+    // rerun the action or create another backup.
+    for (;;) {
+      signal?.throwIfAborted();
+      let acquired = false, busy;
+      try {
+        const now = clock();
+        await runtime.updateOne({ _id: "operation", until: { $lte: now } }, { $set: { owner, until: new Date(now.getTime() + 120000) } }, { upsert: true });
+        acquired = true;
+        if (!admitWrite && await runtime.findOne({ _id: /^write:/, until: { $gt: clock() } })) busy = fail(409, "A data update is still running. Retry maintenance shortly.");
+      } catch (error) {
+        if (acquired) await release();
+        if (error.code !== 11000) throw error;
+        busy = fail(409, "Another storage operation is running. Try again when it finishes.");
+      }
+      if (!busy) break;
+      if (acquired) await release();
+      if (Date.now() >= deadline) {
+        busy.details = { code: "STORAGE_BUSY", retryAfter: 1 };
+        throw busy;
+      }
+      await delay(Math.min(100, deadline - Date.now()), undefined, { signal });
+    }
     let lost = false, checkedAt = 0;
     const pulse = setInterval(() => { void runtime.updateOne({ _id: "operation", owner }, { $set: { until: new Date(clock().getTime() + 120000) } }).then(result => { if (!result.matchedCount) lost = true; }).catch(() => { lost = true; }); }, 20000); pulse.unref();
     const check = async () => {
+      signal?.throwIfAborted();
       if (lost) throw fail(409, "The storage operation lock expired. No further changes were made.");
       if (Date.now() - checkedAt < 5000) return;
       if (!await runtime.findOne({ _id: "operation", owner, until: { $gt: clock() } })) throw fail(409, "The storage operation lock expired. No further changes were made.");
       checkedAt = Date.now();
     };
     try {
-      if (!admitWrite && await runtime.findOne({ _id: /^write:/, until: { $gt: clock() } })) throw fail(409, "A data update is still running. Retry maintenance shortly.");
+      signal?.throwIfAborted();
       return await action(check);
     }
-    finally { clearInterval(pulse); await runtime.updateOne({ _id: "operation", owner }, { $set: { until: new Date(0) } }); }
+    finally { clearInterval(pulse); await release(); }
+  }
+  function withQueuedLock(action, options = {}) {
+    // Separate from write admission: an existing writer may itself need to
+    // admit another write before it can finish and release its lease.
+    const operation = maintenanceQueue.then(() => withLock(action, { waitMs: 45000, ...options }));
+    maintenanceQueue = operation.catch(() => {});
+    return operation;
   }
   async function overview({ snapshot = false } = {}) {
     const [stats, uploadFiles, tempFiles, backupFiles, embedded] = await Promise.all([
@@ -355,12 +388,18 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
     }); } catch (error) { if (error.status !== 409) { await db.collection("data_control_settings").updateOne({ _id: "policy" }, { $set: { lastError: error.publicMessage ? error.message : "Scheduled operation failed. Review backup history.", nextBackupAt: new Date(clock().getTime() + 3600000) } }).catch(() => {}); console.error("Data control scheduled operation failed:", error.name); } }
     finally { ticking = false; }
   }
-  async function reserveWrite(bytes) {
-    return withLock(async () => {
+  function reserveWrite(bytes) {
+    // Queue admissions from this instance before taking the distributed lock.
+    // Otherwise bursts exhaust their retries competing with one another while
+    // each accepted request measures storage. Actual business writes still run
+    // concurrently and maintenance/other instances retain the same DB lock.
+    const admission = writeAdmission.then(() => withLock(async () => {
       const pending = (await runtime.aggregate([{ $match: { _id: /^write:/, until: { $gt: clock() } } }, { $group: { _id: null, bytes: { $sum: "$bytes" } } }]).toArray())[0]?.bytes || 0;
       await assertSpace(pending + bytes); const id = `write:${randomUUID()}`;
       await runtime.insertOne({ _id: id, bytes, until: new Date(clock().getTime() + 120000) }); return id;
-    }, { admitWrite: true });
+    }, { admitWrite: true }));
+    writeAdmission = admission.catch(() => {});
+    return admission;
   }
   async function withWrite(action, bytes = 2 * 1024 * 1024) {
     let id;
@@ -371,7 +410,7 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
     const pulse = setInterval(() => { void runtime.updateOne({ _id: id }, { $set: { until: new Date(clock().getTime() + 120000) } }).catch(() => {}); }, 30000); pulse.unref();
     try { return await action(); } finally { clearInterval(pulse); await runtime.deleteOne({ _id: id }); }
   }
-  return { initialize, overview, history, assertSpace, reserveWrite, withWrite, list, documents, audit, withLock, createBackup, readBackup, verifyBackup, preview, executePreview, deleteBackup, backupPath, settings, saveSettings, cleanup, restore, db, uploadRoot, tempRoot,
+  return { initialize, overview, history, assertSpace, reserveWrite, withWrite, list, documents, audit, withLock, withQueuedLock, createBackup, readBackup, verifyBackup, preview, executePreview, deleteBackup, backupPath, settings, saveSettings, cleanup, restore, db, uploadRoot, tempRoot,
     start() { stopped = false; tickPromise = tick(); timer = setInterval(() => { tickPromise = tick(); }, 60000); timer.unref(); },
     async stop() { stopped = true; clearInterval(timer); await tickPromise; }, tick };
 }

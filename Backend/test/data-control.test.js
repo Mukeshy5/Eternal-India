@@ -147,6 +147,12 @@ test("real MongoDB backup, export, verification, restore, cleanup and quota safe
     await t.test("distributed job lock prevents overlap and HTTP writers block maintenance", async () => {
       const lease = await control.reserveWrite(65536); await assert.rejects(control.withLock(() => 1), /data update/); await db.collection("data_control_runtime").deleteOne({ _id: lease });
       await control.withLock(async () => { await assert.rejects(control.withLock(() => 1), /Another storage operation/); });
+      await control.withLock(async () => { await assert.rejects(control.reserveWrite(1024), /Another storage operation/); });
+      await assert.rejects(control.reserveWrite(CAPACITY), error => error.status === 507);
+      const leases = await Promise.all(Array.from({ length: 8 }, () => control.reserveWrite(1024)));
+      assert.equal(new Set(leases).size, 8, "concurrent writers are admitted without consuming each other's retries, including after a rejection");
+      await assert.rejects(control.withLock(() => 1), /data update/);
+      await db.collection("data_control_runtime").deleteMany({ _id: { $in: leases } });
       const denied = storageWriteGuard({ reserveWrite: async () => { throw Object.assign(new Error("full"), { status: 507 }); } });
       let failure; await denied({ method: "POST", path: "/enquiries", get: () => "10" }, {}, error => { failure = error; }); assert.equal(failure.status, 507);
     });

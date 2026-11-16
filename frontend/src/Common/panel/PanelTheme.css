@@ -100,10 +100,12 @@
   }
   .admin-shell :is(.dashboard-button-primary, .admin-login-form .button, .notification-enable-sound) { background: #e8e5f6; color: #5b4c7d; border-color: #d8d1ea; }
   .admin-shell .panel-app .dashboard-button-primary { background: #e8e5f6; color: #5b4c7d; border-color: #d8d1ea; }
+  .admin-shell .admin-login-form .button { background: #e8e5f6; color: #5b4c7d; border-color: #d8d1ea; }
+  .admin-shell .admin-login-form .button:hover:not(:disabled) { background: #ece8f8; color: #5b4c7d; border-color: #cbc1e2; }
   .admin-shell :is(.dashboard-button-danger, .notification-delete-button) { background: var(--panel-pink); color: #825267; border-color: #eed9e2; }
   .admin-shell .panel-app .dashboard-button-danger { background: var(--panel-pink); color: #825267; border-color: #eed9e2; }
   .admin-shell :is(.dashboard-button, .dashboard-icon-button, .admin-login-form .button, .notification-card-actions button, .notification-dropdown-actions button, .notification-load-more, .notification-view-all, .notification-enable-sound):hover:not(:disabled) { background: #e7edf8; border-color: #cbd7e9; box-shadow: 0 3px 9px #5265850b; }
-  .admin-shell :is(.dashboard-button-primary, .admin-login-form .button, .notification-enable-sound):hover:not(:disabled) { background: #e1dcf1; border-color: #cbc1e2; }
+  .admin-shell :is(.dashboard-button-primary, .admin-login-form .button, .notification-enable-sound):hover:not(:disabled) { background: #ece8f8; border-color: #cbc1e2; }
   .admin-shell .dashboard-button-danger:hover:not(:disabled) { background: #f6e4ed; border-color: #e8ccd9; }
   .admin-shell :is(.admin-error, .admin-tool-error, .notification-error) { background: #fceff3; color: #805066 !important; border-color: #e8cad7; border-radius: 9px; }
   .admin-shell :is(.admin-success, .gmail-verified) { background: var(--panel-mint); color: var(--panel-mint-ink); border-color: #cee6da; }
@@ -213,8 +215,8 @@
   .admin-shell .promotion-target:is(:hover, [aria-pressed=true]) { background: var(--panel-mint); border-color: #cddfd7; }
   .admin-shell .festival-navigation button[aria-current=page], .admin-shell .festival-effect-picker label.selected { background: var(--panel-purple); color: var(--panel-purple-ink); border-color: #dfd7ee; }
   .admin-shell :is(.festival-status-card, .festival-master-toggle, .festival-stat-activeDecorations) { background: var(--panel-mint); border-color: #d3e7dd; }
-  .admin-shell .festival-effect-art { background: radial-gradient(ellipse at 50% 90%, #e8e5f7, transparent 75%), #f5f7fd; color: #81759b; }
-  .admin-shell .festival-effect-art > :is(svg, span, strong) { color: #81759b; }
+  .admin-shell .festival-effect-art { background: radial-gradient(ellipse at 50% 90%, #e8e5f7, transparent 75%), #f5f7fd; color: #665382; }
+  .admin-shell .festival-effect-art > :is(svg, span, strong) { color: #665382; }
   .admin-shell :is(.festival-status-pill, .festival-badges span) { background: #eff4fb; color: #566985; border-color: var(--panel-line); }
   .admin-shell .festival-inline-warning { background: var(--panel-peach); color: var(--panel-peach-ink) !important; border-color: #e6d2bf; }
   .admin-shell .festival-preview-website, .admin-shell .festival-preview-website h3 { color: var(--panel-ink); }

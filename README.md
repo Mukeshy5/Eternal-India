@@ -131,6 +131,10 @@ npm --prefix Backend run db:clean -- --apply
 
 ## Enquiries and recordings
 
+All Enquiries has Delete buttons on desktop rows and mobile cards, with permanent-deletion confirmation. Direct Website, Gmail and WhatsApp sections consistently group form handoffs and provider messages; notification labels and source counts use the same rules. Alerts show the guest/subject and auto-dismiss after ten seconds, pausing during interaction.
+
+Public pages load Admin/Staff code on demand. Homepage, trip-form, Buddhist-tour, bank-transfer and footer certification images use smaller WebP derivatives; supplied originals remain available for documents. Rebuild these assets with `node frontend/scripts/optimize-site-images.mjs` (requires the installed Backend `sharp` dependency). Homepage images have responsive sizes, and footer artwork loads lazily.
+
 Notification repairs, per-user history and sound settings, the shared dark enquiry interface, and integration verification are documented in [Notification repairs](docs/NOTIFICATION_REPAIR.md).
 
 The existing inbox now unifies **Website, WhatsApp Business and Gmail** enquiries in both Admin and Technical Panels, with source/status filters, assignment, complete-message details, permanent archiving and authenticated realtime notifications using the supplied **Notification Ring** MP3. Configure the business WhatsApp webhook and Gmail OAuth connection on the backend; existing website/contact handoffs continue working. See [Unified enquiry setup, API and verification](docs/UNIFIED_ENQUIRIES.md).

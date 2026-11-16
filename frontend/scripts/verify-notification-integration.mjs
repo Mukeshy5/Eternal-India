@@ -28,7 +28,7 @@ export async function verifyNotificationIntegration(vite) {
   for (const [key, value] of Object.entries({ window: win, document: win.document, navigator: win.navigator, HTMLElement: win.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) {
     previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   }
-  const sounds = [], sockets = [], errors = [], roots = [], latest = {};
+  const sounds = [], sockets = [], errors = [], roots = [], latest = {}, deletedByPanel = {};
   win.AudioContext = class {
     constructor() { this.state = "suspended"; this.currentTime = 0; this.destination = {}; this.plays = 0; sounds.push(this); }
     async resume() { this.state = "running"; }
@@ -51,7 +51,7 @@ export async function verifyNotificationIntegration(vite) {
   const { default: VoucherEditor } = await vite.ssrLoadModule("/src/Common/VoucherEditor.jsx");
   const socketFactory = (url, options) => { assert.equal(url, base); const socket = io(url, { ...options, extraHeaders: { Origin: "http://localhost:5173" } }); sockets.push(socket); return socket; };
   function Probe({ panel }) {
-    latest[panel] = useNotifications({ admin: { id: owner._id.toString() }, apiBase: `/${panel}`, socketFactory });
+    latest[panel] = useNotifications({ admin: { id: owner._id.toString() }, apiBase: `/${panel}`, socketFactory, onDeleted: (id) => { deletedByPanel[panel] = id; } });
     return createElement(Fragment, null, createElement(Notifications, { notifications: latest[panel], onOpen() {} }), createElement(VoucherEditor, { apiBase: `/${panel}` }));
   }
   const waitFor = async (check, label) => {
@@ -59,7 +59,7 @@ export async function verifyNotificationIntegration(vite) {
     while (Date.now() < deadline) { if (check()) return; await act(async () => { await new Promise((resolve) => setTimeout(resolve, 25)); }); }
     assert.fail(`Timed out: ${label}`);
   };
-  const enquiries = (panel) => latest[panel]?.items.filter((item) => item.source === "WEBSITE") || [];
+  const enquiries = (panel) => latest[panel]?.items.filter((item) => item.enquiryId) || [];
   const fields = (patch = {}) => ({ name: "Integration Guest", email: "guest@example.com", phone: "+919876543210", destination: "Delhi", travellers: 2, date: "", message: "A real saved enquiry", voiceLanguage: "en", submissionId: randomUUID(), ...patch });
   const submit = async (body) => {
     let result; await act(async () => { result = await nativeFetch(`${base}/api/enquiries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); });
@@ -111,8 +111,10 @@ export async function verifyNotificationIntegration(vite) {
     assert.deepEqual(sounds.map((sound) => sound.plays), mutedPlays);
     await act(async () => latest.admin.toggleSound()); await waitFor(() => latest.technical.preferences.sound, "sound reenabled");
     await act(async () => sockets[0].disconnect());
+    const beforeDisconnected = sounds[1].plays;
     await submit(fields({ name: "While disconnected" })); total++;
     await waitFor(() => enquiries("technical").length === total, "connected panel continues receiving");
+    await waitFor(() => sounds[1].plays === beforeDisconnected + 1, "connected panel finishes playing the notification before reconnect");
     const beforeReconnect = sounds[0].plays;
     await act(async () => sockets[0].connect());
     await waitFor(() => latest.admin.connected && enquiries("admin").length === total, "socket reconnect recovers persisted history");
@@ -120,6 +122,14 @@ export async function verifyNotificationIntegration(vite) {
     const beforeFresh = sounds.map((sound) => sound.plays);
     await submit(fields({ name: "After reconnect" })); total++;
     await waitFor(() => sounds.every((sound, index) => sound.plays === beforeFresh[index] + 1), "fresh notifications ring after reconnect");
+    const deleteReference = await submit(fields({ name: "Delete across panels" })); total++;
+    const deleteRecord = await db.collection("enquiries").findOne({ reference: deleteReference });
+    const deleteId = deleteRecord._id.toString();
+    await waitFor(() => ["admin", "technical"].every((panel) => latest[panel].toasts.some((item) => item.enquiryId === deleteId)), "new enquiry has a popup in both panels");
+    let deleted;
+    await act(async () => { deleted = await nativeFetch(`${base}/api/technical/enquiries/${deleteId}/permanent`, { method: "DELETE", headers: { Cookie: cookie } }); });
+    assert.equal(deleted.status, 204); total--;
+    await waitFor(() => ["admin", "technical"].every((panel) => deletedByPanel[panel] === deleteId && !latest[panel].items.some((item) => item.enquiryId === deleteId) && !latest[panel].toasts.some((item) => item.enquiryId === deleteId)), "permanent deletion clears both popup/history and tells both workspaces to close the enquiry");
     await act(async () => latest.admin.markAllRead());
     await waitFor(() => latest.admin.unread === 0 && latest.technical.unread === 0, "authoritative unread badges synchronize");
     assert.deepEqual(errors, [], "no notification, settings or ticket API fails");
@@ -135,6 +145,6 @@ export async function verifyNotificationIntegration(vite) {
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const { createServer } = await import("vite"); const vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom" });
+  const { createServer } = await import("vite"); const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true, include: [] }, appType: "custom" });
   try { await verifyNotificationIntegration(vite); } finally { await vite.close(); }
 }

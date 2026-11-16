@@ -3,7 +3,7 @@ import { Icon, whatsappUrl } from "../Common/SiteUI";
 import { companyCertifications } from "../../../shared/companyCertifications.js";
 
 const companyCertificationImages = companyCertifications.map(({ file, alt }) => ({
-  src: new URL(`../assets/CompanyCertification/${file}`, import.meta.url).href,
+  src: `/images/certifications/${file.replace(/\.png$/i, ".webp")}`,
   alt,
 }));
 
@@ -83,7 +83,7 @@ export default function Footer() {
               >
                 {companyCertificationImages.map((image) => (
                   <div className="footer-certification-item" key={image.src}>
-                    <img src={image.src} alt={isDuplicate ? "" : image.alt} />
+                    <img src={image.src} alt={isDuplicate ? "" : image.alt} loading="lazy" decoding="async" />
                   </div>
                 ))}
               </div>

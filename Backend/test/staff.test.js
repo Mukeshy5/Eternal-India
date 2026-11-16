@@ -126,7 +126,8 @@ test("staff and attendance real MongoDB/API workflow", async (t) => {
       const dates = Array.from({ length: 51 }, (_, index) => new Date(Date.UTC(2026, 1, index + 1)).toISOString().slice(0, 10));
       try {
         const replies = await Promise.all(dates.map((date) => request("/admin/staff-attendance", { method: "POST", body: { staffId: person._id, date, status: "present", checkIn: "09:00", checkOut: "17:00" } })));
-        assert.ok(replies.every((reply) => reply.status === 201));
+        const failures = await Promise.all(replies.filter((reply) => reply.status !== 201).map(async (reply) => ({ status: reply.status, body: await reply.text() })));
+        assert.deepEqual(failures, [], "all 51 concurrent attendance saves must be admitted before exporting their records");
         const filter = `from=${dates[0]}&to=${dates.at(-1)}`;
         const first = await (await request(`/technical/staff/${person._id}/attendance?${filter}`)).json();
         assert.equal(first.total, 51); assert.equal(first.pages, 2); assert.equal(first.records.length, 50); assert.equal(first.summary.totalWorkingHours, 408);

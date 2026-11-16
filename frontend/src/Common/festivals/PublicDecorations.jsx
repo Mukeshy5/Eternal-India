@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
-import { api } from "../api";
+import { api, apiUrl } from "../api";
 import "./PublicDecorations.css";
 
 const DecorationRenderer = lazy(() => import("./DecorationRenderer"));
@@ -14,7 +14,6 @@ export default function PublicDecorations({ enabled = true }) {
   const [playingFor, setPlayingFor] = useState("");
   const [musicError, setMusicError] = useState("");
   const audio = useRef(null);
-  const lastRefresh = useRef(0);
   const decoration = state.enabled ? state.decorations[0] : null;
   const eligible = enabled && decoration && (decoration.displayPosition !== "homepage" || pathname === "/");
   const hidden = eligible && hiddenFor === decoration.id;
@@ -23,17 +22,18 @@ export default function PublicDecorations({ enabled = true }) {
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
+    const refreshState = { lastRefresh: 0 };
     const receive = (result) => { if (!controller.signal.aborted) setState(result); };
     const refresh = async () => {
-      if (Date.now() - lastRefresh.current < 10000) return;
-      lastRefresh.current = Date.now();
+      if (Date.now() - refreshState.lastRefresh < 10000) return;
+      refreshState.lastRefresh = Date.now();
       try { receive(await api("/public/festival-decorations/active", { signal: controller.signal })); }
       catch { if (!controller.signal.aborted) setState(empty); }
     };
     void refresh();
     let source;
     if (typeof window.EventSource === "function") {
-      source = new window.EventSource("/api/public/festival-decorations/events");
+      source = new window.EventSource(apiUrl("/public/festival-decorations/events"));
       source.onmessage = (event) => { try { receive(JSON.parse(event.data)); } catch { /* Ignore incomplete stream packets; the next refresh reconciles state. */ } };
       source.onerror = () => { void refresh(); };
     }

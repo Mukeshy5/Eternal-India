@@ -7,15 +7,17 @@ import { pathToFileURL } from "node:url";
 export async function verifyUnifiedEnquiries(vite) {
   const testWindow = new Window({ url: "http://localhost/admin" }), previous = new Map(), originalFetch = globalThis.fetch;
   for (const [key, value] of Object.entries({ window: testWindow, document: testWindow.document, navigator: testWindow.navigator, HTMLElement: testWindow.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) { previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value }); }
-  let audiblePlays = 0, latestAudio = "", refreshes = 0, prefs = { popup: true, sound: false }, unread = 1, openId, latest, sourceFilter;
-  const sockets = [], handlers = {}, timers = new Map(); let timerId = 0;
+  let audiblePlays = 0, latestAudio = "", refreshes = 0, notificationRequests = 0, deletedId, prefs = { popup: true, sound: false }, unread = 1, openId, latest, sourceFilter;
+  const sockets = [], handlers = {}, timers = new Map(), timeouts = new Map(); let timerId = 0;
   testWindow.HTMLMediaElement.prototype.play = async function () { if (!this.muted && this.volume > 0) audiblePlays++; latestAudio = this.src; }; testWindow.HTMLMediaElement.prototype.pause = () => {};
   testWindow.setInterval = (callback) => { timers.set(++timerId, callback); return timerId; }; testWindow.clearInterval = (id) => timers.delete(id);
+  testWindow.setTimeout = (callback, delay) => { const id = ++timerId; timeouts.set(id, { callback, delay }); return id; }; testWindow.clearTimeout = (id) => timeouts.delete(id);
+  const runTimeouts = (delay) => { for (const [id, task] of [...timeouts]) if (task.delay === delay) { timeouts.delete(id); task.callback(); } };
   const response = (data) => new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
   globalThis.fetch = async (url, options = {}) => {
     if (url.endsWith("/notifications/settings")) { if (options.method === "PATCH") prefs = { ...prefs, ...JSON.parse(options.body) }; return response({ ...prefs, unread }); }
     if (url.endsWith("/socket-ticket")) return response({ ticket: "single-use-test-socket-ticket" });
-    if (url.includes("/notifications?limit=")) return response({ notifications: [], hasMore: false, unread });
+    if (url.includes("/notifications?limit=")) { notificationRequests++; return response({ notifications: [], hasMore: false, unread }); }
     if (url.endsWith("/notifications/unread-count")) return response({ unread });
     if (url.endsWith("/notifications/read-all") || url.endsWith("/notifications")) return options.method === "DELETE" ? new Response(null, { status: 204 }) : response({ updated: 1 });
     if (/\/notifications\/[^/]+\/read$/.test(url)) return new Response(null, { status: 204 });
@@ -28,28 +30,54 @@ export async function verifyUnifiedEnquiries(vite) {
   const { createRoot } = await import("react-dom/client"), container = testWindow.document.createElement("div"); testWindow.document.body.append(container); let root = createRoot(container);
   try {
     const { default: useNotifications } = await vite.ssrLoadModule("/src/Common/useEnquiryNotifications.js"), { default: Notifications } = await vite.ssrLoadModule("/src/Common/EnquiryNotifications.jsx");
-    function Probe() { latest = useNotifications({ admin: { id: "notification-test" }, apiBase: "/admin", socketFactory, onRefresh: () => refreshes++, onUnauthorized: () => assert.fail("Unexpected unauthorized request") }); return createElement(Notifications, { notifications: latest, onOpen: (id) => { openId = id; } }); }
+    function Probe() { latest = useNotifications({ admin: { id: "notification-test" }, apiBase: "/admin", socketFactory, onRefresh: () => refreshes++, onDeleted: (id) => { deletedId = id; }, onUnauthorized: () => assert.fail("Unexpected unauthorized request") }); return createElement(Notifications, { notifications: latest, onOpen: (id) => { openId = id; } }); }
     await act(async () => root.render(createElement(Probe))); assert.equal(sockets.length, 1); assert.equal(sockets[0].url, "http://localhost"); assert.equal(sockets[0].options.path, "/api/enquiries/socket.io"); assert.equal(sockets[0].options.withCredentials, undefined); assert.equal(sockets[0].options.transports[0], "websocket"); assert.equal(sockets[0].auth.panel, "admin"); assert.equal(sockets[0].auth.ticket, "single-use-test-socket-ticket"); assert.equal(sockets[0].options.auth instanceof Function, true);
     assert.ok(container.textContent.includes("Live"));
     await act(async () => { testWindow.document.dispatchEvent(new testWindow.Event("pointerdown")); await Promise.resolve(); });
     await act(async () => container.querySelector('input[type="checkbox"]').click());
     assert.equal(prefs.sound, true); const before = audiblePlays;
     const event = { action: "created", notification: { id: "test1", category: "WhatsApp enquiry", title: "New WhatsApp enquiry", message: "A new enquiry has arrived from WhatsApp Customer.", enquiryId: "test1", source: "WHATSAPP", createdAt: new Date().toISOString(), read: false }, actorId: "" };
+    const requestsBeforeBurst = notificationRequests;
     unread = 2;
     await act(async () => { handlers["notification:event"](event); handlers["notification:event"](event); handlers["enquiry:event"]({ id: "created:test1", type: "created", enquiryId: "test1", source: "WHATSAPP" }); });
-    assert.equal(container.querySelectorAll(".enquiry-toasts article").length, 1); assert.equal(audiblePlays, before + 1); assert.ok(decodeURIComponent(latestAudio).includes("Notification Ring/notification-ring.mp3")); assert.equal(latest.unread, 2); assert.ok(refreshes >= 1);
-    await act(async () => container.querySelector(".enquiry-toasts article button").click()); assert.equal(openId, "test1"); assert.equal(container.querySelectorAll(".enquiry-toasts article").length, 0);
+    assert.equal(testWindow.document.querySelectorAll(".enquiry-toasts article").length, 1); assert.equal(audiblePlays, before + 1); assert.ok(decodeURIComponent(latestAudio).includes("Notification Ring/notification-ring.mp3")); assert.equal(latest.unread, 2); await act(async () => runTimeouts(120)); assert.equal(refreshes, 1, "bursts coalesce into a single inbox refresh");
+    assert.equal(notificationRequests - requestsBeforeBurst, 1, "notification and enquiry events share one notification refresh");
+    await act(async () => testWindow.document.querySelector(".enquiry-toasts article button").click()); assert.equal(openId, "test1"); assert.equal(testWindow.document.querySelectorAll(".enquiry-toasts article").length, 0);
     const afterFresh = audiblePlays;
     await act(async () => handlers["notification:event"]({ ...event, notification: { ...event.notification, id: "read-test", read: true } }));
     await act(async () => handlers["notification:event"]({ ...event, notification: { ...event.notification, id: "old-test", createdAt: new Date(Date.now() - 60000).toISOString() } }));
     assert.equal(audiblePlays, afterFresh, "read and old notifications never play a ring");
-    assert.equal(container.querySelectorAll(".enquiry-toasts article").length, 0, "old notifications do not show as new popups");
+    assert.equal(testWindow.document.querySelectorAll(".enquiry-toasts article").length, 0, "old notifications do not show as new popups");
+    const recoveredFresh = { ...event, notification: { ...event.notification, id: "replay-race", enquiryId: "replay-race", createdAt: new Date().toISOString() } };
+    await act(async () => handlers["notification:event"]({ ...recoveredFresh, replay: true }));
+    assert.equal(audiblePlays, afterFresh, "recovery snapshot stays silent");
+    await act(async () => { handlers["notification:event"]({ ...recoveredFresh, fresh: true }); handlers["notification:event"]({ ...recoveredFresh, fresh: true }); });
+    assert.equal(audiblePlays, afterFresh + 1, "recovery arriving first cannot suppress the fresh alert or ring twice");
+    await act(async () => latest.markRead("replay-race"));
     await act(async () => container.querySelector('input[type="checkbox"]').click()); const muted = audiblePlays;
     await act(async () => handlers["notification:event"]({ ...event, notification: { ...event.notification, id: "test2", enquiryId: "test2", source: "GMAIL" } })); assert.equal(audiblePlays, muted); assert.equal(prefs.sound, false);
-    await act(async () => latest.dismiss("test2"));
+    assert.equal(testWindow.document.querySelectorAll(".enquiry-toasts article").length, 1);
+    assert.equal(testWindow.document.querySelector(".enquiry-toast-shell").parentNode, testWindow.document.body, "alerts escape the sticky header containing block");
+    await act(async () => testWindow.document.querySelector(".enquiry-toasts article button").focus());
+    assert.equal([...timeouts.values()].filter((task) => task.delay === 10000).length, 0, "focused popups do not expire during keyboard interaction");
+    await act(async () => { testWindow.document.body.tabIndex = -1; testWindow.document.body.focus(); });
+    await act(async () => runTimeouts(10000));
+    assert.equal(testWindow.document.querySelectorAll(".enquiry-toasts article").length, 0, "popups expire automatically while history is retained");
     await act(async () => container.querySelectorAll('input[type="checkbox"]')[1].click()); assert.equal(prefs.popup, false);
-    await act(async () => handlers["notification:event"]({ ...event, notification: { ...event.notification, id: "test3", enquiryId: "test3" } })); assert.equal(container.querySelectorAll(".enquiry-toasts article").length, 0, "disabled popups do not add a notification");
-    await act(async () => root.unmount()); assert.equal(timers.size, 0); assert.equal(testWindow.localStorage.length, 0); root = createRoot(container);
+    await act(async () => handlers["notification:event"]({ ...event, notification: { ...event.notification, id: "test3", enquiryId: "test3" } })); assert.equal(testWindow.document.querySelectorAll(".enquiry-toasts article").length, 0, "disabled popups do not add a notification");
+    await act(async () => handlers["enquiry:event"]({ type: "deleted", enquiryId: "test3" }));
+    assert.equal(deletedId, "test3", "permanent deletion reaches the workspace so its drawer can close");
+    assert.ok(!latest.items.some((item) => item.enquiryId === "test3"), "deleted enquiry leaves notification history immediately");
+    await act(async () => latest.togglePopup());
+    const offlineAlert = (id) => ({ ...event, notification: { ...event.notification, id, enquiryId: id } });
+    await act(async () => handlers["notification:event"](offlineAlert("offline-read")));
+    assert.equal(latest.toasts.length, 1);
+    await act(async () => latest.markAllRead());
+    assert.equal(latest.toasts.length, 0, "mark all read dismisses popups even without a socket acknowledgement");
+    await act(async () => handlers["notification:event"](offlineAlert("offline-clear")));
+    await act(async () => latest.clearAll());
+    assert.equal(latest.toasts.length, 0, "clear all dismisses popups even without a socket acknowledgement");
+    await act(async () => root.unmount()); assert.equal(timers.size, 0); assert.equal(timeouts.size, 0); assert.equal(testWindow.localStorage.length, 0); root = createRoot(container);
     const { default: Dashboard } = await vite.ssrLoadModule("/src/Common/AdminDashboard.jsx");
     const rows = ["WEBSITE", "WHATSAPP", "GMAIL"].map((source, index) => ({ _id: `row${index}`, name: `${source} Customer`, email: source === "WHATSAPP" ? "" : "guest@example.com", phone: "+919876543210", source, status: "NEW", subject: `${source} subject`, message: `Complete ${source} message\nSecond line`, externalMessageId: `${source}-external`, receivedAt: "2026-11-12T08:00:00Z", createdAt: "2026-11-12T09:00:00Z", reference: `EI-${source}` }));
     const data = { enquiries: rows, total: 3, pages: 1, stats: { total: 3, archived: 1, NEW: 3, IN_PROGRESS: 0, RESOLVED: 0, CLOSED: 0, sources: { WEBSITE: 1, WHATSAPP: 1, GMAIL: 1 } } };
@@ -70,9 +98,11 @@ export async function verifyUnifiedEnquiries(vite) {
       await act(async () => container.querySelector(".dashboard-drawer-footer button").click());
       assert.deepEqual(archiveAction, [rows[1]._id, false]);
       assert.ok([...container.querySelectorAll(".dashboard-drawer-footer button")].some((button) => button.textContent === "Delete permanently"));
-      assert.equal(deleteAction, undefined);
+      assert.equal(container.querySelectorAll(".enquiry-delete").length, rows.length * 2);
+      await act(async () => container.querySelector(".dashboard-desktop-list .enquiry-delete").click()); assert.equal(deleteAction, rows[0]._id);
+      await act(async () => container.querySelectorAll(".dashboard-mobile-list .enquiry-delete")[1].click()); assert.equal(deleteAction, rows[1]._id);
     }
     console.log("PASS shared source/status and Archive UI in both panels, restore/archive/delete actions, complete WhatsApp details/contact, Socket.IO notifications, original Notification Ring MP3, persisted mute/popup preferences, duplicate suppression and cleanup");
   } finally { await act(async () => root.unmount()); globalThis.fetch = originalFetch; testWindow.close(); for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; } }
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) { const { createServer } = await import("vite"); const vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom" }); try { await verifyUnifiedEnquiries(vite); } finally { await vite.close(); } }
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) { const { createServer } = await import("vite"); const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true, include: [] }, appType: "custom" }); try { await verifyUnifiedEnquiries(vite); } finally { await vite.close(); } }

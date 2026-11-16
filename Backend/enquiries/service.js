@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { ObjectId } from "mongodb";
-import { enquirySources, enquiryStatus } from "../../shared/enquiries.js";
+import { enquirySection, enquirySources, enquiryStatus } from "../../shared/enquiries.js";
 import { publicEnquiry } from "./model.js";
 import { publishStaffNotification } from "../staff-portal/notifications.js";
 
@@ -17,13 +17,13 @@ export function createEnquiryService({ db, notifications, storageControl }) {
       const saved = await db.collection("enquiry_events").findOneAndUpdate({ _id: event.id }, { $setOnInsert: { ...event, enquiryId: record._id.toString(), name: record.name, source: record.source, publishedAt: new Date() } }, { upsert: true, returnDocument: "after" });
       await db.collection("enquiry_history").updateOne({ _id: event.id }, { $setOnInsert: { enquiryId: record._id, reference: record.reference, action: event.type === "created" ? "created" : event.type === "archived" ? "archived" : event.type === "restored" ? "restored" : "updated", status: event.status || record.status, from: event.from, changedAt: event.at } }, { upsert: true });
       if (event.type === "created") {
-        const source = record.source || "WEBSITE";
-        const sourceName = source === "WHATSAPP" ? "WhatsApp" : source === "GMAIL" ? "Gmail" : record.contactChannel === "email" ? "Email" : record.contactChannel === "whatsapp" ? "WhatsApp" : record.enquiryKind === "CONTACT" ? "Contact" : record.enquiryKind === "PLAN_TRIP" ? "Plan your trip" : "Website";
+        const source = enquirySection(record);
+        const sourceName = enquirySources[source];
         await notifications?.publish({
           id: `enquiry:${record._id}`,
           category: `${sourceName} enquiry`,
           title: `New ${sourceName} enquiry`,
-          message: `A new enquiry has arrived from ${record.name.slice(0, 240)}.`,
+          message: `${record.name.slice(0, 100)}: ${(record.subject || record.destination || record.message || "New travel request").replace(/\s+/g, " ").slice(0, 180)}`,
           source,
           enquiryId: record._id.toString(),
         });
@@ -130,6 +130,7 @@ export function createEnquiryService({ db, notifications, storageControl }) {
     await Promise.all([
       db.collection("enquiry_history").deleteMany({ enquiryId: objectId }),
       db.collection("enquiry_events").deleteMany({ enquiryId }),
+      db.collection("staff_notifications").deleteMany({ enquiryId }),
       ...(deletedRecord.externalMessageId ? [db.collection("enquiry_ingestion_jobs").deleteOne({ _id: `${deletedRecord.source}:${deletedRecord.externalMessageId}` })] : []),
     ]);
     const saved = await db.collection("enquiry_events").findOneAndUpdate({ _id: event._id }, { $setOnInsert: event }, { upsert: true, returnDocument: "after" });

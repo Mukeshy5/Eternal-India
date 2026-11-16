@@ -1,4 +1,5 @@
 import express from "express";
+import { panelActivity } from "./lib/panel-activity.js";
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import session from "express-session";
@@ -107,26 +108,14 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
     res.once("finish", () => {
       if (res.statusCode < 200 || res.statusCode >= 300 || !req.admin) return;
-      const path = req.path;
-      if (/^\/(?:notifications(?:\/|$)|socket-ticket|enquiry-notification-settings|accounts(?:\/|$)|register(?:\/|$)|login(?:\/|$)|logout(?:\/|$))/.test(path)) return;
+      const activity = panelActivity(req);
+      if (!activity) return;
       const panel = req.originalUrl.startsWith("/api/technical/") ? "technical" : "admin";
-      const label = path.includes("staff-attendance") || path.includes("staff-calendar")
-        ? "staff attendance"
-        : path.includes("/staff") ? "staff records"
-          : path.includes("/enquiries") ? "an enquiry"
-            : path.includes("festival") || path.includes("decoration") ? "festival settings"
-              : path.includes("promotion") || path.includes("offer-image") ? "tour pricing or offers"
-                : path.includes("/letters") ? "employment letters"
-                : path.includes("voucher") ? "a journey voucher"
-                  : path.includes("hotel") ? "hotel details"
-                    : path.includes("/gst") ? "GST numbers"
-                      : path.includes("/office-addresses") ? "office addresses"
-                      : "workspace settings";
       void enquirySystem.notifications.publish({
         id: `panel:${randomUUID()}`,
         category: panel === "technical" ? "Technical panel activity" : "Admin panel activity",
         title: panel === "technical" ? "Technical panel activity" : "Admin panel activity",
-        message: `${req.admin.name || req.admin.email} updated ${label}.`,
+        message: `${req.admin.name || req.admin.email} ${activity.action} ${activity.label}.`,
         audience: ["admin", "technical"],
         actorId: req.admin._id,
       }).catch((error) => console.error("Panel activity notification could not be saved:", error.name));
@@ -151,11 +140,11 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
       if (!upgraded.modifiedCount) return res.status(401).json({ message: "Your credentials changed. Please sign in again." });
       admin.passwordHash = passwordHash;
     }
-    if (["pending", "disabled"].includes(admin.status)) return res.status(403).json({ message: "Your account is awaiting administrator approval or has been disabled." });
+    if (["pending", "disabled"].includes(admin.status)) return res.status(403).json({ message: "Your account is awaiting administrator approval or has been disabled.", code: "ACCOUNT_UNAVAILABLE" });
     if (req.originalUrl.startsWith("/api/technical/")) {
-      if (!technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel." });
+      if (!technicalAccess(admin, config).technical) return res.status(403).json({ message: "This account is not authorized for the Technical Panel. Use the Admin Panel if your account has admin access.", code: "PANEL_ACCESS_DENIED", ...(adminPanelAccess(admin, config) ? { suggestedPanel: "admin" } : {}) });
     } else if (!adminPanelAccess(admin, config)) {
-      return res.status(403).json({ message: "This account is not authorized for the Admin Panel." });
+      return res.status(403).json({ message: "This account is not authorized for the Admin Panel. Use the Technical Panel if your account has technical access.", code: "PANEL_ACCESS_DENIED", ...(technicalAccess(admin, config).technical ? { suggestedPanel: "technical" } : {}) });
     }
     const previousClaims = verifyToken(req.cookies?.[tokenCookieName] || "");
     if (previousClaims?.jti) await db.collection("admin_tokens").deleteOne({ _id: previousClaims.jti });
@@ -172,6 +161,13 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
         res.json({ admin: publicAdmin(admin) });
       });
     });
+  });
+  // A signed-out login page is an ordinary state, not a failed protected API
+  // request. /me and every business endpoint retain strict authentication.
+  management.get("/session", async (req, res) => {
+    const panel = req.originalUrl.startsWith("/api/technical/") ? "technical" : "admin";
+    const result = await authenticatePanel({ db, config, token: req.cookies?.[tokenCookieName], panel });
+    res.json(result.admin ? { admin: publicAdmin(result.admin) } : { admin: null, ...(result.status === 403 ? { code: "PANEL_ACCESS_DENIED", message: `This account is not authorized for the ${panel === "technical" ? "Technical" : "Admin"} Panel. Use the other panel or contact your account administrator.` } : {}) });
   });
   management.get("/me", requireAdmin, (req, res) => res.json({ admin: publicAdmin(req.admin) }));
   management.post("/logout", async (req, res, next) => {

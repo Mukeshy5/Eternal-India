@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { act, createElement } from "react";
+import { act, createElement, StrictMode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { Window } from "happy-dom";
 import { promotionTargets } from "../../shared/travelCatalog.js";
@@ -97,9 +97,9 @@ export async function verifyPromotions(server) {
     assert.ok(container.querySelector(".promotion-preview .promotion-price").textContent.includes("25,000"));
     await act(async () => container.querySelector('[name="offerEnabled"]').click());
     await act(async () => submit());
-    await act(async () => root.render(createElement(MemoryRouter, { key: "public", initialEntries: ["/tour-packages"] }, createElement(App))));
+    await act(async () => root.render(createElement(StrictMode, null, createElement(MemoryRouter, { key: "public", initialEntries: ["/tour-packages"] }, createElement(App)))));
     const cards = container.querySelectorAll(".travel-card");
-    assert.ok(cards[0].textContent.includes("Winter special"));
+    assert.ok(cards[0].textContent.includes("Winter special"), "offers load immediately after Strict Mode aborts its first request");
     assert.ok(cards[0].textContent.includes("20,000"));
     assert.equal(cards[0].querySelector(".promotion-mini-image").getAttribute("src"), image);
     assert.equal(cards[1].querySelector(".promotion-display"), null, "promotion only changes the selected package");

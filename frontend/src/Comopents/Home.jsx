@@ -2,8 +2,8 @@ import { Link } from "react-router-dom";
 import { Eyebrow, Icon, JourneyCTA, journeys } from "../Common/SiteUI";
 import { destinationPath, destinations } from "../Common/travelCatalog";
 import { PromotionDisplay } from "../Common/Promotions";
-import heroImage from "../assets/SliderImg/slider (2).jpg";
-import mobileHeroImage from "../assets/SliderImg/Phone view.jpg";
+const heroImage = "/images/site/home-hero-1280.webp";
+const mobileHeroImage = "/images/site/home-mobile.webp";
 
 const homeRegions = [
   {
@@ -66,7 +66,7 @@ export default function Home() {
           <div className="home-hero-photo" aria-live="polite">
             <picture>
               <source media="(max-width: 550px)" srcSet={mobileHeroImage} />
-              <img src={heroImage} alt="India travel view" width="1280" height="900" decoding="async" fetchPriority="high" />
+              <img src={heroImage} srcSet="/images/site/home-hero-640.webp 640w, /images/site/home-hero-1280.webp 1280w, /images/site/home-hero-1920.webp 1920w" sizes="(max-width: 900px) 100vw, 60vw" alt="India travel view" width="1280" height="900" decoding="async" fetchPriority="high" />
             </picture>
             <span className="photo-caption">
               <Icon name="pin" size={16} /> India · Where stories begin

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect } from "react";
 import { Routes, Route, Navigate, useLocation, Link } from "react-router-dom";
 import Navbar from "./Comopents/Navbar";
 import Footer from "./Comopents/Footer";
@@ -12,8 +12,6 @@ import FloatingWhatsApp from "./Common/FloatingWhatsApp";
 import TourPackage from "./Comopents/TourPackage";
 import DestinationsInIndia from "./Comopents/DestinationsInIndia";
 import India from "./Comopents/India";
-import Admin from "./Pages/Admin";
-import StaffPanel from "./Common/staff-portal/StaffPanel";
 import TravelDetail from "./Pages/TravelDetail";
 import BuddhistToursInIndia from "./Pages/BuddhistToursInIndia";
 import Blog from "./Pages/Blog";
@@ -22,6 +20,12 @@ import { PromotionsProvider } from "./Common/Promotions";
 import PublicDecorations from "./Common/festivals/PublicDecorations";
 import { panelSection, panelSections } from "./Common/panel/panelNavigation";
 import { destinations, regions, tourPackages, indiaJourneys, destinationPath, regionPath, packagePath, indiaPath, travelPageTitles } from "./Common/travelCatalog";
+
+const Admin = lazy(() => import("./Pages/Admin"));
+const StaffPanel = lazy(() => import("./Common/staff-portal/StaffPanel"));
+function PanelLoading({ technical = false, staff = false }) {
+  return <section className="admin-checking" role="status"><h1>{staff ? "Staff Panel" : technical ? "Technical Panel" : "Admin Panel"}</h1><p>Loading workspace…</p></section>;
+}
 
 const titles = {
   ...travelPageTitles,
@@ -92,9 +96,9 @@ export default function App() {
           <Route path="/blog" element={<Blog />} />
           <Route path="/products" element={<Navigate to="/tours" replace />} />
           <Route path="/request-quote" element={<RequestQuote />} />
-          <Route path="/admin/*" element={<Admin key="admin" />} />
-          <Route path="/technical/*" element={<Admin key="technical" technical />} />
-          <Route path="/staff/*" element={<StaffPanel />} />
+          <Route path="/admin/*" element={<Suspense fallback={<PanelLoading />}><Admin key="admin" /></Suspense>} />
+          <Route path="/technical/*" element={<Suspense fallback={<PanelLoading technical />}><Admin key="technical" technical /></Suspense>} />
+          <Route path="/staff/*" element={<Suspense fallback={<PanelLoading staff />}><StaffPanel /></Suspense>} />
           <Route path="/online-payment" element={<OnlinePayment />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-and-conditions" element={<TermsConditions />} />

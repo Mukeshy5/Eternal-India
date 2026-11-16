@@ -4,7 +4,7 @@ import { Eyebrow, Icon } from "../Common/SiteUI";
 import { buildEnquiryUrl } from "../Common/enquiries";
 import { api } from "../Common/api";
 import QuoteVoice, { useQuoteVoice } from "../Common/QuoteVoice";
-import planTripImage from "../assets/Plan your trip/Plan your trip.png";
+const planTripImage = "/images/site/plan-trip.webp";
 export default function RequestQuote() {
   const [params] = useSearchParams();
   const [prepared, setPrepared] = useState(null);

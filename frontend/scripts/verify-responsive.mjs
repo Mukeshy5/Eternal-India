@@ -21,7 +21,8 @@ export async function verifyResponsive(vite) {
   const panel = renderToStaticMarkup(createElement(MemoryRouter, null, createElement("div", { className: "admin-shell" }, createElement(Layout, { admin, section: "enquiries" }, createElement(Dashboard, { data, loaded: true, page: 1, searchInput: "", status: "" })))));
   const home = renderToStaticMarkup(createElement(MemoryRouter, null, createElement(Navbar), createElement(Home), createElement(FloatingContact)));
   const luminance = (rgb) => {
-    const colour = { white: "#ffffff", black: "#000000" }[rgb] || rgb;
+    const named = { white: "#ffffff", black: "#000000" }[rgb] || rgb;
+    const colour = /^#[a-f\d]{3,4}$/i.test(named) ? `#${[...named.slice(1)].map((digit) => digit + digit).join("")}` : named;
     const values = /^#[a-f\d]{6}(?:[a-f\d]{2})?$/i.test(colour) ? colour.slice(1).match(/../g).map((n) => Number.parseInt(n, 16)) : colour.match(/[\d.]+/g)?.map(Number);
     assert.ok(values?.length >= 3, `resolved theme colour: ${rgb}`);
     // Translucent chrome sits above the light workspace surface.
@@ -66,17 +67,17 @@ export async function verifyResponsive(vite) {
         assert.equal(computed(".panel-menu-button").minHeight, "44px");
       }
       const sourceColours = new Set(), statusColours = new Set();
-      for (const selector of [".enquiry-source-website", ".enquiry-source-whatsapp", ".enquiry-source-gmail", ".enquiry-source-email", ".enquiry-source-contact", ".enquiry-source-plan", ".dashboard-status-new", ".dashboard-status-pending", ".dashboard-status-in_progress", ".dashboard-status-follow_up", ".dashboard-status-resolved", ".dashboard-status-cancelled", ".dashboard-status-closed"]) {
+      for (const selector of [".enquiry-source-website", ".enquiry-source-whatsapp", ".enquiry-source-gmail", ".dashboard-status-new", ".dashboard-status-pending", ".dashboard-status-in_progress", ".dashboard-status-follow_up", ".dashboard-status-resolved", ".dashboard-status-cancelled", ".dashboard-status-closed"]) {
         const badge = computed(selector), foreground = luminance(badge.color), background = luminance(badge.backgroundColor);
         assert.ok((Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05) >= 4.5, `${width}: ${selector} meets normal text contrast`);
         (selector.includes("source") ? sourceColours : statusColours).add(badge.backgroundColor);
       }
-      assert.equal(sourceColours.size, 5); assert.equal(statusColours.size, 7);
+      assert.equal(sourceColours.size, 3); assert.equal(statusColours.size, 7);
       for (const selector of [".panel-sidebar", ".panel-topbar", ".dashboard-inbox", ".dashboard-stat-total", ".dashboard-button-primary", ".dashboard-button-danger", ".admin-tool-card", ".admin-tool-field input", ".payment-statistics article", ".payment-badge-paid", ".staff-person", ".staff-badge-leave", ".attendance-calendar", ".attendance-color-present", ".festival-effect-art", ".promotion-toggle", ".technical-profile-card", ".notification-center", ".notification-center > .notification-list", ".enquiry-notification-dropdown", ".notification-enable-sound", ".enquiry-toasts article", ".admin-error", ".admin-success", ".admin-login-story", ".admin-login-form", ".admin-login-form .button"]) {
         const view = computed(selector);
         assert.ok(!["initial", "transparent", ""].includes(view.backgroundColor), `${width}: ${selector} has a resolved light background, got ${view.backgroundColor}`);
         const background = luminance(view.backgroundColor), foreground = luminance(view.color);
-        assert.ok(background >= .78, `${width}: ${selector} retains a pastel/light surface`);
+        assert.ok(background >= .78, `${width}: ${selector} retains a pastel/light surface (${view.backgroundColor})`);
         assert.ok((Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05) >= 4.5, `${width}: ${selector} readable dark text (${view.color} on ${view.backgroundColor})`);
       }
       assert.equal(computed(".notification-center").colorScheme, "light");
@@ -112,4 +113,4 @@ export async function verifyResponsive(vite) {
   console.log("PASS CSS/DOM layouts at 1920/1440/1366/1024/768/430/390/375/320, visible trip shortcuts, badge contrast, contained tables, touch controls, and both mobile panel drawers");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) { const { createServer } = await import("vite"); const vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom" }); try { await verifyResponsive(vite); } finally { await vite.close(); } }
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) { const { createServer } = await import("vite"); const vite = await createServer({ server: { middlewareMode: true, hmr: false }, optimizeDeps: { noDiscovery: true, include: [] }, appType: "custom" }); try { await verifyResponsive(vite); } finally { await vite.close(); } }

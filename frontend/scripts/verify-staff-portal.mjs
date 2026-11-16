@@ -12,7 +12,7 @@ import { createApp } from "../../Backend/app.js";
 import { cookieHeader } from "../../Backend/lib/cookies.js";
 import { invoiceNotes, invoiceToday } from "../../shared/invoices.js";
 
-const vite = await createServer({ server: { middlewareMode: true }, appType: "custom" });
+const vite = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: "custom" });
 const config = { ...readConfig(), databaseName: `eternal_india_test_spui_${randomUUID().replaceAll("-", "").slice(0, 8)}`, adminEmail: "staff-portal-ui@example.com", technicalEmail: "", adminPassword: "PortalUITestPassword9!" };
 let client, db, system, server, testWindow, root;
 const previous = new Map(), originalFetch = globalThis.fetch, originalCreateURL = URL.createObjectURL, originalRevokeURL = URL.revokeObjectURL;

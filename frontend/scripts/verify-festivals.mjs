@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
-import { act, createElement } from "react";
+import { act, createElement, StrictMode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { Window } from "happy-dom";
 import { readConfig } from "../../Backend/config/env.js";
@@ -134,7 +134,7 @@ export async function verifyFestivals(vite) {
     await click("Clear activity history");
     await waitFor(async () => await db.collection("decoration_activity").countDocuments() === 0 && container.querySelectorAll(".panel-record-row").length === 0, "all activity cleared from UI and MongoDB");
     const { default: App } = await vite.ssrLoadModule("/src/App.jsx");
-    await act(async () => root.render(createElement(MemoryRouter, { key: "public-home", initialEntries: ["/"] }, createElement(App))));
+    await act(async () => root.render(createElement(StrictMode, null, createElement(MemoryRouter, { key: "public-home", initialEntries: ["/"] }, createElement(App)))));
     await waitFor(() => testWindow.document.querySelector('.public-decoration-host .fx-field'), "public active decoration fetched from backend");
     assert.ok(testWindow.document.querySelector(".decoration-greeting").textContent.includes("A joyful winter journey"));
     assert.equal(testWindow.document.querySelector(".public-decoration-host audio"), null, "music is not played or loaded without enabling it");

@@ -1,4 +1,4 @@
-import { legacyEnquiryStatuses } from "../../shared/enquiries.js";
+import { enquirySection, legacyEnquiryStatuses } from "../../shared/enquiries.js";
 
 export async function ensureEnquiryModels(db) {
   const enquiries = db.collection("enquiries");
@@ -17,6 +17,9 @@ export async function ensureEnquiryModels(db) {
     enquiries.createIndex({ source: 1, externalMessageId: 1 }, { unique: true, partialFilterExpression: { externalMessageId: { $type: "string" } } }),
     enquiries.createIndex({ source: 1, receivedAt: -1 }),
     enquiries.createIndex({ status: 1, receivedAt: -1 }),
+    enquiries.createIndex({ archivedAt: 1, receivedAt: -1, _id: -1 }),
+    enquiries.createIndex({ source: 1, archivedAt: 1, contactChannel: 1, receivedAt: -1, _id: -1 }),
+    enquiries.createIndex({ status: 1, archivedAt: 1, receivedAt: -1, _id: -1 }),
     enquiries.createIndex({ "pendingEvents.0": 1 }),
     db.collection("enquiry_deleted_submissions").createIndex({ deletedAt: 1 }),
     db.collection("enquiry_events").createIndex({ publishedAt: 1 }),
@@ -29,5 +32,5 @@ export async function ensureEnquiryModels(db) {
 
 export function publicEnquiry(record) {
   const { submissionId, submissionHash, originalPayload, pendingEvents, ...safe } = record;
-  return { ...safe, _id: record._id.toString() };
+  return { ...safe, section: enquirySection(record), _id: record._id.toString() };
 }

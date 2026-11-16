@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { Window } from "happy-dom";
 import { createServer } from "vite";
 
-const server = await createServer({ server: { middlewareMode: true }, appType: "custom" });
+const server = await createServer({ server: { middlewareMode: true, hmr: false, ws: false }, appType: "custom" });
 const browser = new Window({ url: "http://localhost/technical/data-control?view=enquiries" });
 const previous = new Map(), calls = [];
 const originals = { window: browser, document: browser.document, navigator: browser.navigator, HTMLElement: browser.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true };

@@ -21,6 +21,14 @@ Old status values remain accepted by the API and normalize to the new values. Un
 
 Enquiries, history and deduplication records have no TTL. **Archive** hides a record from the active inbox while preserving the complete message and history. The Archive view in either panel can restore records to the shared inbox. **Delete permanently** requires confirmation and removes the enquiry and its history; a durable deletion marker prevents the same website submission or external message from being imported again. The existing `DELETE /enquiries/:id` API remains an archive operation for compatibility.
 
+The **Direct Website**, **Gmail** and **WhatsApp** inbox tabs, badges, counts and new alerts use the same section rules. Direct/contact/plan forms belong to Direct Website; forms handed off to the email app belong to Gmail; forms handed off to WhatsApp belong to WhatsApp. Provider imports stay in their provider's section. The API returns `section` separately from the original ingestion `source`, which remains unchanged for deduplication. Source tab counts reflect the selected Inbox or Archive view. Handoff grouping does not verify delivery to the external app.
+
+Desktop rows and mobile cards both include **Delete**. Confirmation names the guest and reference; failed requests preserve the record and show the server error. Successful deletion also removes linked staff notifications, clears the enquiry's alert popups, and refreshes the shared lists. Search and date/status/category filters continue to apply within each section.
+
+New-alert popups render outside the sticky header, show the guest and enquiry subject, and dismiss after ten seconds. Hover or keyboard focus pauses dismissal. Read history and reconnect recovery remain silent. A duplicate live event does not add another unread count, and event bursts coalesce inbox refreshes. Popup dismissal leaves notification history intact.
+
+Activity alerts describe creation, update, deletion, archive and restore accurately, including invoice actions. Voucher quotes, invoice-number reservations and letter previews do not create activity alerts while an editor is preparing a document.
+
 Inbox and Archive lists carry a bounded message preview. View Details loads the complete original text from the protected detail endpoint; a preview is not labelled as a complete message until that full record is loaded. Admins can filter by source/status, search name/email/phone/subject/message/reference, contact the sender, assign an existing active account and update status. A WhatsApp sender can have no email, and a Gmail sender can have no phone.
 
 ## Direct website enquiries
@@ -127,6 +135,12 @@ The exact user-supplied asset `frontend/src/assets/Notification Ring/notificatio
 Notifications reuse the durable `enquiry_events` collection and authenticated Socket.IO server. Enquiry creation (Website, WhatsApp and Gmail), new panel accounts and successful panel activities persist a deduplicated notification before delivery. Admin and Technical clients receive only notifications whose audience includes their panel. `notification:event` updates the dropdown and full Notifications section without a page reload; reconnects reload the persisted list/count, so missed socket delivery does not lose history or replay old sounds. The existing notification ring is enabled by default for accounts without a saved preference; a user's saved sound toggle takes precedence. The ring plays only for new unread events after the browser has received a user gesture.
 
 Read/unread state is durable and shared across authorized panels. Reading or deleting a record broadcasts the change to its audience; marking all read or clearing history synchronizes both panels. Notification sound and popup preferences remain per account in MongoDB. A fresh unread notification alone can ring or show a toast; the existing MP3 is unlocked after the browser's first user interaction to comply with autoplay restrictions. These preferences and history do not use browser storage.
+
+Related enquiry and notification events share a 120 ms refresh window to avoid duplicate list requests. Permanent enquiry deletion removes its alerts and closes its open detail drawer in both panels. Mark all read and Clear all also dismiss popups after the HTTP request succeeds when a socket acknowledgement is unavailable.
+
+Public offer and festival refresh timers belong to each effect lifetime, so an aborted Strict Mode mount cannot delay the next initial load. Hidden tabs skip periodic offer requests, and festival event streams use the configured API origin.
+
+Storage write admission queues requests within each backend instance before taking the shared database lock. This prevents concurrent saves from exhausting lock retries. Business writes can run concurrently after admission; quota checks and the maintenance lock still run for every reservation.
 
 ## Verification and deployment
 

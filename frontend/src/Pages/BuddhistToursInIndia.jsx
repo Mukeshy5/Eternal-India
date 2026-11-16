@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Eyebrow, Icon } from "../Common/SiteUI";
 import { TravelHero } from "../Common/TravelUI";
-import buddhistImage from "../assets/buddhist/buddhist.jpg";
+const buddhistImage = "/images/site/buddhist.webp";
 
 const history = [
   {

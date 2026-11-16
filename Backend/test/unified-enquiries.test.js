@@ -269,6 +269,40 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       assert.equal((await request("/admin/enquiries?from=2026-12-01&to=2026-01-01", { cookie: adminCookie })).status, 400);
       const historical = await (await request("/technical/enquiries?to=2000-01-01", { cookie: technicalCookie })).json(); assert.equal(historical.total, 0);
     });
+    await t.test("website, email and WhatsApp handoffs stay in their own sections in both panels", async () => {
+      const marker = `Sections ${randomUUID().slice(0, 8)}`;
+      const ids = {};
+      const before = await (await request("/admin/enquiries", { cookie: adminCookie })).json();
+      for (const [section, channel] of [["WEBSITE", "website"], ["GMAIL", "email"], ["WHATSAPP", "whatsapp"]]) {
+        const reply = await request("/enquiries", { method: "POST", body: { submissionId: randomUUID(), name: `${marker} ${section}`, email: "sections@example.com", destination: "Delhi", travellers: 2, message: "Check the correct inbox", contactChannel: channel, voiceLanguage: "en" } });
+        assert.equal(reply.status, 201, await reply.clone().text());
+        const { reference } = await reply.json();
+        ids[section] = (await db.collection("enquiries").findOne({ reference }))._id.toString();
+        const alert = await db.collection("enquiry_events").findOne({ _id: `notification:enquiry:${ids[section]}` });
+        assert.equal(alert.source, section);
+        assert.ok(alert.message.includes(marker));
+      }
+      for (const [panel, cookie] of [["admin", adminCookie], ["technical", technicalCookie]]) {
+        const summary = await (await request(`/${panel}/enquiries`, { cookie })).json();
+        for (const section of Object.keys(ids)) {
+          assert.equal(summary.stats.sources[section], before.stats.sources[section] + 1);
+          const page = await (await request(`/${panel}/enquiries?source=${section}&search=${encodeURIComponent(marker)}`, { cookie })).json();
+          assert.equal(page.total, 1);
+          assert.equal(page.enquiries[0]._id, ids[section]);
+          assert.equal(page.enquiries[0].source, "WEBSITE", "ingestion source remains intact for idempotent retries");
+          assert.equal(page.enquiries[0].section, section);
+        }
+        assert.equal((await (await request(`/${panel}/enquiries?source=GMAIL&kind=EMAIL&search=${encodeURIComponent(marker)}`, { cookie })).json()).total, 1);
+        assert.equal((await (await request(`/${panel}/enquiries?source=WEBSITE&kind=EMAIL&search=${encodeURIComponent(marker)}`, { cookie })).json()).total, 0);
+      }
+      await request(`/admin/enquiries/${ids.WHATSAPP}`, { method: "PATCH", cookie: adminCookie, body: { archive: true } });
+      const archive = await (await request(`/technical/enquiries?source=WHATSAPP&archived=true&search=${encodeURIComponent(marker)}`, { cookie: technicalCookie })).json();
+      assert.equal(archive.total, 1); assert.ok(archive.stats.sources.WHATSAPP >= 1);
+      await db.collection("staff_notifications").insertOne({ _id: `section:${ids.WHATSAPP}`, enquiryId: ids.WHATSAPP });
+      assert.equal((await request(`/technical/enquiries/${ids.WHATSAPP}/permanent`, { method: "DELETE", cookie: technicalCookie })).status, 204);
+      assert.equal((await request(`/admin/enquiries/${ids.WHATSAPP}`, { cookie: adminCookie })).status, 404);
+      assert.equal(await db.collection("staff_notifications").countDocuments({ enquiryId: ids.WHATSAPP }), 0);
+    });
   } finally {
     for (const socket of sockets) socket.disconnect(); await instance.enquirySystem.stop(); await instance.decorationScheduler.stop(); await instance.drainSessions();
     if (server.listening) await new Promise((resolve) => server.close(resolve));

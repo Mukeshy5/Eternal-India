@@ -26,7 +26,8 @@ import { verifyResponsive } from "./verify-responsive.mjs";
 import { destinations, regions, tourPackages, indiaJourneys, destinationPath, regionPath, packagePath, indiaPath, travelPageTitles } from "../src/Common/travelCatalog.js";
 
 const server = await createServer({
-  server: { middlewareMode: true },
+  server: { middlewareMode: true, hmr: false, ws: false },
+  optimizeDeps: { noDiscovery: true, include: [] },
   appType: "custom",
 });
 const knownRoutes = new Set([
@@ -89,7 +90,7 @@ try {
     for (const [, srcSet] of html.matchAll(/<img[^>]*srcSet="([^"]+)"/gi)) {
       for (const candidate of srcSet.split(",")) {
         const [src, width] = candidate.trim().split(/\s+/);
-        assert.ok(["640w", "1280w"].includes(width), `${route}: responsive image width`);
+        assert.ok(["640w", "1280w", "1920w"].includes(width), `${route}: responsive image width`);
         const asset = resolve("public", src.slice(1));
         assert.ok(existsSync(asset), `${route}: missing responsive image ${src}`);
         assert.ok(statSync(asset).size < 650_000, `${route}: image exceeds transfer budget ${src}`);

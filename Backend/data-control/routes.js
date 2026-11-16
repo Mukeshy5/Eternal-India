@@ -13,7 +13,7 @@ export function registerDataControl({ app, control, db, config }) {
     req.admin = result.admin; next();
   });
   router.use(rateLimit({ windowMs: 60000, limit: 120, standardHeaders: "draft-8", legacyHeaders: false }));
-  const locked = action => async (req, res) => res.json(await control.withLock(check => action(req, check)));
+  const locked = action => async (req, res) => res.json(await control.withQueuedLock(check => action(req, check)));
   router.get("/catalog", (_req, res) => res.json({ sections: Object.entries(catalog).map(([key, value]) => ({ key, label: value.label, protected: Boolean(value.protected) })) }));
   router.get("/storage", async (_req, res) => res.json(await control.overview()));
   router.get("/statistics", async (req, res) => res.json({ points: await control.history(req.query.period || "day") }));
@@ -58,18 +58,21 @@ export function storageWriteGuard(control, { config } = {}) {
         const panel = req.path.startsWith("/technical/") ? "technical" : req.path.startsWith("/admin/") ? "admin" : "either";
         const access = await authenticatePanel({ db: control.db, config, token: req.cookies?.["eternal_india.auth"], panel });
         if (!access.admin) return next(); // The existing route returns its normal authentication error.
-        for (let attempt = 0; attempt < 100; attempt++) {
-          try {
-            await control.withLock(async check => {
+        const controller = new AbortController();
+        const cancel = () => { if (!res.writableFinished) controller.abort(); };
+        res.once("close", cancel);
+        try {
+            await control.withQueuedLock(async check => {
               const backup = await control.createBackup({ actor: access.admin, reason: "before-manual-delete", check });
+              await check();
               res.set("X-Data-Control-Backup", backup._id);
               await control.audit(access.admin, "manual-delete.started", { path: req.path, backupId: backup._id });
+              await check();
               await new Promise(resolve => { res.once("finish", resolve); res.once("close", resolve); next(); });
               await control.audit(access.admin, "manual-delete.finished", { path: req.path, backupId: backup._id, status: res.statusCode });
-            });
-            break;
-          } catch (error) { if (error.status !== 409 || res.headersSent || attempt === 99) throw error; await new Promise(resolve => setTimeout(resolve, 50)); }
-        }
+            }, { signal: controller.signal });
+        } catch (error) { if (!controller.signal.aborted) throw error; }
+        finally { res.off("close", cancel); }
         return;
       }
       // Reserve space for BSON/index growth before accepting a storage-increasing HTTP write.

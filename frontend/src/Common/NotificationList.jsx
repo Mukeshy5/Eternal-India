@@ -25,7 +25,7 @@ export default function NotificationList({ items, notifications, onOpen }) {
         <span className="notification-category">{item.category}</span>
         <p>{item.message}</p>
         <div className="notification-card-actions">
-          {item.enquiryId && <button type="button" onClick={() => { void notifications.markRead(item.id); onOpen?.(item.enquiryId); }}>View enquiry</button>}
+          {item.enquiryId && <button type="button" onClick={() => { if (onOpen?.(item.enquiryId) !== false) void notifications.markRead(item.id); }}>View enquiry</button>}
           {!item.read && <button type="button" onClick={() => void notifications.markRead(item.id)}>Mark as read</button>}
           <button type="button" className="notification-delete-button" aria-label={`Delete notification: ${item.title}`} onClick={() => void notifications.remove(item.id)}>
             <DashboardIcon name="close" size={15} /> Delete
