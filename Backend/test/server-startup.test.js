@@ -4,6 +4,9 @@ import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import { spawn } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readConfig } from "../config/env.js";
 import { connectDatabase } from "../config/database.js";
@@ -17,11 +20,13 @@ test("the deployed server opens Render's public port with copied localhost setti
   await db.collection("admins").insertOne(disabledAccount);
   const reservation = createServer().listen(0, "127.0.0.1"); await once(reservation, "listening");
   const port = reservation.address().port; await new Promise((resolve) => reservation.close(resolve));
+  const storageDirectory = await mkdtemp(resolve(tmpdir(), "eternal-startup-storage-"));
+  const backupDirectory = resolve(storageDirectory, "backups"), uploadDirectory = resolve(storageDirectory, "uploads"), tempDirectory = resolve(storageDirectory, "temporary");
   let child, output = "";
   try {
     child = spawn(process.execPath, ["server.js"], {
       cwd: fileURLToPath(new URL("../", import.meta.url)), windowsHide: true,
-      env: { ...process.env, MONGO_DB: databaseName, RENDER: "true", NODE_ENV: "development", HOST: "127.0.0.1", PORT: String(port), ADMIN_EMAIL: "render-startup@example.com", ADMIN_PASSWORD: "RenderStartupPassword9", FRONTEND_ORIGIN: "https://frontend.example.com", SMTP_HOST: "", SMTP_USER: "", SMTP_PASSWORD: "", SMTP_FROM: "", GMAIL_USER: "", GMAIL_APP_PASSWORD: "", EMAIL_PROVIDER: "smtp", RESEND_API_KEY: "", EMAIL_FROM: "" },
+      env: { ...process.env, MONGO_DB: databaseName, DATA_CONTROL_BACKUP_DIR: backupDirectory, DATA_CONTROL_UPLOAD_DIR: uploadDirectory, DATA_CONTROL_TEMP_DIR: tempDirectory, RENDER: "true", NODE_ENV: "development", HOST: "127.0.0.1", PORT: String(port), ADMIN_EMAIL: "render-startup@example.com", ADMIN_PASSWORD: "RenderStartupPassword9", FRONTEND_ORIGIN: "https://frontend.example.com", SMTP_HOST: "", SMTP_USER: "", SMTP_PASSWORD: "", SMTP_FROM: "", GMAIL_USER: "", GMAIL_APP_PASSWORD: "", EMAIL_PROVIDER: "smtp", RESEND_API_KEY: "", EMAIL_FROM: "" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     child.stdout.on("data", (data) => { output += data; });
@@ -52,6 +57,6 @@ test("the deployed server opens Render's public port with copied localhost setti
   } finally {
     if (child && child.exitCode === null) { const exited = once(child, "exit"); child.kill("SIGTERM"); await exited; }
     if (!db.databaseName.startsWith("eternal_india_test_")) throw Error("Refusing to delete a non-test database.");
-    await db.dropDatabase(); await client.close();
+    await db.dropDatabase(); await client.close(); await rm(storageDirectory, { recursive: true, force: true });
   }
 });

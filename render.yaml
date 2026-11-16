@@ -8,6 +8,10 @@ services:
     buildCommand: npm --prefix Backend ci
     startCommand: npm --prefix Backend start
     healthCheckPath: /api/health
+    disk:
+      name: eternal-india-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -15,6 +19,8 @@ services:
         sync: false
       - key: MONGO_DB
         value: eternal_india
+      - key: DATA_CONTROL_BACKUP_DIR
+        value: /var/data/eternal-india/backups
       - key: SESSION_SECRET
         sync: false
       - key: ADMIN_EMAIL

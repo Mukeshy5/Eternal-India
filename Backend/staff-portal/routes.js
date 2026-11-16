@@ -206,18 +206,18 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     const [items, total, unread] = await Promise.all([notifications.find(filter).sort({ createdAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).toArray(), notifications.countDocuments(filter), notifications.countDocuments({ ...filter, read: false })]);
     res.json({ notifications: items, total, unread, page, pages: Math.max(1, Math.ceil(total / 20)) });
   });
-  router.patch("/notifications/read-all", requireStaff, async (req, res) => { await notifications.updateMany({ staffId: req.employee._id, read: false }, { $set: { read: true, updatedAt: new Date() } }); res.sendStatus(204); });
+  router.patch("/notifications/read-all", requireStaff, async (req, res) => { await notifications.updateMany({ staffId: req.employee._id, read: false }, { $set: { read: true, updatedAt: new Date() } }); void broadcastChanged(req.employee._id.toString()); res.sendStatus(204); });
   router.patch("/notifications/:id/read", requireStaff, async (req, res) => {
-    if (!(await notifications.updateOne({ _id: req.params.id, staffId: req.employee._id }, { $set: { read: true, updatedAt: new Date() } })).matchedCount) throw enquiryError(404, "Notification not found."); res.sendStatus(204);
+    if (!(await notifications.updateOne({ _id: req.params.id, staffId: req.employee._id }, { $set: { read: true, updatedAt: new Date() } })).matchedCount) throw enquiryError(404, "Notification not found."); void broadcastChanged(req.employee._id.toString()); res.sendStatus(204);
   });
   router.delete("/notifications/:id", requireStaff, async (req, res) => {
-    if (!(await notifications.deleteOne({ _id: req.params.id, staffId: req.employee._id })).deletedCount) throw enquiryError(404, "Notification not found."); res.sendStatus(204);
+    if (!(await notifications.deleteOne({ _id: req.params.id, staffId: req.employee._id })).deletedCount) throw enquiryError(404, "Notification not found."); void broadcastChanged(req.employee._id.toString()); res.sendStatus(204);
   });
   // Server-sent updates are scoped before querying. No global panel events or
   // other employees' identifiers are ever broadcast to staff connections.
   const connections = new Map();
   router.get("/events", requireStaff, async (req, res) => {
-    const key = req.staffAccount._id.toString();
+    const key = req.employee._id.toString();
     if ((connections.get(key) || 0) >= 5) throw enquiryError(429, "Too many live workspace connections. Close another staff tab.");
     connections.set(key, (connections.get(key) || 0) + 1);
     res.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" }); res.flushHeaders();
@@ -240,7 +240,7 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
       } catch { send("retry", { message: "Live updates interrupted. Reconnecting…" }); res.end(); }
       finally { running = false; }
     };
-    res.once("close", () => { closed = true; clearInterval(timer); unregisterStaffLiveConnection(key); const count = (connections.get(key) || 1) - 1; if (count) connections.set(key, count); else connections.delete(key); });
+    res.once("close", () => { closed = true; clearInterval(timer); unregisterStaffLiveConnection(key, res); const count = (connections.get(key) || 1) - 1; if (count) connections.set(key, count); else connections.delete(key); });
     timer = setInterval(() => void tick(), 3000); timer.unref?.(); await tick();
   });
   app.use("/api/staff", router);

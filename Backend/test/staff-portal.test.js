@@ -23,7 +23,7 @@ test("Staff Panel uses real MongoDB with technical provisioning and strict recor
   await ensureAdmin(db, config);
   const admin = await ensureAdmin(db, { ...config, adminEmail: "portal-admin@example.com" });
   await db.collection("admins").updateOne({ _id: admin._id }, { $set: { roles: ["admin"] } });
-  const system = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await system.decorationsReady;
+  const system = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await system.decorationsReady; await system.dataControlReady;
   const server = system.app.listen(0, "127.0.0.1"); await once(server, "listening");
   const base = `http://127.0.0.1:${server.address().port}/api`;
   let technicalCookie = "", staffCookie = "", secondCookie = "", account, secondAccount, employee, enquiry, voucher, voucherBody, invoice;
@@ -68,6 +68,9 @@ test("Staff Panel uses real MongoDB with technical provisioning and strict recor
     await t.test("enquiry assignment and optimistic edits enforce ownership on the server", async () => {
       enquiry = (await system.enquirySystem.enquiries.create({ name: "Assigned Guest", message: "Journey request", destination: "Delhi", source: "WEBSITE", email: "guest@example.com" })).enquiry;
       await json(`/technical/enquiries/${enquiry._id}`, { method: "PATCH", body: { assignedTo: account._id } });
+      const assignedNotification = (await json("/staff/notifications", { auth: staffCookie })).notifications.find((row) => row.enquiryId === enquiry._id);
+      assert.equal(assignedNotification.title, "New enquiry assigned");
+      assert.deepEqual(assignedNotification.enquiry, { reference: enquiry.reference, name: "Assigned Guest", email: "guest@example.com", phone: "", destination: "Delhi" });
       const assignees = await json("/technical/enquiry-assignees"); assert.ok(assignees.assignees.some((row) => row._id === account._id));
       assert.equal((await json("/staff/enquiries", { auth: staffCookie })).total, 1); assert.equal((await json("/staff/enquiries", { auth: secondCookie })).total, 0);
       assert.equal((await request(`/staff/enquiries/${enquiry._id}`, { auth: secondCookie })).status, 404);
@@ -115,13 +118,45 @@ test("Staff Panel uses real MongoDB with technical provisioning and strict recor
       assert.equal((await request(`/staff/invoices/${invoice._id}`, { auth: staffCookie, method: "PUT", body: {} })).status, 404);
       await json(`/technical/staff-accounts/${account._id}/invoices/${invoice._id}`, { method: "PATCH", body: { authorized: false } }); assert.equal((await request(`/staff/invoices/${invoice._id}/pdf`, { auth: staffCookie })).status, 404);
     });
-    await t.test("live updates contain only a scoped revision and revoke active connections", async () => {
-      const controller = new AbortController(), response = await fetch(`${base}/staff/events`, { headers: { Cookie: staffCookie }, signal: controller.signal }); assert.equal(response.status, 200); assert.match(response.headers.get("content-type"), /text\/event-stream/);
-      const reader = response.body.getReader(), decoder = new TextDecoder(); let content = decoder.decode((await reader.read()).value); assert.match(content, /event: changed/); assert.doesNotMatch(content, /Assigned Guest|Other Employee|Portal Guest/);
+    await t.test("live updates reach every staff tab with assigned customer details and revoke active connections", async () => {
+      const controllers = [new AbortController(), new AbortController()], responses = await Promise.all(controllers.map((controller) => fetch(`${base}/staff/events`, { headers: { Cookie: staffCookie }, signal: controller.signal })));
+      for (const response of responses) { assert.equal(response.status, 200); assert.match(response.headers.get("content-type"), /text\/event-stream/); }
+      const readers = responses.map((response) => response.body.getReader()), decoder = new TextDecoder(), contents = await Promise.all(readers.map(async (reader) => decoder.decode((await reader.read()).value)));
+      for (const content of contents) { assert.match(content, /event: changed/); assert.doesNotMatch(content, /Assigned Guest|Other Employee|Portal Guest/); }
+      const realtime = (await system.enquirySystem.enquiries.create({ name: "Realtime Guest", message: "Please call", destination: "Jaipur", source: "WEBSITE", email: "realtime@example.com", phone: "+919876543210" })).enquiry;
+      await json(`/technical/enquiries/${realtime._id}`, { method: "PATCH", body: { assignedTo: account._id } });
+      const notificationDeadline = setTimeout(() => controllers.forEach((controller) => controller.abort()), 15000);
+      let notificationChunks;
+      try {
+        notificationChunks = await Promise.all(readers.map(async (reader) => {
+          let content = "";
+          while (!content.includes("event: notification:event")) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            content += decoder.decode(value);
+          }
+          return content;
+        }));
+      } finally { clearTimeout(notificationDeadline); }
+      for (const content of notificationChunks) {
+        assert.match(content, /event: notification:event/);
+        assert.match(content, /Realtime Guest/);
+        assert.match(content, /realtime@example\.com/);
+      }
       await json(`/technical/staff-accounts/${account._id}`, { method: "PATCH", body: { status: "inactive", version: account.version } });
-      const deadline = setTimeout(() => controller.abort(), 10000);
-      try { while (!content.includes("event: revoked")) { const chunk = await reader.read(); if (chunk.done) break; content += decoder.decode(chunk.value); } assert.match(content, /event: revoked/); }
-      finally { clearTimeout(deadline); controller.abort(); }
+      const deadline = setTimeout(() => controllers.forEach((controller) => controller.abort()), 10000);
+      try {
+        const revoked = await Promise.all(readers.map(async (reader) => {
+          let content = "";
+          while (!content.includes("event: revoked")) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            content += decoder.decode(chunk.value);
+          }
+          return content;
+        }));
+        for (const content of revoked) assert.match(content, /event: revoked/);
+      } finally { clearTimeout(deadline); controllers.forEach((controller) => controller.abort()); }
       assert.equal((await request("/staff/me", { auth: staffCookie })).status, 401); assert.equal((await request("/staff/login", { auth: "", method: "POST", body: { username: "staff.one", password } })).status, 401);
       account = (await json("/technical/staff-accounts")).accounts.find((row) => row._id === account._id); await json(`/technical/staff-accounts/${account._id}`, { method: "PATCH", body: { status: "active", version: account.version } });
       assert.equal((await request("/staff/me", { auth: staffCookie })).status, 401); staffCookie = await staffLogin();

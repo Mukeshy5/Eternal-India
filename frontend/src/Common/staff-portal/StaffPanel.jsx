@@ -30,10 +30,10 @@ function Workspace() {
   const navigate = useNavigate(), location = useLocation(), navigation = usePanelNavigation();
   const navigateRef = useRef(navigate); navigateRef.current = navigate;
   const [staff, setStaff] = useState(null), [checking, setChecking] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState("");
-  const [refresh, setRefresh] = useState(0), [connected, setConnected] = useState(false), [unread, setUnread] = useState(0), [toasts, setToasts] = useState([]);
+  const [refresh, setRefresh] = useState(0), [connected, setConnected] = useState(false), [unread, setUnread] = useState(0), [notifications, setNotifications] = useState([]), [toasts, setToasts] = useState([]);
   const path = location.pathname.replace(/\/+$/, ""), section = path === "/staff" ? "enquiries" : path.slice(7);
   const initialPath = useRef(path), lock = useRef(false);
-  const unauthorized = useCallback((message) => { setStaff(null); setUnread(0); setNotice(typeof message === "string" ? message : "Your staff session expired or access was disabled. Please sign in again."); navigateRef.current("/staff/login", { replace: true }); }, []);
+  const unauthorized = useCallback((message) => { setStaff(null); setUnread(0); setNotifications([]); setNotice(typeof message === "string" ? message : "Your staff session expired or access was disabled. Please sign in again."); navigateRef.current("/staff/login", { replace: true }); }, []);
   const dismissToast = useCallback((id) => setToasts((current) => current.filter((item) => item.id !== id)), []);
   useEffect(() => {
     const controller = new AbortController();
@@ -51,7 +51,7 @@ function Workspace() {
       if (running || disposed) return; running = true;
       try {
         const [profile, notifications] = await Promise.all([api("/staff/me", { signal: controller.signal }), api("/staff/notifications", { signal: controller.signal })]);
-        if (!controller.signal.aborted) { setStaff(profile.staff); setUnread(notifications.unread); }
+        if (!controller.signal.aborted) { setStaff(profile.staff); setUnread(notifications.unread); setNotifications(notifications.notifications); }
       } catch (failure) { if (!controller.signal.aborted && failure.status === 401) unauthorized(failure.message); }
       finally { running = false; }
     };
@@ -68,7 +68,7 @@ function Workspace() {
         if (disposed) return;
         try {
           const notification = JSON.parse(event.data);
-          setToasts((current) => [notification, ...current].slice(0, 10));
+          setToasts((current) => [notification, ...current.filter((item) => item.id !== notification.id)].slice(0, 10));
           void load();
         } catch { /* ignore malformed notification events */ }
       });
@@ -90,13 +90,13 @@ function Workspace() {
   }
   if (checking) return <section className="admin-checking"><h1>Staff Panel</h1><p role="status">Checking your staff session…</p></section>;
   if (!staff) return <StaffLogin busy={busy} error={error} notice={notice} onLogin={login} />;
-  return <div className="admin-shell staff-shell"><PanelLayout staffPanel sections={staffSections} admin={staff} section={section} busy={busy} onNavigate={go} onLogout={logout} notifications={<button className="staff-notification-button" onClick={() => go("notifications")} aria-label={`${unread} unread notifications`}>Notifications <span>{unread}</span></button>}>
+  return <div className="admin-shell staff-shell"><PanelLayout staffPanel sections={staffSections} admin={staff} section={section} busy={busy} onNavigate={go} onLogout={logout} notifications={<StaffNotificationBell items={notifications} unread={unread} onOpen={(item) => go(item?.enquiryId ? "enquiries" : "notifications")} />}>
     <div className="staff-session-strip"><span>Welcome, <strong>{staff.name}</strong> · {staff.employeeId}</span><span className={connected ? "staff-live is-connected" : "staff-live"}>{connected ? "Live updates connected" : "Refreshing automatically"}</span></div>
     {error && <p className="staff-error" role="alert">{error}</p>}
     <PanelErrorBoundary key={section} onHome={() => go("enquiries")}>
       {section === "enquiries" ? <Enquiries refresh={refresh} onUnauthorized={unauthorized} /> : section === "notifications" ? <Notifications refresh={refresh} onUnauthorized={unauthorized} onChanged={() => setRefresh((value) => value + 1)} onOpen={() => go("enquiries")} /> : ["vouchers", "voucher-history"].includes(section) ? <JourneyBillingWorkspace key={section} apiBase="/staff" initialCreate={section === "vouchers"} onUnauthorized={unauthorized} /> : section === "attendance" ? <Attendance refresh={refresh} onUnauthorized={unauthorized} /> : section === "id-card" ? <IdCard staff={staff} refresh={refresh} onUnauthorized={unauthorized} /> : section === "invoices" ? <Invoices refresh={refresh} onUnauthorized={unauthorized} /> : section === "change-password" ? <PasswordForm onUnauthorized={unauthorized} onChanged={(message) => { setStaff(null); setNotice(message); navigate("/staff/login", { replace: true }); }} /> : <div className="staff-portal staff-surface"><h1>Section not found</h1><button onClick={() => go("enquiries")}>Open my enquiries</button></div>}
     </PanelErrorBoundary>
-    {toasts.length > 0 && <div className="staff-toast-shell" role="status" aria-live="polite" aria-label="New notifications">{toasts.map((item) => <NotificationToast key={item.id} item={item} dismiss={dismissToast} />)}</div>}
+    {toasts.length > 0 && <div className="staff-toast-shell" role="status" aria-live="polite" aria-label="New notifications">{toasts.map((item) => <NotificationToast key={item.id} item={item} dismiss={dismissToast} onOpen={() => go(item.enquiryId ? "enquiries" : "notifications")} />)}</div>}
   </PanelLayout></div>;
 }
 
@@ -112,7 +112,33 @@ function StaffLogin({ busy, error, notice, onLogin }) {
   </section>;
 }
 
-function NotificationToast({ item, dismiss }) {
+function StaffNotificationBell({ items, unread, onOpen }) {
+  const [open, setOpen] = useState(false), root = useRef(null), button = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeOutside = (event) => { if (!root.current?.contains(event.target)) setOpen(false); };
+    const closeEscape = (event) => { if (event.key === "Escape") { setOpen(false); button.current?.focus(); } };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeEscape);
+    return () => { document.removeEventListener("pointerdown", closeOutside); document.removeEventListener("keydown", closeEscape); };
+  }, [open]);
+  return <div className="staff-notification-menu" ref={root}>
+    <button ref={button} type="button" className="staff-notification-button" aria-label={`Notifications, ${unread} unread`} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
+      <span className="staff-notification-count">{unread > 99 ? "99+" : unread}</span>
+    </button>
+    {open && <section className="staff-notification-dropdown" role="dialog" aria-label="Recent notifications">
+      <header><strong>Notifications</strong><button type="button" onClick={() => { setOpen(false); onOpen(null); }}>View all</button></header>
+      {items.length ? items.slice(0, 5).map((item) => <button type="button" className={`staff-notification-preview${item.read ? "" : " is-unread"}`} key={item._id || item.id} onClick={() => { setOpen(false); onOpen(item); }}>
+        <strong>{item.title}</strong><span>{item.message}</span>
+        {item.enquiry && <small>{item.enquiry.name}{item.enquiry.phone ? ` · ${item.enquiry.phone}` : ""}{item.enquiry.email ? ` · ${item.enquiry.email}` : ""}</small>}
+      </button>) : <p className="staff-notification-empty">No notifications yet.</p>}
+      {items.length > 5 && <button type="button" className="staff-notification-all" onClick={() => { setOpen(false); onOpen(null); }}>See all notifications</button>}
+    </section>}
+  </div>;
+}
+
+function NotificationToast({ item, dismiss, onOpen }) {
   const [paused, setPaused] = useState(false);
   useEffect(() => {
     if (paused) return;
@@ -120,8 +146,8 @@ function NotificationToast({ item, dismiss }) {
     return () => window.clearTimeout(timer);
   }, [item.id, dismiss, paused]);
   return <article onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} className="staff-notification-toast">
-    <div><strong>{item.title}</strong><p>{item.message}</p></div>
-    {item.enquiryId && <button type="button" onClick={() => { dismiss(item.id); return false; }}>View enquiries</button>}
+    <div><strong>{item.title}</strong><p>{item.message}</p>{item.enquiry && <small>{item.enquiry.name}{item.enquiry.phone ? ` · ${item.enquiry.phone}` : ""}{item.enquiry.email ? ` · ${item.enquiry.email}` : ""}</small>}</div>
+    <button type="button" onClick={() => { if (onOpen() !== false) dismiss(item.id); }}>{item.enquiryId ? "View enquiry" : "View notifications"}</button>
     <button type="button" aria-label={`Dismiss notification: ${item.title}`} onClick={() => dismiss(item.id)}>×</button>
   </article>;
 }
@@ -166,7 +192,7 @@ function Notifications({ refresh, onUnauthorized, onChanged, onOpen }) {
   const state = useRecords(`/notifications?page=${page}`, `${refresh}:${revision}`, onUnauthorized), operation = useOperation(onUnauthorized);
   const mutate = (path, method) => void operation.run(async (signal) => { await api(`/staff/notifications${path}`, { method, body: method === "PATCH" ? "{}" : undefined, signal }); if (!signal.aborted) { setRevision((value) => value + 1); onChanged(); } });
   return <section className="staff-portal"><Heading title="Notifications">Your enquiry, attendance and account updates, saved in your workspace.</Heading><section className="staff-surface"><div className="staff-section-heading"><h2>{state.data?.unread ?? "—"} unread updates</h2><button disabled={operation.busy || !state.data?.unread} onClick={() => mutate("/read-all", "PATCH")}>Mark all as read</button></div><LoadState state={state} /><OperationState operation={operation} />
-    {state.data?.notifications.map((item) => <article className={`staff-notification ${item.read ? "is-read" : ""}`} key={item._id}><div className="staff-section-heading"><strong>{item.title}</strong><time dateTime={item.createdAt}>{dateTime(item.createdAt)}</time></div><p>{item.message}</p><div className="staff-actions">{item.enquiryId && <button onClick={onOpen}>Open my enquiries</button>}{!item.read && <button disabled={operation.busy} onClick={() => mutate(`/${encodeURIComponent(item._id)}/read`, "PATCH")}>Mark as read</button>}<button disabled={operation.busy} onClick={() => mutate(`/${encodeURIComponent(item._id)}`, "DELETE")}>Dismiss</button></div></article>)}
+    {state.data?.notifications.map((item) => <article className={`staff-notification ${item.read ? "is-read" : ""}`} key={item._id}><div className="staff-section-heading"><strong>{item.title}</strong><time dateTime={item.createdAt}>{dateTime(item.createdAt)}</time></div><p>{item.message}</p>{item.enquiry && <p className="staff-notification-details"><strong>{item.enquiry.name}</strong>{item.enquiry.phone && ` · ${item.enquiry.phone}`}{item.enquiry.email && ` · ${item.enquiry.email}`}{item.enquiry.destination && ` · ${item.enquiry.destination}`}</p>}<div className="staff-actions">{item.enquiryId && <button onClick={onOpen}>Open my enquiries</button>}{!item.read && <button disabled={operation.busy} onClick={() => mutate(`/${encodeURIComponent(item._id)}/read`, "PATCH")}>Mark as read</button>}<button disabled={operation.busy} onClick={() => mutate(`/${encodeURIComponent(item._id)}`, "DELETE")}>Dismiss</button></div></article>)}
     {state.data?.total === 0 && <p className="staff-empty">You’re all caught up. New updates will appear here automatically.</p>}<Pagination data={state.data} page={page} onPage={setPage} loading={state.loading} /></section></section>;
 }
 

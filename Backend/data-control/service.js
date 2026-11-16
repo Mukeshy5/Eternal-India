@@ -52,10 +52,52 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
   let writeAdmission = Promise.resolve();
   let maintenanceQueue = Promise.resolve();
   const audit = (actor, action, details = {}) => db.collection("data_control_audit").insertOne({ actor: String(actor?._id || actor || "scheduler"), action, ...details, at: clock() });
+  const renderDiskRequired = config.render && process.platform === "linux" && Boolean(process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_HOSTNAME);
+  async function verifyBackupMount() {
+    if (renderDiskRequired) {
+      const mountPath = "/var/data", mountParent = "/var";
+      let mount, parent;
+      try { [mount, parent] = await Promise.all([stat(mountPath), stat(mountParent)]); }
+      catch (error) { throw new Error(`Render persistent disk is not mounted at /var/data. Attach the persistent disk before starting the service. ${error.message}`); }
+      const mountRelative = relative(mountPath, backupRoot);
+      if (mount.dev === parent.dev || mountRelative === ".." || mountRelative.startsWith(`..${sep}`) || isAbsolute(mountRelative)) {
+        throw new Error("Render backups must be stored under the persistent disk mounted at /var/data.");
+      }
+    }
+  }
+  async function verifyBackupStorage() {
+    let file;
+    const probe = resolve(backupRoot, `.data-control-write-test-${randomUUID()}`);
+    const marker = Buffer.from(randomUUID());
+    try {
+      file = await open(probe, "wx+", 0o600);
+      await file.writeFile(marker);
+      await file.sync();
+      const saved = Buffer.alloc(marker.length), { bytesRead } = await file.read(saved, 0, saved.length, 0);
+      if (bytesRead !== marker.length || !saved.equals(marker)) throw new Error("Backup storage write verification returned unexpected data.");
+      await readdir(backupRoot);
+    } catch (error) {
+      throw new Error(`Data Control backup directory is not readable and writable at ${backupRoot}: ${error.message}`);
+    } finally {
+      await file?.close();
+      await unlink(probe).catch(error => { if (error.code !== "ENOENT") throw error; });
+    }
+  }
   async function initialize() {
+    if (config.production && (!config.dataControl?.backupDirectory || !isAbsolute(config.dataControl.backupDirectory))) {
+      throw new Error("Set DATA_CONTROL_BACKUP_DIR to an absolute, persistent storage path before starting production.");
+    }
+    await verifyBackupMount();
     await Promise.all([mkdir(backupRoot, { recursive: true }), mkdir(uploadRoot, { recursive: true }), mkdir(tempRoot, { recursive: true })]);
     const roots = await Promise.all([backupRoot, uploadRoot, tempRoot].map(path => realpath(path)));
     if (new Set(roots).size !== 3) throw new Error("Storage directories resolve to the same location.");
+    if (renderDiskRequired) {
+      const mountRoot = await realpath("/var/data"), backupRelative = relative(mountRoot, roots[0]);
+      if (backupRelative === ".." || backupRelative.startsWith(`..${sep}`) || isAbsolute(backupRelative)) {
+        throw new Error("Render backups must resolve inside the persistent disk mounted at /var/data.");
+      }
+    }
+    await verifyBackupStorage();
     await Promise.all([
       backups.createIndex({ createdAt: -1 }), db.collection("data_control_audit").createIndex({ at: -1 }),
       db.collection("data_control_previews").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
@@ -156,7 +198,7 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
   }
   function backupPath(id) { if (!/^[a-f0-9-]{36}$/.test(id)) throw fail(400, "Invalid backup ID."); return resolve(backupRoot, `${id}.ndjson.gz`); }
   async function createBackup({ actor, key, input = {}, reason = "manual", check = async () => {} } = {}) {
-    if (config.production && !config.dataControl?.backupDirectory) throw fail(503, "Configure DATA_CONTROL_BACKUP_DIR on a persistent disk before creating production backups.");
+    if (config.production && (!config.dataControl?.backupDirectory || !isAbsolute(config.dataControl.backupDirectory))) throw fail(503, "Configure DATA_CONTROL_BACKUP_DIR as an absolute persistent-disk path before creating production backups.");
     await assertSpace(65536);
     const id = randomUUID(), path = backupPath(id), temporary = `${path}.partial`, createdAt = clock();
     const dependencies = { enquiries: ["enquiry_history"], notifications: [], payments: ["payment_webhook_events"], vouchers: ["hotels", "gst_rates", "office_addresses", "billing_counters", "journey_invoice_reservations"], attendance: ["staff", "staff_settings"], invoices: ["billing_counters", "invoice_requests"] };

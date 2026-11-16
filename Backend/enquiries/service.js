@@ -31,8 +31,19 @@ export function createEnquiryService({ db, notifications }) {
         await db.collection("enquiry_events").updateOne({ _id: event.id }, { $set: { notificationCreated: true } });
       }
       // Keep the durable retry marker until the notification has also saved.
-      if (record.assignedTo?.staffId) await publishStaffNotification(db, { id: `enquiry:${event.id}`, staffId: new ObjectId(record.assignedTo.staffId), title: "Assigned enquiry updated", message: `${record.reference}: ${record.status}`, enquiryId: record._id.toString(), createdAt: event.at });
-      void broadcastChanged(record.assignedTo.staffId);
+      const assignedStaffId = Object.hasOwn(event, "assignedStaffId") ? event.assignedStaffId : record.assignedTo?.staffId;
+      if (assignedStaffId && record.assignedTo?.staffId === assignedStaffId) {
+        await publishStaffNotification(db, {
+          id: `enquiry:${event.id}`,
+          staffId: new ObjectId(assignedStaffId),
+          title: Object.hasOwn(event, "assignedStaffId") ? "New enquiry assigned" : "Assigned enquiry updated",
+          message: `${record.reference}: ${record.name} · ${record.destination || record.subject || record.status}`,
+          enquiryId: record._id.toString(),
+          enquiry: { reference: record.reference, name: record.name, email: record.email || "", phone: record.phone || "", destination: record.destination || "" },
+          createdAt: event.at,
+        });
+      }
+      if (record.assignedTo?.staffId) void broadcastChanged(record.assignedTo.staffId);
       await collection.updateOne({ _id: record._id }, { $pull: { pendingEvents: { id: event.id } } });
       notify(saved);
     }
@@ -103,7 +114,7 @@ export function createEnquiryService({ db, notifications }) {
       if (!Object.keys(changes).length) { await flush(current); return publicEnquiry(current); }
       const now = new Date(), revision = (current.revision || 0) + 1;
       const eventType = changes.archivedAt ? "archived" : body.archive === false && current.archivedAt ? "restored" : "updated";
-      const event = { id: `updated:${id}:${revision}`, type: eventType, status: changes.status || current.status, from: current.status, at: now };
+      const event = { id: `updated:${id}:${revision}`, type: eventType, status: changes.status || current.status, from: current.status, ...(Object.hasOwn(changes, "assignedTo") ? { assignedStaffId: changes.assignedTo?.staffId || null } : {}), at: now };
       const set = { ...changes, updatedAt: now, revision };
       const unset = changes.archivedAt === null ? { archivedAt: "" } : undefined;
       if (unset) delete set.archivedAt;

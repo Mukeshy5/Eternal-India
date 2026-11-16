@@ -1,26 +1,39 @@
-const liveConnections = new Map(); // staffId (string) -> { res, closed }
+const liveConnections = new Map(); // employee ID -> Set of open SSE responses
 
-export function registerStaffLiveConnection(staffId, res) {
-  liveConnections.set(staffId, { res, closed: false });
-  res.on("close", () => { liveConnections.delete(staffId); });
-  res.on("error", () => { liveConnections.delete(staffId); });
+function removeConnection(staffId, res) {
+  const connections = liveConnections.get(staffId);
+  if (!connections) return;
+  connections.delete(res);
+  if (!connections.size) liveConnections.delete(staffId);
 }
 
-export function unregisterStaffLiveConnection(staffId) {
-  liveConnections.delete(staffId);
+export function registerStaffLiveConnection(staffId, res) {
+  const connections = liveConnections.get(staffId) || new Set();
+  connections.add(res);
+  liveConnections.set(staffId, connections);
+  const remove = () => removeConnection(staffId, res);
+  res.once("close", remove);
+  res.once("error", remove);
+}
+
+export function unregisterStaffLiveConnection(staffId, res) {
+  removeConnection(staffId, res);
 }
 
 export function broadcastToStaff(staffId, event, data) {
-  const conn = liveConnections.get(staffId);
-  if (!conn || conn.closed) return false;
-  try {
-    conn.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    conn.res.flush?.();
-    return true;
-  } catch {
-    liveConnections.delete(staffId);
-    return false;
+  const connections = liveConnections.get(staffId);
+  if (!connections) return false;
+  let delivered = false;
+  for (const res of connections) {
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      res.flush?.();
+      delivered = true;
+    } catch {
+      removeConnection(staffId, res);
+    }
   }
+  return delivered;
 }
 
 export function broadcastNotification(staffId, notification) {
@@ -33,19 +46,20 @@ export function broadcastChanged(staffId) {
 
 export function broadcastAll(event, data) {
   let count = 0;
-  for (const [staffId, conn] of liveConnections) {
-    if (conn.closed) continue;
-    try {
-      conn.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-      conn.res.flush?.();
-      count++;
-    } catch {
-      liveConnections.delete(staffId);
+  for (const [staffId, connections] of liveConnections) {
+    for (const res of connections) {
+      try {
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        res.flush?.();
+        count++;
+      } catch {
+        removeConnection(staffId, res);
+      }
     }
   }
   return count;
 }
 
 export function liveConnectionCount() {
-  return liveConnections.size;
+  return [...liveConnections.values()].reduce((count, connections) => count + connections.size, 0);
 }

@@ -18,7 +18,7 @@ let client, db, system, server, testWindow, root;
 const previous = new Map(), originalFetch = globalThis.fetch, originalCreateURL = URL.createObjectURL, originalRevokeURL = URL.revokeObjectURL;
 try {
   ({ client, db } = await connectDatabase(config)); await ensureAdmin(db, config);
-  system = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await system.decorationsReady;
+  system = createApp({ client, db, config, schedulerOptions: { intervalMs: 0 } }); await system.decorationsReady; await system.dataControlReady;
   server = system.app.listen(0, "127.0.0.1"); await once(server, "listening");
   const base = `http://127.0.0.1:${server.address().port}`;
   testWindow = new Window({ url: "http://localhost/staff/login" });
@@ -53,6 +53,8 @@ try {
   await act(async () => { type('[name="username"]', "staff.ui"); type('[name="password"]', "UiAssignedStaff12!"); }); await submit(".staff-create-form");
   await waitFor(() => container.textContent.includes("Staff Login account created"), "account persisted");
   const saved = await db.collection("staff_accounts").findOne({ staffId: employee._id }); assert.ok(saved); assert.equal(saved.username, "staff.ui");
+  const enquiry = (await system.enquirySystem.enquiries.create({ name: "Staff UI Guest", message: "Please call", destination: "Jaipur", source: "WEBSITE", email: "staff-ui-guest@example.com", phone: "+919876543218" })).enquiry;
+  await call(`/technical/enquiries/${enquiry._id}`, { assignedTo: saved._id }, "PATCH");
   await waitFor(() => container.textContent.includes("Manage access"), "account row"); await click("Manage access"); await waitFor(() => container.textContent.includes(invoice.invoiceNumber), "invoice access choices"); await click("Grant access"); await waitFor(() => container.textContent.includes("Revoke access"), "invoice grant");
   await act(async () => root.render(createElement(MemoryRouter, { key: "staff", initialEntries: ["/staff/login"] }, createElement(StaffPanel))));
   await waitFor(() => container.querySelector("#staff-username"), "staff login"); assert.equal([...container.querySelectorAll("a")].some((link) => /register/.test(link.href)), false);
@@ -60,7 +62,10 @@ try {
   await waitFor(() => container.querySelector(".staff-session-strip"), "staff session");
   const navigation = container.querySelector(".panel-navigation"); for (const label of ["All Enquiries", "Notifications", "Journey Voucher", "Journey History", "Download ID Card", "My Attendance History", "Billing / Invoice", "Change Password"]) assert.ok(navigation.textContent.includes(label), label);
   assert.equal(container.querySelector('a[href="/admin"]'), null); assert.equal(container.querySelector('a[href="/technical"]'), null);
-  await click("Notifications", navigation); await waitFor(() => container.textContent.includes("Welcome to your Staff Panel"), "personal notifications");
+  const bell = container.querySelector(".staff-notification-button"); assert.ok(bell); await act(async () => bell.click());
+  await waitFor(() => container.querySelector(".staff-notification-dropdown")?.textContent.includes("Staff UI Guest"), "recent enquiry notification details");
+  await click("View all", container.querySelector(".staff-notification-dropdown")); await waitFor(() => container.textContent.includes("Welcome to your Staff Panel"), "personal notifications");
+  assert.ok(container.textContent.includes("staff-ui-guest@example.com"), "assigned enquiry notification includes customer contact details");
   await click("My Attendance History", navigation); await waitFor(() => container.textContent.includes("No attendance has been recorded"), "personal attendance");
   await click("Download ID Card", navigation); await waitFor(() => container.querySelector(".staff-card-view img"), "ID card preview"); await click("Download printable PDF"); await waitFor(() => downloads.some((blob) => blob.type === "application/pdf"), "PDF download");
   await click("Billing / Invoice", navigation); await waitFor(() => container.textContent.includes(invoice.invoiceNumber), "authorized invoice"); await click("View invoice"); await waitFor(() => container.querySelector(".invoice-document"), "invoice preview");
@@ -70,7 +75,7 @@ try {
   const passwordInputs = container.querySelectorAll('.staff-password-form input');
   await act(async () => { for (const [index, value] of ["UiAssignedStaff12!", "NewUiAssignedStaff34!", "NewUiAssignedStaff34!"].entries()) { Object.getOwnPropertyDescriptor(testWindow.HTMLInputElement.prototype, "value").set.call(passwordInputs[index], value); passwordInputs[index].dispatchEvent(new testWindow.Event("input", { bubbles: true })); } });
   await submit(".staff-password-form"); await waitFor(() => container.querySelector("#staff-username") && container.textContent.includes("Password changed"), "password rotation and return to login");
-  console.log("PASS Staff Panel UI with real MongoDB: technical account creation, employee verification, credential generation, invoice grants, username login, all eight modules, ID-card download, invoice preview and password rotation");
+  console.log("PASS Staff Panel UI with real MongoDB: account provisioning, live notification dropdown and customer details, all modules, ID-card download, invoice preview and password rotation");
 } finally {
   if (root) await act(async () => root.unmount()); globalThis.fetch = originalFetch; URL.createObjectURL = originalCreateURL; URL.revokeObjectURL = originalRevokeURL;
   for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];

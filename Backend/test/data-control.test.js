@@ -37,6 +37,14 @@ test("data control validates dates, selections, paths and spreadsheet formulas",
   assert.equal(publicRecord({ accessToken: "private" }).accessToken, undefined);
 });
 
+test("production data control refuses to start without an absolute persistent backup directory", async () => {
+  const db = { databaseName: "startup-check", collection: () => ({}) };
+  for (const dataControl of [{}, { backupDirectory: "relative-backups" }]) {
+    const control = createDataControl({ db, config: { production: true, dataControl } });
+    await assert.rejects(control.initialize(), /DATA_CONTROL_BACKUP_DIR/);
+  }
+});
+
 test("real MongoDB backup, export, verification, restore, cleanup and quota safety", { timeout: 180000 }, async t => {
   const config = readConfig(), client = new MongoClient(config.mongoUri, { serverSelectionTimeoutMS: 4000 });
   try { await client.connect(); } catch (error) { await client.close(); throw error; }
@@ -154,7 +162,7 @@ test("real MongoDB backup, export, verification, restore, cleanup and quota safe
       await assert.rejects(control.withLock(() => 1), /data update/);
       await db.collection("data_control_runtime").deleteMany({ _id: { $in: leases } });
       const denied = storageWriteGuard({ reserveWrite: async () => { throw Object.assign(new Error("full"), { status: 507 }); } });
-      let failure; await denied({ method: "POST", path: "/enquiries", get: () => "10" }, {}, error => { failure = error; }); assert.equal(failure.status, 507);
+      let failure; await denied({ method: "POST", path: "/invoices", get: () => "10" }, {}, error => { failure = error; }); assert.equal(failure.status, 507);
     });
     await t.test("scheduler creates due verified backups and recovers interrupted backup files", async () => {
       await control.saveSettings({ frequency: "weekly", backupRetentionDays: 30, retentionDays: 30, cleanupEnabled: false, cleanupSections: ["enquiries"] }, actor);
