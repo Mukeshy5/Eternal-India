@@ -67,6 +67,30 @@ test("Staff Panel shares business records while protecting personal data and wri
       assert.equal((await request("/staff/me", { auth: technicalCookie })).status, 401);
       assert.equal((await request("/staff/register", { auth: staffCookie, method: "POST", body: {} })).status, 404);
     });
+    await t.test("staff can permanently delete only their own activity records", async () => {
+      const activities = db.collection("panel_activity_history"), marker = `staff-delete-${randomUUID()}`;
+      const entry = (actorId, label, resource = "enquiries", type = "staff") => ({ actor: { type, id: actorId, name: "Activity test" }, panel: type, action: "updated", resource, label, resourceId: "", createdAt: new Date() });
+      const { insertedIds } = await activities.insertMany([
+        entry(account._id, `${marker}-single`, "workspace"),
+        entry(account._id, `${marker}-bulk`),
+        entry(secondAccount._id, `${marker}-peer`),
+        entry("admin-record", `${marker}-shared`, "enquiries", "admin"),
+      ]);
+      const [ownSingle, ownBulk, peerRecord, sharedRecord] = Object.values(insertedIds);
+      assert.equal((await request("/staff/activity", { auth: "", method: "DELETE" })).status, 401);
+      assert.equal((await request("/staff/activity/not-an-object-id", { auth: staffCookie, method: "DELETE" })).status, 400);
+      assert.equal((await request(`/staff/activity/${peerRecord}`, { auth: staffCookie, method: "DELETE" })).status, 404);
+      assert.equal(await activities.findOne({ _id: peerRecord }) !== null, true, "Staff cannot delete another employee's activity");
+      assert.equal((await request(`/admin/activity/${sharedRecord}`, { auth: staffCookie, method: "DELETE" })).status, 401);
+      assert.equal((await request(`/staff/activity/${ownSingle}`, { auth: staffCookie, method: "DELETE" })).status, 204);
+      assert.equal(await activities.findOne({ _id: ownSingle }), null);
+      const reply = await request(`/staff/activity?search=${encodeURIComponent(marker)}&resource=enquiries`, { auth: staffCookie, method: "DELETE" });
+      assert.equal(reply.status, 200); assert.deepEqual(await reply.json(), { deletedCount: 1 });
+      assert.equal(await activities.findOne({ _id: ownBulk }), null, "filtered Delete All permanently removes the Staff member's matching entry");
+      assert.ok(await activities.findOne({ _id: peerRecord }), "filtered Delete All preserves another Staff member's activity");
+      assert.ok(await activities.findOne({ _id: sharedRecord }), "filtered Delete All preserves shared Admin activity");
+      assert.equal((await json(`/staff/activity?search=${encodeURIComponent(marker)}&resource=enquiries`, { auth: staffCookie })).total, 2, "the fresh list contains only entries the Staff member was not allowed to delete");
+    });
     await t.test("enquiry assignment and optimistic edits enforce ownership on the server", async () => {
       enquiry = (await system.enquirySystem.enquiries.create({ name: "Assigned Guest", message: "Journey request", destination: "Delhi", source: "WEBSITE", email: "guest@example.com" })).enquiry;
       await json(`/technical/enquiries/${enquiry._id}`, { method: "PATCH", body: { assignedTo: account._id } });

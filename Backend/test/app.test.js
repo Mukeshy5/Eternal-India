@@ -27,7 +27,7 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
   assert.ok(await verifyPassword("x".repeat(100), longPasswordHash), "bcrypt pre-hashing preserves passwords longer than bcrypt's input limit");
   assert.equal(await verifyPassword("x".repeat(72) + "y".repeat(28), longPasswordHash), false);
   await assert.rejects(ensureAdmin(db, { ...config, adminEmail: "invalid-admin@example.com", adminPassword: "short" }), /at least 8 characters/);
-  const { app, decorationScheduler } = createApp({ client, db, config });
+  const { app, decorationScheduler, drainActivity } = createApp({ client, db, config });
   const server = app.listen(0, "127.0.0.1");
   await once(server, "listening");
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -41,6 +41,8 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       assert.equal((await (await request("/health")).json()).service, "eternal-india-api");
       assert.equal((await request("/admin/enquiries")).status, 401);
       assert.equal((await request("/admin/me")).status, 401);
+      assert.equal((await request("/admin/activity", { method: "DELETE", sessionCookie: "" })).status, 401);
+      assert.equal((await request(`/admin/activity/${new ObjectId()}`, { method: "DELETE", sessionCookie: "" })).status, 401);
       assert.equal((await request("/enquiries", { method: "POST", body: enquiry, origin: "https://untrusted.example" })).status, 403);
       assert.equal((await request("/enquiries", { method: "POST", body: {}, origin: "http://127.0.0.1:5173" })).status, 400, "the development loopback alias reaches form validation");
       assert.equal((await request("/enquiries", { method: "POST", body: {}, origin: "http://localhost:5174" })).status, 400, "a different local development port reaches form validation");
@@ -149,7 +151,7 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       const login = await request("/technical/login", { method: "POST", body: { email: config.adminEmail, password: config.adminPassword } });
       assert.equal(login.status, 200);
       cookie = cookieHeader(login);
-      for (const path of ["me", "enquiries", "history", "hotels", "vouchers", "gst"]) assert.equal((await request(`/technical/${path}`)).status, 200, `technical ${path} is available`);
+      for (const path of ["me", "enquiries", "history", "activity", "hotels", "vouchers", "gst"]) assert.equal((await request(`/technical/${path}`)).status, 200, `technical ${path} is available`);
       const technicalGst = await request("/technical/gst", { method: "POST", body: { gstNumber: "07ABCDE1234F1Z5" } });
       assert.equal(technicalGst.status, 201);
       const { gstRate: technicalGstRate } = await technicalGst.json();
@@ -166,6 +168,40 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       assert.equal(updatedHotel.amount, 3500);
       assert.equal(updatedHotel.gst, undefined);
       assert.equal((await request(`/technical/hotels/${hotel._id}`, { method: "DELETE" })).status, 204);
+    });
+    await t.test("permanently deletes filtered and individual activity records for panel administrators", async () => {
+      const activities = db.collection("panel_activity_history"), marker = `delete.activity.${randomUUID()}`;
+      const entry = (label, resource = "invoices") => ({ actor: { type: "admin", id: admin._id.toString(), name: "Test administrator" }, panel: "admin", action: "updated", resource, label, resourceId: "", createdAt: new Date() });
+      const { insertedIds } = await activities.insertMany([
+        entry(marker),
+        entry(marker, "workspace"),
+        entry(marker.replaceAll(".", "X")),
+      ]);
+      const [filtered, wrongCategory, literalOnly] = Object.values(insertedIds);
+      assert.equal((await request("/admin/activity", { method: "DELETE", sessionCookie: "" })).status, 401);
+      const adminLogin = await request("/admin/login", { method: "POST", body: { email: config.adminEmail, password: config.adminPassword } });
+      const adminCookie = cookieHeader(adminLogin);
+      const filteredReply = await request(`/admin/activity?search=${encodeURIComponent(marker)}&resource=invoices`, { method: "DELETE", sessionCookie: adminCookie });
+      assert.equal(filteredReply.status, 200); assert.deepEqual(await filteredReply.json(), { deletedCount: 1 });
+      assert.equal(await activities.findOne({ _id: filtered }), null);
+      assert.ok(await activities.findOne({ _id: wrongCategory }), "category filter preserves unrelated records");
+      assert.ok(await activities.findOne({ _id: literalOnly }), "search treats regex characters literally during deletion");
+      assert.equal((await (await request(`/admin/activity?search=${encodeURIComponent(marker)}&resource=invoices`, { sessionCookie: adminCookie })).json()).total, 0, "deleted history stays absent after a fresh API read");
+      const technicalLogin = await request("/technical/login", { method: "POST", body: { email: config.adminEmail, password: config.adminPassword } });
+      const technicalCookie = cookieHeader(technicalLogin);
+      const individual = await request(`/technical/activity/${wrongCategory}`, { method: "DELETE", sessionCookie: technicalCookie });
+      assert.equal(individual.status, 204); assert.equal(await activities.findOne({ _id: wrongCategory }), null);
+      assert.equal((await request("/admin/activity/not-an-object-id", { method: "DELETE", sessionCookie: adminCookie })).status, 400);
+      await drainActivity();
+      const beforeDeleteAll = await activities.countDocuments();
+      const deleteAll = await request("/technical/activity", { method: "DELETE", sessionCookie: technicalCookie });
+      assert.equal(deleteAll.status, 200); assert.deepEqual(await deleteAll.json(), { deletedCount: beforeDeleteAll });
+      assert.equal(await activities.countDocuments(), 0, "Delete All permanently removes every record and does not create a replacement audit row");
+      assert.equal((await request("/admin/logout", { method: "POST", sessionCookie: adminCookie })).status, 204);
+      assert.equal((await request("/technical/logout", { method: "POST", sessionCookie: technicalCookie })).status, 204);
+      assert.equal(await db.collection("admin_tokens").countDocuments({ adminId: admin._id }), 0, "test logins are cleaned up before subsequent session checks");
+      const resumedLogin = await request("/technical/login", { method: "POST", body: { email: config.adminEmail, password: config.adminPassword }, sessionCookie: "" });
+      assert.equal(resumedLogin.status, 200); cookie = cookieHeader(resumedLogin);
     });
     await t.test("persists tour prices and offers, validates uploads, and exposes public card data", async () => {
       const path = "/technical/promotions/package:golden-triangle";

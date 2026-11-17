@@ -96,3 +96,18 @@
 @media (max-width:1000px) { .invoice-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width:650px) { .invoice-workspace { padding: 22px 13px 40px; } .invoice-heading { align-items: stretch; } .invoice-heading > .invoice-actions { width: 100%; } .invoice-form-grid,.invoice-filter-grid { grid-template-columns: 1fr; } .invoice-card > header,.invoice-filters,.invoice-pagination,.invoice-form fieldset { padding: 18px; } .invoice-workspace :is(input,select,textarea) { font-size: 16px; } .invoice-document { padding: 20px 14px; } .invoice-payment { grid-template-columns: 1fr; gap: 18px; padding: 15px; } .invoice-qr { border-right: 0; border-bottom: 1px solid #e0e5ed; padding: 0 0 16px; } .invoice-letterhead img { width: 120px; } .invoice-document h2 { font-size: 20px; } .invoice-preview-caption { flex-direction: column; } .invoice-calculation { align-items: start; flex-direction: column; } .invoice-detail .invoice-document { margin: 18px 8px; } }
 @media print { @page { size: A4 portrait; margin: 12mm; } .invoice-document { box-shadow: none; border: 0; width: 100%; max-width: none; } .invoice-payment { grid-template-columns: 31% 1fr; break-inside: avoid; } .invoice-qr { border-bottom: 0; border-right: 1px solid #e0e5ed; } .invoice-signature,.invoice-document footer { break-inside: avoid; } }
+@media screen and (max-width:1200px) {
+  .invoice-table-wrap { overflow: visible; }
+  .invoice-table,.invoice-table thead,.invoice-table tbody { display: block; width: 100%; min-width: 0; }
+  .invoice-table thead { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  .invoice-table tbody { display: grid; gap: 12px; padding: 10px; }
+  .invoice-table tbody tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 8px; padding: 7px; border: 1px solid #e3e7ef; border-radius: 10px; }
+  .invoice-table tbody :is(th,td) { display: block; min-width: 0; max-width: none; padding: 9px 7px; border: 0; white-space: normal; overflow-wrap: anywhere; }
+  .invoice-table tbody :is(th,td)[data-label]::before { display: block; margin-bottom: 4px; color: #718097; font-size: 9px; font-weight: 600; text-transform: uppercase; content: attr(data-label); }
+  .invoice-table tbody th[data-label="Invoice number"],.invoice-table tbody td[data-label="Actions"] { grid-column: 1 / -1; }
+  .invoice-row-actions { min-width: 0; }
+  .invoice-row-actions button { flex: 1 1 100px; }
+  .invoice-document-table { overflow: visible; }
+  .invoice-document table { min-width: 0; table-layout: fixed; }
+  .invoice-document :is(th,td) { padding: 9px 4px; overflow-wrap: anywhere; }
+}

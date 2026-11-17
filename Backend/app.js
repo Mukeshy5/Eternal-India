@@ -234,6 +234,21 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
       res.status(400).json({ message: error.message || "Choose valid activity filters." });
     }
   });
+  management.delete("/activity/:id", requireAdmin, async (req, res) => {
+    if (!/^[a-f\d]{24}$/i.test(req.params.id)) return res.status(400).json({ message: "Choose a valid activity record." });
+    const result = await activityLog.remove(new ObjectId(req.params.id));
+    if (!result.deletedCount) return res.status(404).json({ message: "Activity record not found." });
+    res.sendStatus(204);
+  });
+  management.delete("/activity", requireAdmin, async (req, res) => {
+    try {
+      const { search, resource } = activityQuery(req.query);
+      const result = await activityLog.removeMatching({ search, resource });
+      res.json({ deletedCount: result.deletedCount });
+    } catch (error) {
+      res.status(400).json({ message: error.message || "Choose valid activity filters." });
+    }
+  });
   const hotelStars = ["1-Star (Budget)", "2-Star (Tourist Class)", "3-Star (Mid-Scale / First Class)", "4-Star (Upscale / Deluxe)", "5-Star (Luxury / Superior Deluxe)"];
   const parseMoney = (value) => Number.isFinite(Number(value)) && Number(value) >= 0 ? Math.round(Number(value) * 100) / 100 : null;
   const parseHotel = (body) => {

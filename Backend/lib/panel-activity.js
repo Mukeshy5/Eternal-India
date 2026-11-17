@@ -1,6 +1,7 @@
 export function panelActivity({ method, path, body }) {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return null;
   if (/^\/(?:notifications(?:\/|$)|socket-ticket|enquiry-notification-settings|accounts(?:\/|$)|register(?:\/|$)|login(?:\/|$)|logout(?:\/|$))/.test(path)) return null;
+  if (/^\/activity(?:\/|$)/.test(path)) return null;
   // Quotes, number reservations and PDF previews are preparation, not saved
   // business changes. Editors may request them repeatedly while typing.
   if (/^\/(?:vouchers\/(?:quote|invoice)|letters\/preview)\/?$/.test(path)) return null;

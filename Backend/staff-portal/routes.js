@@ -174,6 +174,26 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
       res.status(400).json({ message: error.message || "Choose valid activity filters." });
     }
   });
+  router.delete("/activity/:id", requireStaff, async (req, res) => {
+    const id = objectId(req.params.id);
+    if (!id) throw enquiryError(400, "Choose a valid activity record.");
+    const result = await activityLog.remove(id, { filter: { "actor.type": "staff", "actor.id": req.staffAccount._id.toString() } });
+    if (!result.deletedCount) throw enquiryError(404, "Activity record not found or you cannot delete it.");
+    res.sendStatus(204);
+  });
+  router.delete("/activity", requireStaff, async (req, res) => {
+    try {
+      const { search, resource } = activityQuery(req.query);
+      const result = await activityLog.removeMatching({
+        filter: { "actor.type": "staff", "actor.id": req.staffAccount._id.toString() },
+        search,
+        resource,
+      });
+      res.json({ deletedCount: result.deletedCount });
+    } catch (error) {
+      res.status(400).json({ message: error.message || "Choose valid activity filters." });
+    }
+  });
   router.post("/change-password", requireStaff, loginLimit, async (req, res) => {
     const { currentPassword, password, confirmPassword } = req.body || {};
     if (typeof currentPassword !== "string" || currentPassword.length > 256 || !await verifyPassword(currentPassword, req.staffAccount.passwordHash)) throw enquiryError(400, "Current password is incorrect.");

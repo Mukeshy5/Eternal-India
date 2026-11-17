@@ -88,3 +88,17 @@
 .billing-table .billing-office-cell { min-width: 180px; max-width: 260px; white-space: normal; overflow-wrap: anywhere; }
 .billing-office-cell strong, .billing-office-cell small { display: block; }
 .billing-office-cell small { color: #66768b; margin-top: 5px; font-size: 11px; line-height: 1.6; }
+@media screen and (max-width:1600px) {
+  .billing-table-wrap { overflow: visible; }
+  .billing-table,.billing-table thead,.billing-table tbody { display: block; width: 100%; min-width: 0; }
+  .billing-table thead { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  .billing-table tbody { display: grid; gap: 12px; padding: 10px; }
+  .billing-table tbody tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 8px; padding: 7px; border: 1px solid #dce5ef; border-radius: 10px; }
+  .billing-table tbody :is(th,td) { display: block; min-width: 0; max-width: none; padding: 9px 7px; border: 0; white-space: normal; overflow-wrap: anywhere; }
+  .billing-table tbody :is(th,td)[data-label]::before { display: block; margin-bottom: 4px; color: #6a7e96; font-size: 9px; font-weight: 600; text-transform: uppercase; content: attr(data-label); }
+  .billing-table tbody th[data-label="Invoice number"],.billing-table tbody td[data-label="Actions"] { grid-column: 1 / -1; }
+  .billing-table .billing-office-cell { min-width: 0; max-width: none; }
+  .billing-table .billing-amount { white-space: normal; }
+  .billing-row-actions { min-width: 0; }
+  .billing-row-actions button { flex: 1 1 100px; }
+}

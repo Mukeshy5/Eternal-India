@@ -20,6 +20,18 @@ const recordPaths = [
 const secretField = /password|secret|token|credential|session|cookie|salary|bank|accountnumber|ifsc|qr|hash|photo|image|file|binary|authorization|requestkey|originalpayload|submission|pendingevents/i;
 const isObjectId = (value) => value instanceof ObjectId;
 const toPlain = (value) => isObjectId(value) ? value.toString() : value;
+const searchFields = ["actor.name", "actor.employeeId", "actor.email", "resource", "label", "action", "resourceId"];
+
+function activityFilter({ filter = {}, search = "", resource = "" } = {}) {
+  const clauses = [];
+  if (Object.keys(filter).length) clauses.push(filter);
+  if (resource) clauses.push({ resource });
+  if (search) {
+    const literal = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    clauses.push({ $or: searchFields.map((key) => ({ [key]: { $regex: literal, $options: "i" } })) });
+  }
+  return clauses.length > 1 ? { $and: clauses } : clauses[0] || {};
+}
 
 export function sanitizeActivityValue(value, depth = 0) {
   if (value === null || value === undefined || typeof value === "boolean" || typeof value === "number") return value;
@@ -146,19 +158,26 @@ export function createActivityLog(db, { onRecorded } = {}) {
   }
   async function list({ filter = {}, search = "", resource = "", page = 1, pageSize = 25 } = {}) {
     await initialize();
-    const query = { ...filter };
-    if (resource) query.resource = resource;
-    if (search) query.$and = [{ $or: ["actor.name", "actor.employeeId", "actor.email", "resource", "label", "action", "resourceId"].map((key) => ({ [key]: { $regex: search, $options: "i" } })) }];
+    const query = activityFilter({ filter, search, resource });
     const [items, total] = await Promise.all([
       collection.find(query, { projection: { path: 0 } }).sort({ createdAt: -1, _id: -1 }).skip((page - 1) * pageSize).limit(pageSize).toArray(),
       collection.countDocuments(query),
     ]);
     return { activities: items, total, page, pages: Math.max(1, Math.ceil(total / pageSize)) };
   }
+  async function remove(id, { filter = {} } = {}) {
+    await initialize();
+    const scoped = activityFilter({ filter });
+    return collection.deleteOne(Object.keys(scoped).length ? { $and: [{ _id: id }, scoped] } : { _id: id });
+  }
+  async function removeMatching(options = {}) {
+    await initialize();
+    return collection.deleteMany(activityFilter(options));
+  }
   async function drain() {
     while (pendingWrites.size) await Promise.all([...pendingWrites]);
   }
-  return { initialize, middleware, captureBefore, recordEvent, list, drain };
+  return { initialize, middleware, captureBefore, recordEvent, list, remove, removeMatching, drain };
 }
 
 export function activityQuery(query = {}) {
