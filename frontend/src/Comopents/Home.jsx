@@ -105,6 +105,87 @@ export default function Home() {
           </div>
         </div>
       </section>
+      <section className="section container available-places-section">
+        <div className="section-heading">
+          <div>
+            <Eyebrow>Available places</Eyebrow>
+            <h2>
+              Follow your curiosity.
+              <br />Find your next journey.
+            </h2>
+          </div>
+          <Link className="text-link" to="/destinations-in-india">
+            Explore all destinations <Icon />
+          </Link>
+        </div>
+        <div className="journey-grid">
+          {availablePlaces.map((destination) => (
+            <Link
+              className="journey-card"
+              key={destination.slug}
+              to={destinationPath(destination)}
+            >
+              <div className="journey-image">
+                <img src={destination.image} alt={destination.alt} loading="lazy" />
+                <span className="round-arrow">
+                  <Icon name="diagonal" />
+                </span>
+              </div>
+              <span className="small-label">{destination.tagline}</span>
+              <h3>{destination.title}</h3>
+              <p>{destination.places.join(" · ")}</p>
+              <div className="promotion-card-footer"><PromotionDisplay targetId={destination.promotionId} /></div>
+            </Link>
+          ))}
+        </div>
+      </section>
+      <section className="home-company-intro" aria-label="About Eternal India">
+        <div className="container">
+          <p>
+            Eternal India one among the leading destination management company
+            in India with a decade of dedicated services to tourism. We at
+            Eternal India offer a good destination of holidays in India, Sri
+            Lanka, Nepal and Bhutan. Eternal India has been established various
+            specialized tour in India, Our pride is shown in its all aspect of
+            Inbound tours.
+          </p>
+          <Link to="/about" className="button button-small">
+            More view <Icon name="diagonal" size={17} />
+          </Link>
+        </div>
+      </section>
+      <section className="home-regions section">
+        <div className="container">
+          <div className="section-heading">
+            <div>
+              <Eyebrow>Choose your direction</Eyebrow>
+              <h2>
+                Start anywhere.
+                <br />
+                Go deeper.
+              </h2>
+            </div>
+            <Link className="text-link" to="/destinations-in-india">
+              View all destinations <Icon />
+            </Link>
+          </div>
+          <div className="region-grid">
+            {homeRegions.map((region) => (
+              <Link className="region-card" to={region.path} key={region.title}>
+                <div className="region-image">
+                  <img src={region.image} alt={region.title} loading="lazy" />
+                  <span className="round-arrow">
+                    <Icon name="diagonal" />
+                  </span>
+                </div>
+                <Eyebrow>{region.title}</Eyebrow>
+                <p>{region.description}</p>
+                <div className="promotion-card-footer"><PromotionDisplay targetId={region.promotionId} /></div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
       <section className="trust-strip">
         <div className="container">
           <span>
@@ -146,40 +227,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-      <section className="section container available-places-section">
-        <div className="section-heading">
-          <div>
-            <Eyebrow>Available places</Eyebrow>
-            <h2>
-              Follow your curiosity.
-              <br />Find your next journey.
-            </h2>
-          </div>
-          <Link className="text-link" to="/destinations-in-india">
-            Explore all destinations <Icon />
-          </Link>
-        </div>
-        <div className="journey-grid">
-          {availablePlaces.map((destination) => (
-            <Link
-              className="journey-card"
-              key={destination.slug}
-              to={destinationPath(destination)}
-            >
-              <div className="journey-image">
-                <img src={destination.image} alt={destination.alt} loading="lazy" />
-                <span className="round-arrow">
-                  <Icon name="diagonal" />
-                </span>
-              </div>
-              <span className="small-label">{destination.tagline}</span>
-              <h3>{destination.title}</h3>
-              <p>{destination.places.join(" · ")}</p>
-              <div className="promotion-card-footer"><PromotionDisplay targetId={destination.promotionId} /></div>
-            </Link>
-          ))}
-        </div>
-      </section>
       <section className="home-about container">
         <div>
           <Eyebrow>The people behind your journey</Eyebrow>
@@ -204,38 +251,6 @@ export default function Home() {
           <Link to="/about" className="text-link">
             Get to know us <Icon />
           </Link>
-        </div>
-      </section>
-      <section className="home-regions section">
-        <div className="container">
-          <div className="section-heading">
-            <div>
-              <Eyebrow>Choose your direction</Eyebrow>
-              <h2>
-                Start anywhere.
-                <br />
-                Go deeper.
-              </h2>
-            </div>
-            <Link className="text-link" to="/destinations-in-india">
-              View all destinations <Icon />
-            </Link>
-          </div>
-          <div className="region-grid">
-            {homeRegions.map((region) => (
-              <Link className="region-card" to={region.path} key={region.title}>
-                <div className="region-image">
-                  <img src={region.image} alt={region.title} loading="lazy" />
-                  <span className="round-arrow">
-                    <Icon name="diagonal" />
-                  </span>
-                </div>
-                <Eyebrow>{region.title}</Eyebrow>
-                <p>{region.description}</p>
-                <div className="promotion-card-footer"><PromotionDisplay targetId={region.promotionId} /></div>
-              </Link>
-            ))}
-          </div>
         </div>
       </section>
       <section className="home-process container">

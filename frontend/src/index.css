@@ -1082,6 +1082,22 @@ main:focus {
 .home-about .text-link {
   margin-top: 20px;
 }
+.home-company-intro {
+  background: var(--cream);
+  border-bottom: 1px solid var(--line);
+}
+.home-company-intro .container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 36px;
+  padding-block: 34px;
+}
+.home-company-intro p {
+  max-width: 930px;
+  line-height: 1.8;
+}
 .home-regions {
   background: #efeee5;
 }
