@@ -35,6 +35,8 @@ Inbox and Archive lists carry a bounded message preview. View Details loads the 
 
 The existing Plan Your Trip form still saves to `POST /api/enquiries` before playing confirmation audio or opening an optional contact link. Server validation and UUID/request-hash duplicate protection remain. The server fixes the source as `WEBSITE`; customers cannot impersonate WhatsApp or Gmail sources through that endpoint. Destination, traveller count, travel date and full submitted message remain saved. A durable MongoDB outbox publishes the creation after the record is saved.
 
+Once the enquiry and its pending event are saved, the API returns the saved reference even if history, notification or live delivery fails. The existing worker retries delivery from that pending event; retrying the unchanged form returns the same reference without another enquiry. Validation, request-ID conflicts, deleted submissions and a failed enquiry insert still return errors. Deploy the updated backend to Render for this behavior to apply to the live form.
+
 ## WhatsApp Business setup
 
 Use the official Meta WhatsApp Business Cloud API for the business phone number. Ordinary personal/Business app `wa.me` links cannot capture inbound messages.

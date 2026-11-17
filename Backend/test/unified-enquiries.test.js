@@ -244,8 +244,10 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       let fail = true;
       const service = createEnquiryService({ db, notifications: { async publish(event) { if (fail) { fail = false; throw new Error("Delivery interrupted"); } return real.publish(event); } } });
       const externalMessageId = `retry-${randomUUID()}`;
-      await assert.rejects(service.create({ name: "Long name ".repeat(32), message: "Saved before notification", source: "WHATSAPP", externalMessageId }));
+      const result = await service.create({ name: "Long name ".repeat(32), message: "Saved before notification", source: "WHATSAPP", externalMessageId });
       const saved = await db.collection("enquiries").findOne({ externalMessageId });
+      assert.equal(result.created, true, "a notification failure does not reject a saved enquiry");
+      assert.equal(result.enquiry.reference, saved.reference);
       assert.equal(saved.pendingEvents.length, 1);
       await service.reconcile();
       assert.equal((await db.collection("enquiries").findOne({ _id: saved._id })).pendingEvents.length, 0);
@@ -257,6 +259,45 @@ test("one permanent MongoDB inbox for website, WhatsApp and Gmail with authentic
       await remote.markRead(remoteId, "admin", owner._id.toString());
       await waitFor(() => adminNotifications.some((event) => event.action === "read" && event.id === remoteId));
       assert.equal(adminNotifications.filter((event) => event.action === "created" && event.notification?.id === remoteId).length, 1);
+    });
+    await t.test("saved website enquiries succeed while outbox writes fail, then recover without duplicates", async () => {
+      for (const [collection, validator] of [
+        ["enquiry_events", { type: { $ne: "created" } }],
+        ["enquiry_history", { action: { $ne: "created" } }],
+        ["enquiry_events", { notification: { $ne: true } }],
+      ]) {
+        const fields = { submissionId: randomUUID(), name: "Delivery recovery guest", email: "recovery@example.com", destination: "Delhi", travellers: 2, message: "Keep the saved enquiry", voiceLanguage: "en" };
+        let saved;
+        await db.command({ collMod: collection, validator });
+        try {
+          const reply = await request("/enquiries", { method: "POST", body: fields });
+          assert.equal(reply.status, 201, await reply.clone().text());
+          const { reference } = await reply.json();
+          saved = await db.collection("enquiries").findOne({ submissionId: fields.submissionId });
+          assert.equal(saved.reference, reference);
+          assert.equal(saved.assignedTo, null, "new enquiries need no staff assignment");
+          assert.equal(saved.pendingEvents.length, 1, "failed delivery retains its durable retry marker");
+          const retry = await request("/enquiries", { method: "POST", body: fields });
+          assert.equal(retry.status, 200);
+          assert.equal((await retry.json()).reference, reference);
+          assert.equal(await db.collection("enquiries").countDocuments({ submissionId: fields.submissionId }), 1);
+          assert.equal((await request("/enquiries", { method: "POST", body: { ...fields, destination: "Jaipur" } })).status, 409, "saved details still cannot be overwritten by a retry");
+        } finally { await db.command({ collMod: collection, validator: {} }); }
+        await instance.enquirySystem.enquiries.reconcile();
+        assert.equal((await db.collection("enquiries").findOne({ _id: saved._id })).pendingEvents.length, 0);
+        assert.equal(await db.collection("enquiry_history").countDocuments({ enquiryId: saved._id, action: "created" }), 1);
+        assert.equal(await db.collection("enquiry_events").countDocuments({ enquiryId: saved._id.toString(), type: "notification" }), 1);
+      }
+    });
+    await t.test("an actual enquiry write failure still returns an error without a success reference", async () => {
+      const fields = { submissionId: randomUUID(), name: "Reject enquiry write", email: "unsaved@example.com", destination: "Delhi", travellers: 2, message: "Must not report success", voiceLanguage: "en" };
+      await db.command({ collMod: "enquiries", validator: { name: { $ne: fields.name } } });
+      try {
+        const reply = await request("/enquiries", { method: "POST", body: fields });
+        assert.equal(reply.status, 500);
+        assert.equal((await reply.json()).reference, undefined);
+        assert.equal(await db.collection("enquiries").countDocuments({ submissionId: fields.submissionId }), 0);
+      } finally { await db.command({ collMod: "enquiries", validator: {} }); }
     });
     await t.test("category, date and status sorting filters preserve source data", async () => {
       const fields = { name: "Plan Customer", email: "plan@example.com", destination: "Jaipur", phone: "", travellers: 2, date: "", message: "Plan a visit", voiceLanguage: "en", enquiryKind: "PLAN_TRIP", submissionId: randomUUID() };

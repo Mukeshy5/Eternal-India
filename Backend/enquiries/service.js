@@ -72,10 +72,11 @@ export function createEnquiryService({ db, notifications }) {
       await collection.deleteOne({ _id: record._id });
       return { enquiry: null, created: false, deleted: true };
     }
-    // Idempotent history and durable outbox recover even if the first HTTP reply
-    // or an update after insert was lost. There is only one central enquiry row.
-    await db.collection("enquiry_history").updateOne({ _id: `created:${record._id}` }, { $setOnInsert: { enquiryId: record._id, reference: record.reference, action: "created", status: "NEW", changedAt: record.createdAt } }, { upsert: true });
-    await flush(record);
+    // The enquiry and its pending event are already durable. A history,
+    // notification or live-delivery failure must not turn that save into a 500.
+    // Reconciliation retries unfinished delivery under the same stable event ID.
+    try { await flush(record); }
+    catch (error) { console.error("Enquiry saved; event delivery will retry:", error.name, Number.isInteger(error.code) ? error.code : ""); }
     return { enquiry: publicEnquiry(record), created };
   }
   async function update(id, body, admin) {
