@@ -59,6 +59,7 @@ export async function verifyResponsive(vite) {
       assert.ok(companyIntro.textContent.includes("a decade of dedicated services to tourism"));
       assert.equal(companyIntro.querySelector('a[href="/about"]').textContent.trim(), "More view", `${width}: More view opens About Us`);
       assert.equal(computed(".home-company-intro .container").flexDirection, width <= 900 ? "column" : "row", `${width}: company introduction adapts to mobile`);
+      assert.equal(computed(".home-company-intro-copy").flexDirection, width <= 900 ? "column" : "row", `${width}: company copy and About link adapt to mobile`);
       const availablePlaces = element(".available-places-section");
       assert.equal(win.document.querySelectorAll(".available-places-section").length, 1);
       assert.equal(availablePlaces.previousElementSibling, companyIntro, `${width}: available places follows the company introduction`);
