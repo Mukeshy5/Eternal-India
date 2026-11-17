@@ -125,6 +125,7 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
   });
 
   const loginLimit = rateLimit({ windowMs: 15 * 60000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
+  const socketTicketLimit = rateLimit({ windowMs: 60000, limit: 120, standardHeaders: "draft-8", legacyHeaders: false, message: { message: "Please wait before reconnecting live notifications." } });
   router.use(readiness);
   router.use(activityLog.middleware);
   router.post("/login", loginLimit, async (req, res) => {
@@ -161,6 +162,9 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     clearCookie(res); res.sendStatus(204);
   });
   router.get("/me", requireStaff, (req, res) => res.json({ staff: publicStaff(req.staffAccount, req.employee) }));
+  router.post("/socket-ticket", socketTicketLimit, requireStaff, async (req, res) => {
+    res.json({ ticket: await realtime.issueTicket("staff", req.staffAccount._id.toString(), req.staffClaims.jti) });
+  });
   router.get("/activity", requireStaff, async (req, res) => {
     try {
       const options = activityQuery(req.query);
@@ -185,7 +189,7 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     const filter = enquiryScope(req), search = regexOf(req.query.search), page = pageOf(req.query);
     if (req.query.status) { const status = enquiryStatus(req.query.status); if (!status) throw enquiryError(400, "Choose a valid status."); filter.status = status; }
     if (search) filter.$or = ["name", "reference", "email", "phone", "destination"].map((key) => ({ [key]: { $regex: search, $options: "i" } }));
-    const [rows, total] = await Promise.all([db.collection("enquiries").find(filter, { projection: { originalPayload: 0, pendingEvents: 0, submissionHash: 0, submissionId: 0, changes: 0 } }).sort({ updatedAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).toArray(), db.collection("enquiries").countDocuments(filter)]);
+    const [rows, total] = await Promise.all([db.collection("enquiries").find(filter, { projection: { originalPayload: 0, pendingEvents: 0, submissionHash: 0, submissionId: 0, changes: 0 } }).sort({ receivedAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).toArray(), db.collection("enquiries").countDocuments(filter)]);
     res.json({ enquiries: rows.map((row) => staffEnquiry(row, req)), page, pages: Math.max(1, Math.ceil(total / 20)), total });
   });
   router.get("/enquiries/:id", requireStaff, async (req, res) => {

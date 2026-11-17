@@ -5,6 +5,7 @@ import { adminPanelAccess } from "../lib/panel-access.js";
 import { technicalAccess } from "../festivals/permissions.js";
 import { broadcastAll } from "../staff-portal/livehub.js";
 import { staffWorkspaceResources } from "../staff-portal/workspace.js";
+import { authenticateStaffSession } from "../staff-portal/auth.js";
 
 export function createEnquiryRealtime({ db, config, enquiries, notifications }) {
   let io, poller, polling = false;
@@ -22,6 +23,7 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     return ticket;
   }
   async function authenticateSession(accountId, authTokenId, panel) {
+    if (panel === "staff") return authenticateStaffSession({ db, accountId, tokenId: authTokenId });
     const adminId = new ObjectId(accountId);
     const session = await db.collection("admin_tokens").findOne({
       _id: authTokenId,
@@ -134,15 +136,15 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     io.use(async (socket, next) => {
       try {
         const { panel, ticket } = socket.handshake.auth || {};
-        if (!["admin", "technical"].includes(panel) || typeof ticket !== "string" || ticket.length > 200) return next(new Error("Please sign in to continue."));
+        if (!["admin", "technical", "staff"].includes(panel) || typeof ticket !== "string" || ticket.length > 200) return next(new Error("Please sign in to continue."));
         const digest = createHash("sha256").update(ticket).digest("hex");
         const savedTicket = await socketTickets.findOneAndDelete({ _id: digest, panel, expiresAt: { $gt: new Date() } });
         if (!savedTicket) return next(new Error("Live notification authorization expired. Please reconnect."));
         const accountId = savedTicket.accountId;
         const authTokenId = savedTicket.authTokenId;
-        const authenticate = async () => ({ admin: await authenticateSession(accountId, authTokenId, panel) });
+        const authenticate = () => authenticateSession(accountId, authTokenId, panel);
         const result = await authenticate();
-        if (!result.admin) return next(new Error("Please sign in to continue."));
+        if (!result) return next(new Error("Please sign in to continue."));
         socket.data.authenticate = authenticate;
         socket.data.accountId = accountId;
         socket.data.panel = panel;
@@ -172,7 +174,7 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
       }).catch((error) => { console.error("Live notification recovery failed:", error.name); socket.emit("enquiry:ready"); });
       // Logout, password rotation, disabled accounts and expired JWTs also revoke
       // long-lived notification connections, rather than trusting the handshake forever.
-      const guard = setInterval(() => { void socket.data.authenticate().then((result) => { if (!result.admin) socket.disconnect(true); }).catch(() => socket.disconnect(true)); }, 15000);
+      const guard = setInterval(() => { void socket.data.authenticate().then((session) => { if (!session) socket.disconnect(true); }).catch(() => socket.disconnect(true)); }, 15000);
       guard.unref?.(); socket.once("disconnect", () => clearInterval(guard));
     });
     // Cross-instance delivery and crash recovery use the MongoDB outbox. An

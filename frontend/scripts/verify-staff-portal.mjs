@@ -72,7 +72,7 @@ try {
   await waitFor(() => container.textContent.includes("Staff Login account created"), "account persisted");
   const saved = await db.collection("staff_accounts").findOne({ staffId: employee._id }); assert.ok(saved); assert.equal(saved.username, "staff.ui");
   assert.equal(saved.canViewActivity, false, "peer activity access is disabled by default");
-  const enquiry = (await system.enquirySystem.enquiries.create({ name: "Staff UI Guest", message: "Please call", destination: "Jaipur", source: "WEBSITE", email: "staff-ui-guest@example.com", phone: "+919876543218" })).enquiry;
+  const enquiry = (await system.enquirySystem.enquiries.create({ name: "Staff UI Guest", message: "Please call", destination: "Jaipur", travellers: 3, date: "2026-12-01", voiceLanguage: "hi", source: "WEBSITE", email: "staff-ui-guest@example.com", phone: "+919876543218" })).enquiry;
   await call(`/technical/enquiries/${enquiry._id}`, { assignedTo: saved._id }, "PATCH");
   await waitFor(() => container.textContent.includes("Manage access"), "account row"); await click("Manage access"); await waitFor(() => container.textContent.includes(invoice.invoiceNumber), "invoice access choices");
   const invoiceRow = [...container.querySelectorAll("tr")].find((row) => row.textContent.includes(invoice.invoiceNumber));
@@ -93,6 +93,13 @@ try {
   await waitFor(() => container.querySelector("#staff-username"), "staff login"); assert.equal([...container.querySelectorAll("a")].some((link) => /register/.test(link.href)), false);
   await act(async () => { type("#staff-username", "staff.ui"); type("#staff-password", "UiAssignedStaff12!"); }); await submit(".admin-login-form");
   await waitFor(() => container.querySelector(".staff-session-strip"), "staff session");
+  await waitFor(() => [...container.querySelectorAll("tr")].some((row) => row.textContent.includes("Staff UI Guest")), "existing enquiries are visible after login");
+  const assignedEnquiryRow = [...container.querySelectorAll("tr")].find((row) => row.textContent.includes("Staff UI Guest"));
+  assert.notEqual(assignedEnquiryRow.children[3]?.textContent.trim(), "—", "received date is visible in the All Enquiries table");
+  await click("View details", assignedEnquiryRow);
+  await waitFor(() => container.querySelector(".staff-message")?.textContent.includes("Please call"), "complete enquiry details");
+  assert.ok(container.textContent.includes("Travellers: 3 people")); assert.ok(container.textContent.includes("Departure: 2026-12-01")); assert.ok(container.textContent.includes("Preferred language: Hindi"));
+  await click("Close details", container.querySelector("article.staff-surface"));
   assert.equal((await call("/staff/me", undefined, "GET")).staff.canViewActivity, true);
   const accountNow = await db.collection("staff_accounts").findOne({ _id: saved._id });
   await call(`/technical/staff-accounts/${saved._id}`, { version: accountNow.version, canViewActivity: false }, "PATCH");

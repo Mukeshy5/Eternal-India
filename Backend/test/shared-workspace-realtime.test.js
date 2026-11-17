@@ -64,12 +64,20 @@ test("enquiries, vouchers, invoices and history update live across Admin, Techni
       const socket = io(origin, { path: "/api/enquiries/socket.io", transports: ["websocket"], reconnection: false, auth: { panel: name, ticket } });
       sockets.push({ socket, events });
       socket.on("workspace:changed", (event) => events.push(event));
+      socket.on("enquiry:event", (event) => events.push({ resource: "enquiries", action: event.type, resourceId: event.enquiryId }));
       socket.on("invoices:changed", (event) => events.push({ resource: "invoices", resourceId: event.invoiceId, ...event }));
       await once(socket, "connect");
     }
     for (const username of ["shared.1", "shared.2"]) {
       const panel = { name: "staff" }, reply = await request(panel, "login", "POST", { username, password: config.adminPassword }); assert.equal(reply.status, 200);
       panel.cookie = cookieHeader(reply); panels.push(panel); await stream(panel);
+      const { ticket } = await json(panel, "socket-ticket", "POST", {}), events = [];
+      const socket = io(origin, { path: "/api/enquiries/socket.io", transports: ["websocket"], reconnection: false, auth: { panel: "staff", ticket } });
+      sockets.push({ socket, events });
+      socket.on("workspace:changed", (event) => events.push(event));
+      socket.on("enquiry:event", (event) => events.push({ resource: "enquiries", action: event.type, resourceId: event.enquiryId }));
+      socket.on("invoices:changed", (event) => events.push({ resource: "invoices", resourceId: event.invoiceId, ...event }));
+      await once(socket, "connect");
     }
     await waitFor(() => streams.every(({ events }) => events.some(({ event }) => event === "changed")), "both Staff streams initialize");
     await t.test("new unassigned enquiries notify all active staff once and remain visible everywhere", async () => {
@@ -78,6 +86,7 @@ test("enquiries, vouchers, invoices and history update live across Admin, Techni
       assert.equal((await request(null, "enquiries", "POST", fields)).status, 200);
       const saved = await db.collection("enquiries").findOne({ reference });
       await waitFor(() => streams.every(({ events }) => events.some(({ event, data }) => event === "notification:event" && data.enquiryId === saved._id.toString())), "unassigned enquiry alerts reach both Staff accounts");
+      await expectChange("enquiries", "created", saved._id.toString());
       for (const employee of employees.slice(0, 2)) assert.equal(await db.collection("staff_notifications").countDocuments({ staffId: employee._id, enquiryId: saved._id.toString() }), 1);
       assert.equal(await db.collection("staff_notifications").countDocuments({ staffId: employees[2]._id, enquiryId: saved._id.toString() }), 0);
       for (const panel of panels) assert.ok((await json(panel, "enquiries")).enquiries.some((row) => row.reference === reference));

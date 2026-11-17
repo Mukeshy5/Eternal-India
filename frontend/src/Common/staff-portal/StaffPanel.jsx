@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { api, apiUrl } from "../api";
+import { io } from "socket.io-client";
+import { api, apiUrl, socketServerUrl } from "../api";
 import PanelLayout, { PanelErrorBoundary } from "../panel/PanelLayout";
 import { PanelNavigationProvider, usePanelNavigation, usePanelNavigationGuard } from "../panel/PanelNavigationContext";
 import ActivityHistory from "../ActivityHistory";
@@ -85,11 +86,31 @@ function Workspace() {
         void load();
       }, 100);
     };
+    const socket = io(socketServerUrl(), {
+      autoConnect: false,
+      path: "/api/enquiries/socket.io",
+      auth: (done) => {
+        void api("/staff/socket-ticket", { method: "POST", body: "{}" }).then(({ ticket }) => {
+          if (!disposed) done({ panel: "staff", ticket, since: new Date(startedAt).toISOString() });
+        }).catch((failure) => {
+          if (failure.status === 401) unauthorized(failure.message);
+          if (!disposed) done({ panel: "staff" });
+        });
+      },
+      transports: ["websocket", "polling"], tryAllTransports: true, reconnection: true,
+    });
+    const onSocketConnect = () => { if (!disposed) { setConnected(true); update(); } };
+    const onSocketDisconnect = () => { if (!disposed) setConnected(false); };
+    socket.on("connect", onSocketConnect);
+    socket.on("disconnect", onSocketDisconnect);
+    socket.on("connect_error", onSocketDisconnect);
+    socket.on("enquiry:event", update);
+    socket.on("workspace:changed", update);
+    socket.connect();
     let source;
     if (typeof EventSource !== "undefined") {
       source = new EventSource(apiUrl("/staff/events"), { withCredentials: true });
-      source.onopen = () => { if (!disposed) { setConnected(true); update(); } };
-      source.onerror = () => { if (!disposed) setConnected(false); };
+      source.onopen = () => { if (!disposed) update(); };
       source.addEventListener("changed", update);
       source.addEventListener("workspace:changed", update);
       source.addEventListener("revoked", () => { source.close(); unauthorized(); });
@@ -109,7 +130,7 @@ function Workspace() {
     }
     const fallback = window.setInterval(() => { if (!document.hidden) update(); }, 30000);
     window.addEventListener("focus", update); window.addEventListener("online", update);
-    return () => { disposed = true; controller.abort(); source?.close(); sound.dispose(); notificationSound.current = null; window.clearTimeout(updateTimer); window.clearInterval(timer); window.clearInterval(fallback); document.removeEventListener("pointerdown", prime); document.removeEventListener("keydown", prime); window.removeEventListener("focus", update); window.removeEventListener("online", update); };
+    return () => { disposed = true; controller.abort(); source?.close(); socket.off("connect", onSocketConnect); socket.off("disconnect", onSocketDisconnect); socket.off("connect_error", onSocketDisconnect); socket.off("enquiry:event", update); socket.off("workspace:changed", update); socket.disconnect(); sound.dispose(); notificationSound.current = null; window.clearTimeout(updateTimer); window.clearInterval(timer); window.clearInterval(fallback); document.removeEventListener("pointerdown", prime); document.removeEventListener("keydown", prime); window.removeEventListener("focus", update); window.removeEventListener("online", update); };
   }, [staffId, unauthorized]);
   function go(key) { if (!navigation.confirmNavigation()) return false; setError(""); navigate(key === "enquiries" ? "/staff" : `/staff/${key}`); return true; }
   async function login(credentials) {
@@ -231,9 +252,9 @@ function Enquiries({ refresh, onUnauthorized }) {
     return () => controller.abort();
   }, [selectedId, refresh, revision, onUnauthorized]);
   return <section className="staff-portal"><Heading title="All Enquiries">View all guest enquiries. Update the status of enquiries assigned to you.</Heading><section className="staff-surface"><Search onSearch={(value) => { setSearch(value); setPage(1); }} /><label className="staff-status-filter">Status <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">All statuses</option>{Object.entries(enquiryStatusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><LoadState state={state} /><OperationState operation={operation} />{notice && <p role="status" className="staff-success">{notice}</p>}
-    <div className="staff-table-wrap"><table><thead><tr><th>Reference / guest</th><th>Contact</th><th>Destination</th><th>Status</th><th>Actions</th></tr></thead><tbody>{state.data?.enquiries.map((enquiry) => <tr key={enquiry._id}><td><strong>{enquiry.name}</strong><small>{enquiry.reference}</small></td><td>{enquiry.email}<small>{enquiry.phone}</small></td><td>{enquiry.destination || enquiry.subject}</td><td><form className="staff-actions" onSubmit={(event) => { event.preventDefault(); const value = new FormData(event.currentTarget).get("status"); void operation.run(async (signal) => { await api(`/staff/enquiries/${enquiry._id}`, { method: "PATCH", body: JSON.stringify({ status: value, revision: enquiry.revision }), signal }); if (!signal.aborted) { setNotice("Enquiry status updated."); setRevision((current) => current + 1); } }); }}><select aria-label={`Status for ${enquiry.reference}`} name="status" key={`${enquiry._id}:${enquiry.revision}`} defaultValue={enquiry.status} disabled={!enquiry.canEdit || operation.busy}>{Object.entries(enquiryStatusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><button disabled={!enquiry.canEdit || operation.busy}>Save</button></form></td><td><button disabled={operation.busy} onClick={() => void operation.run(async (signal) => { const result = await api(`/staff/enquiries/${enquiry._id}`, { signal }); if (!signal.aborted) setSelected(result.enquiry); })}>View details</button></td></tr>)}</tbody></table></div>
+    <div className="staff-table-wrap"><table><thead><tr><th>Reference / guest</th><th>Contact</th><th>Destination</th><th>Received</th><th>Status</th><th>Actions</th></tr></thead><tbody>{state.data?.enquiries.map((enquiry) => { const receivedAt = enquiry.receivedAt || enquiry.createdAt; return <tr key={enquiry._id}><td><strong>{enquiry.name}</strong><small>{enquiry.reference}</small></td><td>{enquiry.email || "—"}<small>{enquiry.phone || "—"}</small></td><td>{enquiry.destination || enquiry.subject || "—"}</td><td>{receivedAt ? dateTime(receivedAt) : "—"}</td><td><form className="staff-actions" onSubmit={(event) => { event.preventDefault(); const value = new FormData(event.currentTarget).get("status"); void operation.run(async (signal) => { await api(`/staff/enquiries/${enquiry._id}`, { method: "PATCH", body: JSON.stringify({ status: value, revision: enquiry.revision }), signal }); if (!signal.aborted) { setNotice("Enquiry status updated."); setRevision((current) => current + 1); } }); }}><select aria-label={`Status for ${enquiry.reference}`} name="status" key={`${enquiry._id}:${enquiry.revision}`} defaultValue={enquiry.status} disabled={!enquiry.canEdit || operation.busy}>{Object.entries(enquiryStatusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><button disabled={!enquiry.canEdit || operation.busy}>Save</button></form></td><td><button disabled={operation.busy} onClick={() => void operation.run(async (signal) => { const result = await api(`/staff/enquiries/${enquiry._id}`, { signal }); if (!signal.aborted) setSelected(result.enquiry); })}>View details</button></td></tr>; })}</tbody></table></div>
     {state.data?.total === 0 && <p className="staff-empty">No enquiries match your filters.</p>}<Pagination {...{ data: state.data, page, onPage: setPage, loading: state.loading }} />
-  </section>{selected && <article className="staff-surface"><div className="staff-section-heading"><h2>{selected.reference} · {selected.name}</h2><button onClick={() => setSelected(null)}>Close details</button></div><p>{selected.subject}</p><p>{selected.email} · {selected.phone}</p><p>{selected.destination}</p><p className="staff-message">{selected.message}</p></article>}</section>;
+  </section>{selected && <article className="staff-surface"><div className="staff-section-heading"><h2>{selected.reference} · {selected.name}</h2><button onClick={() => setSelected(null)}>Close details</button></div><p><strong>Received:</strong> {(selected.receivedAt || selected.createdAt) ? dateTime(selected.receivedAt || selected.createdAt) : "—"}</p><p><strong>Status:</strong> {enquiryStatusLabels[selected.status] || selected.status}</p><p><strong>Source:</strong> {selected.source || "—"}</p><p><strong>Subject:</strong> {selected.subject || "—"}</p><p><strong>Customer:</strong> {selected.name || selected.customerName || "—"}</p><p><strong>Contact:</strong> {selected.email || "—"} · {selected.phone || "—"}</p><p><strong>Destination:</strong> {selected.destination || "—"}</p>{selected.travellers != null && <p><strong>Travellers:</strong> {selected.travellers} {Number(selected.travellers) === 1 ? "person" : "people"}</p>}{selected.date && <p><strong>Departure:</strong> {selected.date}</p>}{selected.voiceLanguage && <p><strong>Preferred language:</strong> {selected.voiceLanguage === "hi" ? "Hindi" : "English"}</p>}{selected.externalMessageId && <p><strong>External message ID:</strong> {selected.externalMessageId}</p>}<p><strong>Message:</strong></p><p className="staff-message">{selected.message || "No message supplied."}</p></article>}</section>;
 }
 
 function Notifications({ refresh, onUnauthorized, onChanged, onOpen }) {

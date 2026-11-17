@@ -59,8 +59,10 @@ test("Staff Panel shares business records while protecting personal data and wri
     await t.test("username-only staff authentication is isolated from privileged panels", async () => {
       assert.equal((await request("/staff/login", { auth: "", method: "POST", body: { email: employee.email, password } })).status, 401);
       assert.equal((await request("/staff/login", { auth: "", method: "POST", body: { username: "staff.one", password: "wrong" } })).status, 401);
+      assert.equal((await request("/staff/socket-ticket", { auth: "", method: "POST", body: {} })).status, 401);
       staffCookie = await staffLogin(); secondCookie = await staffLogin("staff.two");
       const profile = (await json("/staff/me", { auth: staffCookie })).staff; assert.equal(profile.employeeId, employee.employeeId); assert.equal(profile.role, "staff"); assert.equal(profile.passwordHash, undefined);
+      assert.equal(typeof (await json("/staff/socket-ticket", { auth: staffCookie, method: "POST", body: {} })).ticket, "string");
       for (const path of ["/admin/me", "/technical/me", "/invoices", "/technical/staff-accounts"]) assert.equal((await request(path, { auth: staffCookie })).status, 401, path);
       assert.equal((await request("/staff/me", { auth: technicalCookie })).status, 401);
       assert.equal((await request("/staff/register", { auth: staffCookie, method: "POST", body: {} })).status, 404);
@@ -72,12 +74,17 @@ test("Staff Panel shares business records while protecting personal data and wri
       assert.equal(assignedNotification.title, "New enquiry assigned");
       assert.deepEqual(assignedNotification.enquiry, { reference: enquiry.reference, name: "Assigned Guest", email: "guest@example.com", phone: "", destination: "Delhi" });
       const assignees = await json("/technical/enquiry-assignees"); assert.ok(assignees.assignees.some((row) => row._id === account._id));
-      assert.equal((await json("/staff/enquiries", { auth: staffCookie })).total, 1); assert.equal((await json("/staff/enquiries", { auth: secondCookie })).total, 1);
+      const staffList = await json("/staff/enquiries", { auth: staffCookie }), otherList = await json("/staff/enquiries", { auth: secondCookie });
+      assert.equal(staffList.total, 1); assert.equal(otherList.total, 1);
+      assert.equal(staffList.enquiries[0].reference, enquiry.reference); assert.equal(staffList.enquiries[0].name, "Assigned Guest");
+      assert.equal(staffList.enquiries[0].status, "NEW"); assert.ok(Date.parse(staffList.enquiries[0].receivedAt));
       assert.equal((await json(`/staff/enquiries/${enquiry._id}`, { auth: secondCookie })).enquiry.canEdit, false);
       assert.ok((await json("/staff/notifications", { auth: secondCookie })).notifications.some((row) => row.enquiryId === enquiry._id), "unassigned staff receive new enquiry notifications too");
       const current = (await json(`/staff/enquiries/${enquiry._id}`, { auth: staffCookie })).enquiry;
       assert.equal((await request(`/staff/enquiries/${enquiry._id}`, { auth: staffCookie, method: "PATCH", body: { status: "RESOLVED", revision: current.revision, assignedTo: secondAccount._id } })).status, 400);
       const updated = await json(`/staff/enquiries/${enquiry._id}`, { auth: staffCookie, method: "PATCH", body: { status: "IN_PROGRESS", revision: current.revision } }); assert.equal(updated.enquiry.status, "IN_PROGRESS");
+      assert.equal((await json(`/admin/enquiries?search=${enquiry.reference}`, { auth: adminCookie })).enquiries[0].status, "IN_PROGRESS");
+      assert.equal((await json(`/technical/enquiries?search=${enquiry.reference}`, { auth: technicalCookie })).enquiries[0].status, "IN_PROGRESS");
       assert.equal((await request(`/staff/enquiries/${enquiry._id}`, { auth: staffCookie, method: "PATCH", body: { status: "RESOLVED", revision: current.revision } })).status, 409);
       assert.equal((await request(`/staff/enquiries/${enquiry._id}`, { auth: secondCookie, method: "PATCH", body: { status: "RESOLVED", revision: updated.enquiry.revision } })).status, 404);
     });
