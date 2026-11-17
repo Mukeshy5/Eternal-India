@@ -59,7 +59,7 @@ export async function verifyStaff(vite) {
     } finally { globalThis.document = realDocument; }
     await act(async () => root.render(createElement(MemoryRouter, { key: "technical", initialEntries: ["/technical/staff"] }, createElement(Admin, { technical: true }))));
     await waitFor(() => container.querySelector(".staff-workspace") && container.textContent.includes("No staff found"), "direct staff route and real authenticated empty list");
-    await click("+ Add staff"); await click("Open live camera"); await waitFor(() => container.querySelector("video"), "live camera"); await click("Capture photo");
+    await click("+ Add staff"); assert.equal(container.querySelector('.staff-editor [name="salary"]'), null, "Add staff no longer offers monthly gross salary"); await click("Open live camera"); await waitFor(() => container.querySelector("video"), "live camera"); await click("Capture photo");
     assert.equal(stopped, 1, "capturing stops the camera track");
     await act(async () => { for (const [key, value] of Object.entries({ name: "UI Staff Member", phone: "9876501234", email: "ui-staff@example.com", department: "Operations", designation: "Tour manager" })) type(`.staff-editor [name=${key}]`, value); });
     await submit(".staff-editor");
@@ -100,7 +100,7 @@ export async function verifyStaff(vite) {
     await waitFor(async () => await db.collection("staff_attendance").countDocuments() === 0 && !container.querySelector(".staff-history tbody tr") && container.textContent.includes("1 attendance records permanently deleted"), "report deletion removes monthly attendance and refreshes totals");
     await act(async () => root.render(createElement(MemoryRouter, { key: "admin", initialEntries: ["/admin/staff"] }, createElement(Admin))));
     await waitFor(() => container.querySelector(".staff-person"), "same staff in Admin panel"); assert.ok(container.textContent.includes(person.employeeId));
-    await click("Edit", container.querySelector(".staff-person")); await act(async () => type('.staff-editor [name=designation]', "Senior tour manager")); await submit(".staff-editor");
+    await click("Edit", container.querySelector(".staff-person")); assert.ok(container.querySelector('.staff-editor [name="salary"]'), "salary editing remains available for existing staff"); await act(async () => type('.staff-editor [name=designation]', "Senior tour manager")); await submit(".staff-editor");
     await waitFor(async () => (await db.collection("staff").findOne({ _id: person._id }))?.designation === "Senior tour manager" && !container.querySelector(".staff-editor"), "Admin staff update persisted");
     await click("← Back to enquiries"); await waitFor(() => container.querySelector(".dashboard-table"), "existing dashboard preserved");
     for (const label of ["Staff Management", "Staff Attendance", "Download ID Card", "Attendance Reports"]) assert.ok(container.textContent.includes(label));
