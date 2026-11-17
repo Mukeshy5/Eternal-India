@@ -24,7 +24,7 @@ export function registerEnquiryRoutes({ app, management, db, config, requireAdmi
   management.get("/notifications", requireAdmin, async (req, res) => {
     const limit = Math.max(1, Math.min(50, Number.parseInt(req.query.limit, 10) || 20));
     const panel = notificationPanel(req), userId = req.admin._id.toString();
-    const [page, unread] = await Promise.all([notifications.list(panel, userId, { cursor: req.query.cursor, limit }), notifications.unreadCount(panel, userId)]);
+    const [page, unread] = await Promise.all([notifications.list(panel, userId, { cursor: req.query.cursor, limit, search: req.query.search || "", status: req.query.status || "all" }), notifications.unreadCount(panel, userId)]);
     res.json({ ...page, unread });
   });
   management.post("/notifications", requireAdmin, async (req, res) => {

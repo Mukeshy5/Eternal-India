@@ -34,6 +34,11 @@ export default function DataControl({ onUnauthorized }) {
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState(""), [modal, setModal] = useState(null), [detail, setDetail] = useState(null);
   const lock = useRef(false), alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  useEffect(() => {
+    const changed = () => setRevision(value => value + 1);
+    window.addEventListener("panel:data-changed", changed);
+    return () => window.removeEventListener("panel:data-changed", changed);
+  }, []);
   const filterKey = JSON.stringify(filters);
   useEffect(() => { setSelected([]); setData(null); setPage(1); setDetail(null); setError(""); }, [key, filterKey]);
   useEffect(() => {

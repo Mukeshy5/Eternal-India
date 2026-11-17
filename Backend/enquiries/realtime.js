@@ -72,6 +72,7 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     if (event.type === "invoice-change") return emitInvoiceChange(event);
     if (event.type === "voucher-options-change") return emitVoucherOptionsChange(event);
     if (event.type === "gst-change") return emitGstChange(event);
+    if (event.type === "workspace-change") return emitWorkspaceChange(event);
     if (event.type === "notification-change") return emitNotification({ ...event.event, eventId: event._id });
     if (event.notification) return emitNotification({ action: "created", notification: notifications.publicNotification(event, ""), audience: event.audience, actorId: event.actorId || "" }, event);
     emit(event);
@@ -90,6 +91,16 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     emitInvoiceChange(event);
     try { await db.collection("enquiry_events").insertOne(event); }
     catch (error) { console.error("Invoice live refresh recovery could not be saved:", error.name); }
+  }
+  function emitWorkspaceChange(event) {
+    if (!io || !remember(`workspace:${event._id}`)) return;
+    io.to("enquiries").emit("workspace:changed", { resource: event.resource, action: event.action, resourceId: event.resourceId });
+  }
+  async function workspaceChanged(resource, action, id = "") {
+    const event = { _id: randomUUID(), type: "workspace-change", resource, action, resourceId: id?.toString() || "", publishedAt: new Date() };
+    emitWorkspaceChange(event);
+    try { await db.collection("enquiry_events").insertOne(event); }
+    catch (error) { console.error("Workspace live refresh recovery could not be saved:", error.name); }
   }
   function emitVoucherOptionsChange(event) {
     if (!io || !remember(`voucher-options:${event._id}`)) return;
@@ -139,6 +150,8 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
             socket.emit("voucher-options:changed", { kind: event.kind, action: event.action, recordId: event.recordId });
           } else if (event.type === "gst-change") {
             socket.emit("gst:changed", { action: event.action, gstId: event.gstId });
+          } else if (event.type === "workspace-change") {
+            socket.emit("workspace:changed", { resource: event.resource, action: event.action, resourceId: event.resourceId });
           } else if (event.type === "notification-change") {
             if (event.event.userId === socket.data.accountId) socket.emit("notification:event", { ...event.event, eventId: event._id, replay: true });
           } else if (event.notification) {
@@ -167,5 +180,5 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     poller.unref?.();
     return io;
   }
-  return { attach, issueTicket, gstChanged, voucherOptionsChanged, invoicesChanged, async stop() { clearInterval(poller); unsubscribe(); if (io) await new Promise((resolve) => io.close(resolve)); } };
+  return { attach, issueTicket, gstChanged, voucherOptionsChanged, invoicesChanged, workspaceChanged, async stop() { clearInterval(poller); unsubscribe(); if (io) await new Promise((resolve) => io.close(resolve)); } };
 }

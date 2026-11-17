@@ -38,6 +38,13 @@ export default function FestivalManagement({ admin, onBack, onUnauthorized, onLo
   const reload = useCallback(() => setRefresh((value) => value + 1), []);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; actionController.current?.abort(); }; }, []);
   useEffect(() => {
+    const changed = (event) => {
+      if (["festival settings", "workspace"].includes(event.detail?.resource)) reload();
+    };
+    window.addEventListener("panel:data-changed", changed);
+    return () => window.removeEventListener("panel:data-changed", changed);
+  }, [reload]);
+  useEffect(() => {
     const controller = new AbortController();
     const has = (key) => permissionKey.split(",").includes(key);
     const load = async () => {

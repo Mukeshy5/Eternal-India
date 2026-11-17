@@ -5,7 +5,8 @@ const staffIdString = (staffId) => staffId instanceof ObjectId ? staffId.toStrin
 
 export async function publishStaffNotification(db, { id, staffId, title, message, enquiryId, enquiry, createdAt = new Date() }) {
   const staffIdStr = staffIdString(staffId);
-  const saved = await db.collection("staff_notifications").updateOne({ _id: id }, { $setOnInsert: { staffId, title, message, ...(enquiryId ? { enquiryId } : {}), ...(enquiry ? { enquiry } : {}), createdAt, read: false } }, { upsert: true });
+  const storedStaffId = ObjectId.isValid(staffIdStr) ? new ObjectId(staffIdStr) : staffId;
+  const saved = await db.collection("staff_notifications").updateOne({ _id: id }, { $setOnInsert: { staffId: storedStaffId, title, message, ...(enquiryId ? { enquiryId } : {}), ...(enquiry ? { enquiry } : {}), createdAt, read: false } }, { upsert: true });
   if (!saved.upsertedCount) return;
   void broadcastNotification(staffIdStr, {
     id,

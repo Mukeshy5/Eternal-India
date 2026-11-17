@@ -8,7 +8,8 @@ import { technicalAccess } from "../festivals/permissions.js";
 import { registerVoucherRoutes } from "../vouchers/routes.js";
 import { voucherCollection } from "../vouchers/model.js";
 import { invoiceCollection } from "../invoices/model.js";
-import { invoicePdf } from "../invoices/documents.js";
+import { registerInvoiceRoutes } from "../invoices/routes.js";
+import { activityQuery } from "../lib/activity-log.js";
 import { publicEnquiry } from "../enquiries/model.js";
 import { enquiryError } from "../enquiries/service.js";
 import { enquiryStatus } from "../../shared/enquiries.js";
@@ -29,7 +30,7 @@ const pageOf = (query) => Math.max(1, Math.min(100000, Number.parseInt(query.pag
 const safeEmployee = { _id: 1, employeeId: 1, name: 1, email: 1, phone: 1, department: 1, designation: 1, status: 1, joiningDate: 1 };
 const accountProjection = { passwordHash: 0, authVersion: 0 };
 
-export function registerStaffPortal({ app, management, db, config, requireAdmin, enquiries }) {
+export function registerStaffPortal({ app, management, db, config, requireAdmin, enquiries, activityLog, realtime }) {
   const router = Router(), accounts = db.collection("staff_accounts"), people = db.collection("staff"), tokens = db.collection("staff_tokens");
   let ready;
   const readiness = async (_req, _res, next) => { ready ??= ensureStaffPortalModels(db).catch((error) => { ready = undefined; throw error; }); await ready; next(); };
@@ -38,6 +39,7 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     next();
   }, readiness];
   const cookieOptions = { httpOnly: true, secure: config.production, sameSite: config.production ? "none" : "strict", path: "/api/staff", maxAge: 8 * 60 * 60 * 1000 };
+  const staffNotificationFilter = (req) => ({ staffId: { $in: [req.employee._id, req.employee._id.toString()] } });
   const clearCookie = (res) => { const { maxAge: _max, ...options } = cookieOptions; res.clearCookie(staffCookie, options); };
   const audit = (req, action, account) => db.collection("staff_account_audit").insertOne({ action, accountId: account._id, staffId: account.staffId, actorId: req.admin._id, at: new Date() });
   const findAccount = async (id) => { const account = objectId(id) && await accounts.findOne({ _id: objectId(id) }); if (!account) throw enquiryError(404, "Staff Login account not found."); return account; };
@@ -67,7 +69,7 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     if (Object.keys(errors).length) throw enquiryError(400, "Please check the account details.", { errors });
     const employee = await people.findOne({ employeeId, status: "active", deletedAt: null });
     if (!employee) throw enquiryError(400, "Only valid, active employees can receive an account.", { errors: { employeeId: "Active employee not found." } });
-    const now = new Date(), record = { _id: new ObjectId(), staffId: employee._id, employeeId: employee.employeeId, username, usernameKey: username, passwordHash: await hashPassword(password), status: "active", version: 1, authVersion: 1, createdAt: now, updatedAt: now, createdBy: req.admin._id };
+    const now = new Date(), record = { _id: new ObjectId(), staffId: employee._id, employeeId: employee.employeeId, username, usernameKey: username, passwordHash: await hashPassword(password), status: "active", canViewActivity: false, version: 1, authVersion: 1, createdAt: now, updatedAt: now, createdBy: req.admin._id };
     try { await accounts.insertOne(record); }
     catch (error) { if (error.code !== 11000) throw error; throw enquiryError(409, "This employee already has a Staff Login account, or the username is already taken."); }
     await audit(req, "created", record);
@@ -77,7 +79,8 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
   });
   management.patch("/staff-accounts/:id", ...technical, async (req, res) => {
     const account = await findAccount(req.params.id); checkVersion(req, account);
-    if (!req.body || Object.keys(req.body).some((key) => !["version", "status", "password"].includes(key)) || req.body.status === undefined && req.body.password === undefined) throw enquiryError(400, "Choose an account status or new password.");
+    if (!req.body || Object.keys(req.body).some((key) => !["version", "status", "password", "canViewActivity"].includes(key)) || req.body.status === undefined && req.body.password === undefined && req.body.canViewActivity === undefined) throw enquiryError(400, "Choose an account status, new password or activity-history permission.");
+    if (req.body.canViewActivity !== undefined && typeof req.body.canViewActivity !== "boolean") throw enquiryError(400, "Choose a valid activity-history permission.");
     const set = { updatedAt: new Date(), updatedBy: req.admin._id };
     if (req.body.status !== undefined) {
       if (!["active", "inactive"].includes(req.body.status)) throw enquiryError(400, "Choose Active or Inactive.");
@@ -85,9 +88,13 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
       set.status = req.body.status;
     }
     if (req.body.password !== undefined) { if (!staffPasswordValid(req.body.password)) throw enquiryError(400, "Use 12–256 characters with uppercase, lowercase, a number and a symbol."); set.passwordHash = await hashPassword(req.body.password); }
-    const saved = await accounts.findOneAndUpdate({ _id: account._id, version: account.version }, { $set: set, $inc: { version: 1, authVersion: 1 } }, { returnDocument: "after", projection: accountProjection });
+    if (req.body.canViewActivity !== undefined) set.canViewActivity = req.body.canViewActivity;
+    const revokeSessions = req.body.status !== undefined || req.body.password !== undefined;
+    const saved = await accounts.findOneAndUpdate({ _id: account._id, version: account.version }, { $set: set, $inc: { version: 1, ...(revokeSessions ? { authVersion: 1 } : {}) } }, { returnDocument: "after", projection: accountProjection });
     if (!saved) throw enquiryError(409, "This account changed. Refresh before saving.");
-    await tokens.deleteMany({ accountId: account._id }); await audit(req, "updated", account);
+    if (revokeSessions) await tokens.deleteMany({ accountId: account._id });
+    await audit(req, "updated", account);
+    if (req.body.canViewActivity !== undefined) void broadcastChanged(account.staffId.toString());
     res.json({ message: "Staff Login updated. Existing sessions have been revoked.", account: saved });
   });
   management.delete("/staff-accounts/:id", ...technical, async (req, res) => {
@@ -118,6 +125,7 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
 
   const loginLimit = rateLimit({ windowMs: 15 * 60000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
   router.use(readiness);
+  router.use(activityLog.middleware);
   router.post("/login", loginLimit, async (req, res) => {
     const username = usernameOf(req.body?.username), password = req.body?.password;
     if (!usernameValid(username) || typeof password !== "string" || password.length > 256 || !password) throw enquiryError(401, "Username or password is incorrect, or the account is inactive.");
@@ -133,19 +141,36 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     if (!await authenticateStaff({ db, config, token })) { await tokens.deleteOne({ _id: tokenId }); throw enquiryError(401, "Account access changed. Please sign in again."); }
     const previous = await authenticateStaff({ db, config, token: req.cookies?.[staffCookie] });
     if (previous) await tokens.deleteOne({ _id: previous.claims.jti });
+    await activityLog.recordEvent({ actor: { type: "staff", id: account._id.toString(), staffId: employee._id.toString(), employeeId: employee.employeeId, name: employee.name, email: employee.email }, panel: "staff", action: "logged in" });
     res.cookie(staffCookie, token, cookieOptions).json({ staff: publicStaff(account, employee) });
   });
   async function requireStaff(req, res, next) {
     const auth = await authenticateStaff({ db, config, token: req.cookies?.[staffCookie] });
     if (req.aborted || res.destroyed) return;
     if (!auth) { clearCookie(res); return res.status(401).json({ message: "Your staff session expired or access was disabled. Please sign in again." }); }
-    req.staffAccount = auth.account; req.employee = auth.employee; req.staffClaims = auth.claims; next();
+    req.staffAccount = auth.account; req.employee = auth.employee; req.staffClaims = auth.claims;
+    await activityLog.captureBefore(req);
+    next();
   }
   router.post("/logout", async (req, res) => {
+    const auth = await authenticateStaff({ db, config, token: req.cookies?.[staffCookie] });
     let claims; try { claims = jwt.verify(req.cookies?.[staffCookie] || "", config.authTokenSecret, staffJwt); } catch { /* Already expired. */ }
-    if (claims?.jti) await tokens.deleteOne({ _id: claims.jti }); clearCookie(res); res.sendStatus(204);
+    if (claims?.jti) await tokens.deleteOne({ _id: claims.jti });
+    if (auth) await activityLog.recordEvent({ actor: { type: "staff", id: auth.account._id.toString(), staffId: auth.employee._id.toString(), employeeId: auth.employee.employeeId, name: auth.employee.name, email: auth.employee.email }, panel: "staff", action: "logged out" });
+    clearCookie(res); res.sendStatus(204);
   });
   router.get("/me", requireStaff, (req, res) => res.json({ staff: publicStaff(req.staffAccount, req.employee) }));
+  router.get("/activity", requireStaff, async (req, res) => {
+    try {
+      const options = activityQuery(req.query);
+      const filter = req.staffAccount.canViewActivity
+        ? { "actor.type": "staff" }
+        : { "actor.id": req.staffAccount._id.toString() };
+      res.json(await activityLog.list({ ...options, filter }));
+    } catch (error) {
+      res.status(400).json({ message: error.message || "Choose valid activity filters." });
+    }
+  });
   router.post("/change-password", requireStaff, loginLimit, async (req, res) => {
     const { currentPassword, password, confirmPassword } = req.body || {};
     if (typeof currentPassword !== "string" || currentPassword.length > 256 || !await verifyPassword(currentPassword, req.staffAccount.passwordHash)) throw enquiryError(400, "Current password is incorrect.");
@@ -185,33 +210,26 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     if (req.path.endsWith("/preview")) return res.type("image/svg+xml").send(await cardSvg(employee));
     res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${employee.employeeId}-card.pdf"` }).send(await cardPdf(employee));
   });
-  const invoiceScope = (req) => ({ authorizedStaffIds: req.employee._id.toString() });
-  const invoiceProjection = { requestKey: 0, authorizedStaffIds: 0 };
-  router.get("/invoices", requireStaff, async (req, res) => {
-    const filter = invoiceScope(req), search = regexOf(req.query.search), page = pageOf(req.query);
-    if (search) filter.$or = ["invoiceNumber", "clientName"].map((key) => ({ [key]: { $regex: search, $options: "i" } }));
-    const [invoices, total] = await Promise.all([db.collection(invoiceCollection).find(filter, { projection: invoiceProjection }).sort({ invoiceDate: -1, _id: -1 }).skip((page - 1) * 20).limit(20).toArray(), db.collection(invoiceCollection).countDocuments(filter)]);
-    res.json({ invoices, total, page, pages: Math.max(1, Math.ceil(total / 20)) });
-  });
-  router.get(["/invoices/:id", "/invoices/:id/pdf"], requireStaff, async (req, res) => {
-    const invoice = objectId(req.params.id) && await db.collection(invoiceCollection).findOne({ _id: objectId(req.params.id), ...invoiceScope(req) }, { projection: invoiceProjection });
-    if (!invoice) throw enquiryError(404, "Authorized invoice not found.");
-    if (req.path.endsWith("/pdf")) return res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${invoice.invoiceNumber}.pdf"` }).send(await invoicePdf(invoice));
-    res.json({ invoice });
-  });
+  const invoiceScope = (req) => ({ $or: [{ authorizedStaffIds: req.employee._id.toString() }, { "createdBy.id": req.staffAccount._id.toString(), "createdBy.role": "staff" }] });
+  registerInvoiceRoutes({ router, db, requireAccount: requireStaff, realtime, staffMode: true });
   registerVoucherRoutes({ management: router, db, requireAdmin: requireStaff, config, staffMode: true });
   const notifications = db.collection("staff_notifications");
   router.get("/notifications", requireStaff, async (req, res) => {
-    const page = pageOf(req.query), filter = { staffId: req.employee._id };
+    const page = pageOf(req.query), filter = staffNotificationFilter(req);
+    const search = regexOf(req.query.search);
+    if (req.query.status && !["all", "read", "unread"].includes(req.query.status)) throw enquiryError(400, "Choose a valid notification status filter.");
+    if (req.query.status === "read") filter.read = true;
+    if (req.query.status === "unread") filter.read = false;
+    if (search) filter.$and = [{ $or: ["title", "message", "category"].map((key) => ({ [key]: { $regex: search, $options: "i" } })) }];
     const [items, total, unread] = await Promise.all([notifications.find(filter).sort({ createdAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).toArray(), notifications.countDocuments(filter), notifications.countDocuments({ ...filter, read: false })]);
     res.json({ notifications: items, total, unread, page, pages: Math.max(1, Math.ceil(total / 20)) });
   });
-  router.patch("/notifications/read-all", requireStaff, async (req, res) => { await notifications.updateMany({ staffId: req.employee._id, read: false }, { $set: { read: true, updatedAt: new Date() } }); void broadcastChanged(req.employee._id.toString()); res.sendStatus(204); });
+  router.patch("/notifications/read-all", requireStaff, async (req, res) => { await notifications.updateMany({ ...staffNotificationFilter(req), read: false }, { $set: { read: true, updatedAt: new Date() } }); void broadcastChanged(req.employee._id.toString()); res.sendStatus(204); });
   router.patch("/notifications/:id/read", requireStaff, async (req, res) => {
-    if (!(await notifications.updateOne({ _id: req.params.id, staffId: req.employee._id }, { $set: { read: true, updatedAt: new Date() } })).matchedCount) throw enquiryError(404, "Notification not found."); void broadcastChanged(req.employee._id.toString()); res.sendStatus(204);
+    if (!(await notifications.updateOne({ _id: req.params.id, ...staffNotificationFilter(req) }, { $set: { read: true, updatedAt: new Date() } })).matchedCount) throw enquiryError(404, "Notification not found."); void broadcastChanged(req.employee._id.toString()); res.sendStatus(204);
   });
   router.delete("/notifications/:id", requireStaff, async (req, res) => {
-    if (!(await notifications.deleteOne({ _id: req.params.id, staffId: req.employee._id })).deletedCount) throw enquiryError(404, "Notification not found."); void broadcastChanged(req.employee._id.toString()); res.sendStatus(204);
+    if (!(await notifications.deleteOne({ _id: req.params.id, ...staffNotificationFilter(req) })).deletedCount) throw enquiryError(404, "Notification not found."); void broadcastChanged(req.employee._id.toString()); res.sendStatus(204);
   });
   // Server-sent updates are scoped before querying. No global panel events or
   // other employees' identifiers are ever broadcast to staff connections.
@@ -227,14 +245,16 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     const tick = async () => {
       if (closed || running) return; running = true;
       try {
-        if (!await authenticateStaff({ db, config, token: req.cookies?.[staffCookie] })) { send("revoked", {}); res.end(); return; }
-        const scopes = [["staff", { _id: req.employee._id }], ["enquiries", enquiryScope(req)], ["staff_attendance", { staffId: req.employee._id }], [voucherCollection, { createdBy: staffActor(req.employee._id) }], [invoiceCollection, invoiceScope(req)], ["staff_notifications", { staffId: req.employee._id }], ["hotels", {}], ["gst_rates", {}], ["office_addresses", {}]];
+        const authenticated = await authenticateStaff({ db, config, token: req.cookies?.[staffCookie] });
+        if (!authenticated) { send("revoked", {}); res.end(); return; }
+        const activityFilter = authenticated.account.canViewActivity ? { "actor.type": "staff" } : { "actor.id": authenticated.account._id.toString() };
+        const scopes = [["staff", { _id: req.employee._id }], ["enquiries", enquiryScope(req)], ["staff_attendance", { staffId: req.employee._id }], [voucherCollection, { createdBy: staffActor(req.employee._id) }], [invoiceCollection, invoiceScope(req)], ["staff_notifications", staffNotificationFilter(req)], ["panel_activity_history", activityFilter], ["hotels", {}], ["gst_rates", {}], ["office_addresses", {}]];
         const state = await Promise.all(scopes.map(async ([name, filter]) => {
           const collection = db.collection(name);
           const [total, latest] = await Promise.all([collection.countDocuments(filter), collection.find(filter, { projection: { updatedAt: 1, createdAt: 1, version: 1, revision: 1 } }).sort({ updatedAt: -1, createdAt: -1, _id: -1 }).limit(1).toArray()]);
           return [total, latest];
         }));
-        state.push(await notifications.countDocuments({ staffId: req.employee._id, read: false }));
+        state.push(await notifications.countDocuments({ ...staffNotificationFilter(req), read: false }));
         const revision = createHash("sha256").update(JSON.stringify(state)).digest("hex");
         if (revision !== previous) { previous = revision; send("changed", { revision }); } else { res.write(": heartbeat\n\n"); res.flush?.(); }
       } catch { send("retry", { message: "Live updates interrupted. Reconnecting…" }); res.end(); }

@@ -105,6 +105,14 @@ test("Staff Panel uses real MongoDB with technical provisioning and strict recor
       assert.equal((await request(`/staff/vouchers/${voucher._id}`, { auth: secondCookie, method: "PATCH", body: { ...voucherBody, revision: voucher.revision } })).status, 404);
       assert.equal((await request(`/staff/vouchers/${voucher._id}?revision=${voucher.revision}`, { auth: secondCookie, method: "DELETE" })).status, 404);
       voucher = (await json(`/staff/vouchers/${voucher._id}`, { auth: staffCookie, method: "PATCH", body: { ...voucherBody, revision: voucher.revision, guestName: "Updated Guest" } })).voucher; assert.equal(voucher.guestName, "Updated Guest");
+      voucher = (await json(`/technical/vouchers/${voucher._id}`, { method: "PATCH", body: { ...voucherBody, revision: voucher.revision, guestName: "Technical Update" } })).voucher;
+      assert.equal(voucher.createdBy, staffActor(employee._id));
+      let journeyNotification;
+      for (let attempt = 0; attempt < 30 && !journeyNotification; attempt++) {
+        journeyNotification = await db.collection("staff_notifications").findOne({ staffId: employee._id, title: "Journey updated", message: { $regex: voucher.invoiceNumber } });
+        if (!journeyNotification) await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      assert.ok(journeyNotification, "updates to a Staff-owned journey notify its owner");
       const pdf = await request(`/staff/vouchers/${voucher._id}/pdf`, { auth: staffCookie }); assert.equal(pdf.status, 200); assert.match(Buffer.from(await pdf.arrayBuffer()).toString("latin1"), /^%PDF-/);
       assert.equal((await request("/staff/vouchers/export?format=pdf", { auth: staffCookie })).status, 200);
       assert.equal((await json("/staff/vouchers/options", { auth: secondCookie })).usedHotels.length, 0);
@@ -115,7 +123,7 @@ test("Staff Panel uses real MongoDB with technical provisioning and strict recor
       await json(`/technical/staff-accounts/${account._id}/invoices/${invoice._id}`, { method: "PATCH", body: { authorized: true } });
       assert.equal((await json("/staff/invoices", { auth: staffCookie })).total, 1); assert.equal((await json("/staff/invoices", { auth: secondCookie })).total, 0);
       assert.equal((await request(`/staff/invoices/${invoice._id}/pdf`, { auth: staffCookie })).status, 200); assert.equal((await request(`/staff/invoices/${invoice._id}/pdf`, { auth: secondCookie })).status, 404);
-      assert.equal((await request(`/staff/invoices/${invoice._id}`, { auth: staffCookie, method: "PUT", body: {} })).status, 404);
+      assert.equal((await request(`/staff/invoices/${invoice._id}`, { auth: staffCookie, method: "PUT", body: {} })).status, 403);
       await json(`/technical/staff-accounts/${account._id}/invoices/${invoice._id}`, { method: "PATCH", body: { authorized: false } }); assert.equal((await request(`/staff/invoices/${invoice._id}/pdf`, { auth: staffCookie })).status, 404);
     });
     await t.test("live updates reach every staff tab with assigned customer details and revoke active connections", async () => {
@@ -181,7 +189,7 @@ test("Staff Panel uses real MongoDB with technical provisioning and strict recor
       assert.equal((await request("/staff/me", { auth: staffCookie })).status, 401); assert.ok(await db.collection("staff").findOne({ _id: new ObjectId(employee._id) })); assert.ok(await db.collection("enquiries").findOne({ _id: new ObjectId(enquiry._id) })); assert.ok(await db.collection("billing_invoices").findOne({ _id: new ObjectId(invoice._id) })); assert.equal(await db.collection("staff_attendance").countDocuments({ staffId: new ObjectId(employee._id) }), 1);
     });
   } finally {
-    system.decorationScheduler.stop(); await system.enquirySystem.stop(); await system.drainSessions(); await new Promise((resolve) => server.close(resolve));
+    system.decorationScheduler.stop(); await system.enquirySystem.stop(); await system.drainSessions(); await new Promise((resolve) => server.close(resolve)); await system.drainActivity();
     if (!config.databaseName.startsWith("eternal_india_test_staff_")) throw new Error("Refusing cleanup outside the isolated staff portal test database.");
     await db.dropDatabase(); await client.close();
   }

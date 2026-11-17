@@ -10,11 +10,12 @@ const maxNotifications = 20;
 export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onDeleted, onUnauthorized, socketFactory = io }) {
   const adminId = admin?.id || admin?._id;
   const [items, setItems] = useState([]), [unread, setUnread] = useState(0);
+  const [filters, setFiltersState] = useState({ search: "", status: "all" });
   const [preferences, setPreferences] = useState(initialPreferences), [toasts, setToasts] = useState([]);
   const [connected, setConnected] = useState(false), [loading, setLoading] = useState(false), [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState(""), [connectionNotice, setConnectionNotice] = useState("");
   const [soundReady, setSoundReady] = useState(false), [soundNotice, setSoundNotice] = useState(""), [savingPreferences, setSavingPreferences] = useState(false);
-  const runtime = useRef(null), itemsRef = useRef([]), preferencesRef = useRef(initialPreferences);
+  const runtime = useRef(null), itemsRef = useRef([]), preferencesRef = useRef(initialPreferences), filtersRef = useRef({ search: "", status: "all" });
   const callbacks = useRef({ onRefresh, onDeleted, onUnauthorized });
   useEffect(() => { callbacks.current = { onRefresh, onDeleted, onUnauthorized }; }, [onRefresh, onDeleted, onUnauthorized]);
   const updateItems = useCallback((update) => {
@@ -34,13 +35,20 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onD
   const dismiss = useCallback((id) => setToasts((current) => current.filter((item) => item.id !== id)), []);
   const request = useCallback((path, options = {}) => api(`${apiBase}${path}`, { ...options, signal: runtime.current?.controller.signal }), [apiBase]);
   const refresh = useCallback(() => runtime.current?.refresh().catch(failure), [failure]);
+  const setFilters = useCallback((next) => {
+    filtersRef.current = next;
+    setFiltersState(next);
+    const current = runtime.current;
+    if (current) { current.cursor = ""; updateItems([]); setHasMore(false); void current.refresh().catch(failure); }
+  }, [failure, updateItems]);
 
   const loadMore = useCallback(async () => {
     const current = runtime.current;
     if (!current?.cursor || current.loadingMore) return;
     current.loadingMore = true; setLoading(true);
     try {
-      const page = await request(`/notifications?limit=${maxNotifications}&cursor=${encodeURIComponent(current.cursor)}`);
+      const filter = filtersRef.current, params = new URLSearchParams({ limit: String(maxNotifications), cursor: current.cursor, search: filter.search, status: filter.status });
+      const page = await request(`/notifications?${params}`);
       if (runtime.current !== current) return;
       current.cursor = page.cursor || ""; setHasMore(page.hasMore);
       const ids = new Set(itemsRef.current.map((item) => item.id));
@@ -88,6 +96,7 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onD
     const active = () => runtime.current === current && !current.controller.signal.aborted;
     current.audio = createNotificationSound({ onState: (ready) => { if (active()) setSoundReady(ready); }, onNotice: (notice) => { if (active()) setSoundNotice(notice); } });
     runtime.current = current;
+    filtersRef.current = { search: "", status: "all" }; setFiltersState(filtersRef.current);
     updateItems([]); setUnread(0); setToasts([]); setHasMore(false); setConnected(false); setError(""); setConnectionNotice(""); setSoundNotice(""); setSoundReady(false); setLoading(true); setSavingPreferences(false); updatePreferences(initialPreferences);
     const prime = () => { void current.audio.unlock(); };
     document.addEventListener("pointerdown", prime, { passive: true }); document.addEventListener("keydown", prime); document.addEventListener("touchend", prime, { passive: true });
@@ -105,7 +114,8 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onD
         while (active() && current.refreshAgain) {
           current.refreshAgain = false;
           const revision = current.revision;
-          const page = await call(`/notifications?limit=${maxNotifications}`);
+          const filter = filtersRef.current, params = new URLSearchParams({ limit: String(maxNotifications), search: filter.search, status: filter.status });
+          const page = await call(`/notifications?${params}`);
           if (!active()) return;
           if (revision !== current.revision) { current.refreshAgain = true; continue; }
           current.cursor = page.cursor || ""; setHasMore(Boolean(page.hasMore));
@@ -184,7 +194,15 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onD
     const onOnline = () => { if (!socket.connected) socket.connect(); refreshData(); };
     const onInvoicesChanged = (event) => { if (active()) window.dispatchEvent(new window.CustomEvent("invoices-changed", { detail: event })); };
     const onGstChanged = () => { if (active()) voucherOptionsChanged(); };
-    socket.on("connect", onConnect); socket.on("connect_error", onError); socket.on("disconnect", onDisconnect); socket.on("enquiry:event", refreshData); socket.on("notification:event", receive); socket.on("gst:changed", onGstChanged); socket.on("voucher-options:changed", onGstChanged); socket.on("invoices:changed", onInvoicesChanged);
+    const onWorkspaceChanged = (event) => {
+      if (!active()) return;
+      window.dispatchEvent(new window.CustomEvent("panel:data-changed", { detail: event }));
+      if (event?.resource === "invoices") onInvoicesChanged(event);
+      if (event?.resource === "journeys") window.dispatchEvent(new window.Event("journey-vouchers-changed"));
+      if (["hotels", "GST settings", "office addresses"].includes(event?.resource)) voucherOptionsChanged();
+      refreshData({ type: "workspace-change" });
+    };
+    socket.on("connect", onConnect); socket.on("connect_error", onError); socket.on("disconnect", onDisconnect); socket.on("enquiry:event", refreshData); socket.on("notification:event", receive); socket.on("gst:changed", onGstChanged); socket.on("voucher-options:changed", onGstChanged); socket.on("invoices:changed", onInvoicesChanged); socket.on("workspace:changed", onWorkspaceChanged);
     window.addEventListener("online", onOnline); window.addEventListener("focus", refreshData);
     const interval = window.setInterval(() => { if (!document.hidden) refreshData(); }, 30000);
     Promise.all([current.loadSettings(), current.refresh()]).catch(report).finally(() => { if (active()) { setLoading(false); socket.connect(); } });
@@ -192,8 +210,8 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onD
       current.controller.abort(); runtime.current = null;
       document.removeEventListener("pointerdown", prime); document.removeEventListener("keydown", prime); document.removeEventListener("touchend", prime);
       window.removeEventListener("online", onOnline); window.removeEventListener("focus", refreshData); window.clearInterval(interval); window.clearTimeout(current.retry); window.clearTimeout(current.dataRefresh); window.clearTimeout(current.notificationRefresh);
-      socket.off("connect", onConnect); socket.off("connect_error", onError); socket.off("disconnect", onDisconnect); socket.off("enquiry:event", refreshData); socket.off("notification:event", receive); socket.off("gst:changed", onGstChanged); socket.off("voucher-options:changed", onGstChanged); socket.off("invoices:changed", onInvoicesChanged); socket.disconnect(); current.audio.dispose();
+      socket.off("connect", onConnect); socket.off("connect_error", onError); socket.off("disconnect", onDisconnect); socket.off("enquiry:event", refreshData); socket.off("notification:event", receive); socket.off("gst:changed", onGstChanged); socket.off("voucher-options:changed", onGstChanged); socket.off("invoices:changed", onInvoicesChanged); socket.off("workspace:changed", onWorkspaceChanged); socket.disconnect(); current.audio.dispose();
     };
   }, [adminId, apiBase, socketFactory, dismiss, failure, updateItems, updatePreferences]);
-  return { items, unread, preferences, toasts, connected, loading, hasMore, error, connectionNotice, soundReady, soundNotice, savingPreferences, loadMore, markRead, markAllRead, remove, clearAll, dismiss, toggleSound, togglePopup, unlockSound, refresh };
+  return { items, unread, filters, setFilters, preferences, toasts, connected, loading, hasMore, error, connectionNotice, soundReady, soundNotice, savingPreferences, loadMore, markRead, markAllRead, remove, clearAll, dismiss, toggleSound, togglePopup, unlockSound, refresh };
 }

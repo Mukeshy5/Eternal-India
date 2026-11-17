@@ -92,17 +92,23 @@ export function createNotificationService({ db }) {
     return events.findOne({ _id: notification._id });
   }
 
-  async function list(panel, userId, { cursor, limit = 20 } = {}) {
+  async function list(panel, userId, { cursor, limit = 20, search = "", status = "all" } = {}) {
     await ensureLegacyHistory();
     const filter = panelFilter(panel, userId);
+    if (typeof search !== "string" || search.length > 120 || !["all", "read", "unread"].includes(status)) throw notificationError(400, "Choose valid notification filters.");
+    const clauses = [];
     if (cursor !== undefined) {
       if (typeof cursor !== "string" || cursor.length > 512) throw notificationError(400, "Choose a valid notification page.");
       let decoded;
       try { decoded = Buffer.from(cursor, "base64url").toString("utf8").split("|"); } catch { decoded = []; }
       const date = new Date(decoded[0]);
       if (decoded.length !== 2 || !Number.isFinite(date.getTime()) || !decoded[1]?.startsWith("notification:")) throw notificationError(400, "Choose a valid notification page.");
-      filter.$or = [{ publishedAt: { $lt: date } }, { publishedAt: date, _id: { $lt: decoded[1] } }];
+      clauses.push({ $or: [{ publishedAt: { $lt: date } }, { publishedAt: date, _id: { $lt: decoded[1] } }] });
     }
+    if (search.trim()) clauses.push({ $or: ["title", "message", "category"].map((key) => ({ [key]: { $regex: search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" } })) });
+    if (status === "unread") clauses.push({ legacy: { $ne: true }, read: { $ne: true }, readBy: { $ne: userId } });
+    if (status === "read") clauses.push({ $or: [{ legacy: true }, { read: true }, { readBy: userId }] });
+    if (clauses.length) filter.$and = clauses;
     const records = await events.find(filter, { projection: { read: 1, readBy: 1, audience: 1, category: 1, title: 1, message: 1, source: 1, enquiryId: 1, href: 1, publishedAt: 1, legacy: 1 } }).sort({ publishedAt: -1, _id: -1 }).limit(limit + 1).toArray();
     const hasMore = records.length > limit;
     const page = records.slice(0, limit);

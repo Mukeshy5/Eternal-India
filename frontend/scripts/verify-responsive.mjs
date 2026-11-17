@@ -13,7 +13,7 @@ export async function verifyResponsive(vite) {
   const { default: FloatingContact } = await vite.ssrLoadModule("/src/Common/FloatingWhatsApp.jsx");
   const { default: Dashboard } = await vite.ssrLoadModule("/src/Common/AdminDashboard.jsx");
   const { default: Layout } = await vite.ssrLoadModule("/src/Common/panel/PanelLayout.jsx");
-  const cssFiles = ["index.css", "Comopents/Navbar.css", "Common/FloatingWhatsApp.css", "Common/festivals/PublicDecorations.css", "Common/AdminDashboard.css", "Common/UnifiedEnquiries.css", "Common/AdminTools.css", "Common/GmailVerification.css", "Common/staff/staff.css", "Common/staff/calendar.css", "Common/festivals/FestivalManagement.css", "Common/PaymentManagement.css", "Common/panel/PanelLayout.css", "responsive.css", "Common/panel/PanelTheme.css"];
+  const cssFiles = ["index.css", "Comopents/Navbar.css", "Common/FloatingWhatsApp.css", "Common/festivals/PublicDecorations.css", "Common/AdminDashboard.css", "Common/UnifiedEnquiries.css", "Common/AdminTools.css", "Common/GmailVerification.css", "Common/staff/staff.css", "Common/staff/calendar.css", "Common/staff-portal/portal.css", "Common/invoices/Invoices.css", "Common/ActivityHistory.css", "Common/festivals/FestivalManagement.css", "Common/PaymentManagement.css", "Common/panel/PanelLayout.css", "responsive.css", "Common/panel/PanelTheme.css"];
   const css = cssFiles.map((path) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8").replace(/@import\s+[^;]+;/g, "")).join("\n");
   const entries = ["NEW", "PENDING", "IN_PROGRESS", "FOLLOW_UP", "RESOLVED", "CANCELLED", "CLOSED"].map((status, index) => ({ _id: String(index), name: "Responsive test guest", email: "guest@example.com", reference: `TEST-${index}`, message: "Message with a long address guest@example.com", source: index < 3 ? ["WEBSITE", "WHATSAPP", "GMAIL"][index] : "WEBSITE", ...(index === 3 ? { contactChannel: "email" } : index === 4 ? { enquiryKind: "CONTACT" } : index === 5 ? { enquiryKind: "PLAN_TRIP" } : {}), status, receivedAt: "2026-11-01T10:00:00Z" }));
   const data = { enquiries: entries, total: entries.length, pages: 1, stats: { total: entries.length, NEW: 1, IN_PROGRESS: 1, RESOLVED: 1, CLOSED: 1 } };
@@ -34,7 +34,7 @@ export async function verifyResponsive(vite) {
     const win = new Window({ url: "http://localhost/", settings: { disableCSSFileLoading: true } });
     win.happyDOM.setViewport({ width, height: 900 });
     try {
-      win.document.body.innerHTML = `<div id="root">${home}${panel}<div class="quote-section"><form class="enquiry-form"><div class="form-grid"><input></div></form></div><div class="travel-grid"></div><div class="panel-app"><div class="payment-admin-table"><table><tbody><tr><td data-label="Customer">Guest</td></tr></tbody></table></div><div class="admin-tool-grid"></div><div class="panel-account-form-grid"></div><div class="attendance-calendar-grid"></div></div></div>`;
+      win.document.body.innerHTML = `<div id="root">${home}${panel}<div class="quote-section"><form class="enquiry-form"><div class="form-grid"><input></div></form></div><div class="travel-grid"></div><div class="panel-app"><div class="payment-admin-table"><table><tbody><tr><td data-label="Customer">Guest</td></tr></tbody></table></div><div class="admin-tool-grid"></div><div class="panel-account-form-grid"></div><div class="attendance-calendar-grid"></div></div><section class="admin-shell staff-shell"><section class="staff-portal"><header class="staff-page-heading"><h1>Staff workspace</h1></header><section class="staff-surface"><form class="staff-fields"><label>Search<input type="search"></label><label>Filter<select><option>All</option></select></label><button>Search</button></form><div class="staff-table-wrap"><table><thead><tr><th>Activity</th></tr></thead><tbody><tr><td>Updated record</td></tr></tbody></table></div></section><section class="activity-history"><section class="activity-history-card"><div class="activity-history-data"><section><pre>Activity data</pre></section></div></section></section><div class="staff-notification-menu"><section class="staff-notification-dropdown">Notifications</section></div></section></section></div>`;
       const style = win.document.createElement("style"); style.textContent = css; win.document.head.append(style);
       const specimens = win.document.createElement("section");
       specimens.className = "panel-theme-specimens";
@@ -44,6 +44,10 @@ export async function verifyResponsive(vite) {
       login.className = "admin-login-layout";
       login.innerHTML = '<div class="admin-login-story"><h1>One workspace.</h1><p>Welcome to your team.</p></div><form class="admin-login-form"><label>Email<input></label><button class="button">Sign in</button></form>';
       win.document.querySelector(".admin-shell").append(login);
+      const staffLogin = win.document.createElement("section");
+      staffLogin.className = "admin-page staff-login";
+      staffLogin.innerHTML = '<header class="admin-header"><a><img width="183"></a><a>View website</a></header><div class="admin-login-layout"><div class="admin-login-story"><h1>Staff access</h1></div><form class="admin-login-form"><label>Username<input></label><button class="admin-login-button">Sign in</button></form></div>';
+      win.document.body.append(staffLogin);
       const element = (selector) => { const node = win.document.querySelector(selector); assert.ok(node, selector); return node; };
       const computed = (selector) => win.getComputedStyle(element(selector));
       assert.equal(element(".nav-plan-trip").closest("nav"), null);
@@ -60,9 +64,16 @@ export async function verifyResponsive(vite) {
       assert.equal(computed(".dashboard-desktop-list").display, width <= 800 ? "none" : "block");
       const scrolling = computed(".attendance-calendar-grid");
       assert.equal(scrolling.overflowX || scrolling.overflow, "auto", `${width}: report tables contain their own scrolling`);
+      assert.equal(computed(".staff-table-wrap").overflow, "auto", `${width}: Staff tables scroll inside their own container`);
+      assert.equal(computed(".staff-notification-dropdown").position, "absolute", `${width}: Staff notification menu remains anchored`);
+      if (width <= 760) {
+        assert.equal(win.matchMedia("(max-width: 760px)").matches, true, `${width}: Staff login breakpoint matches`);
+        assert.match(css, /@media\s*\(max-width:\s*760px\)[\s\S]*?\.staff-login \.admin-login-layout\s*\{\s*grid-template-columns:\s*1fr;/, `${width}: Staff login stacks on small screens`);
+      }
       if (width <= 640) {
         for (const selector of [".form-grid", ".travel-grid", ".admin-tool-grid"]) assert.equal(computed(selector).gridTemplateColumns, "minmax(0, 1fr)", `${width}: ${selector} stacks`);
         assert.equal(computed(".enquiry-form input").fontSize, "16px", `${width}: mobile input text avoids automatic zoom`);
+        assert.equal(computed(".staff-portal input").fontSize, "16px", `${width}: Staff inputs avoid automatic zoom`);
         assert.equal(Number.parseFloat(computed(".payment-admin-table table").minWidth), 0);
         assert.equal(computed(".panel-menu-button").minHeight, "44px");
       }

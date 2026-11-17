@@ -33,6 +33,8 @@ import { authenticatePanel } from "./lib/panel-auth.js";
 import { registerStaffPortal } from "./staff-portal/routes.js";
 import { createDataControl } from "./data-control/service.js";
 import { registerDataControl, storageWriteGuard } from "./data-control/routes.js";
+import { activityQuery, createActivityLog } from "./lib/activity-log.js";
+import { publishStaffNotification } from "./staff-portal/notifications.js";
 
 export function createApp({ client, db, config, schedulerOptions, sendPasswordReset, paymentGateway, gmailProviderFactory }) {
   const app = express();
@@ -82,6 +84,45 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   // Payment admin handlers use the same cookie/JWT authentication as the panel.
   registerPaymentRoutes({ app, db, config, requireAdmin, gateway: paymentGateway });
   const enquirySystem = createEnquirySystem({ db, config, gmailProviderFactory, storageControl: dataControl });
+  const activityLog = createActivityLog(db, { onRecorded: async (entry) => {
+    await enquirySystem.realtime.workspaceChanged(entry.resource, entry.action, entry.resourceId);
+    const updated = entry.updated || entry.previous || {};
+    if (entry.resource === "invoices" && !["granted", "revoked"].includes(entry.action) && Array.isArray(updated.authorizedStaffIds)) {
+      await Promise.all(updated.authorizedStaffIds.filter((id) => id !== entry.actor.staffId).map((staffId) => publishStaffNotification(db, {
+        id: `invoice-activity:${entry._id}:${staffId}`,
+        staffId,
+        title: "Billing / invoice updated",
+        message: `${updated.invoiceNumber || "An invoice"} was ${entry.action} in the ${entry.panel} Panel.`,
+      })));
+    }
+    if (entry.resource === "journeys" && typeof updated.createdBy === "string" && updated.createdBy.startsWith("staff:")) {
+      const ownerId = updated.createdBy.slice(6);
+      if (ownerId && ownerId !== entry.actor.staffId) await publishStaffNotification(db, {
+        id: `journey-activity:${entry._id}:${ownerId}`,
+        staffId: ownerId,
+        title: "Journey updated",
+        message: `${updated.invoiceNumber || "A journey"} was ${entry.action} in the ${entry.panel === "staff" ? "Staff" : entry.panel === "technical" ? "Technical" : "Admin"} Panel.`,
+      });
+    }
+    if (entry.panel !== "staff") return;
+    await enquirySystem.notifications.publish({
+      id: `panel:${entry._id}`,
+      category: "Staff panel activity",
+      title: "Staff panel activity",
+      message: `${entry.actor.name || entry.actor.employeeId} ${entry.action} ${entry.label || entry.resource}.`,
+      audience: ["admin", "technical"],
+      actorId: new ObjectId(entry.actor.id),
+    });
+    if (entry.actor.staffId) {
+      const viewers = await db.collection("staff_accounts").find({ canViewActivity: true, status: "active", staffId: { $ne: new ObjectId(entry.actor.staffId) } }, { projection: { staffId: 1 } }).toArray();
+      await Promise.all(viewers.map((viewer) => publishStaffNotification(db, {
+        id: `activity:${entry._id}:${viewer.staffId}`,
+        staffId: viewer.staffId,
+        title: "Staff activity updated",
+        message: `${entry.actor.name || entry.actor.employeeId} ${entry.action} ${entry.label || entry.resource}.`,
+      })));
+    }
+  } });
   registerWhatsAppWebhook({ app, whatsapp: enquirySystem.whatsapp });
   app.use(["/api/admin/staff-attendance/bulk", "/api/technical/staff-attendance/bulk"], express.json({ limit: "128kb" }));
   app.use(["/api/admin/vouchers", "/api/technical/vouchers", "/api/staff/vouchers"], express.json({ limit: "64kb" }));
@@ -101,9 +142,11 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     if (!result.admin) return res.status(result.status).json({ message: result.status === 403 ? "This account is not authorized for this panel." : "Please sign in to continue." });
     req.admin = result.admin;
     req.authClaims = result.claims;
+    await activityLog.captureBefore(req);
     next();
   }
 
+  management.use(activityLog.middleware);
   management.use((req, res, next) => {
     if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
     res.once("finish", () => {
@@ -184,6 +227,13 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     const history = await db.collection("enquiry_history").find({}, { projection: { _id: 0 } }).sort({ changedAt: -1 }).limit(200).toArray();
     res.json({ history });
   });
+  management.get("/activity", requireAdmin, async (req, res) => {
+    try {
+      res.json(await activityLog.list(activityQuery(req.query)));
+    } catch (error) {
+      res.status(400).json({ message: error.message || "Choose valid activity filters." });
+    }
+  });
   const hotelStars = ["1-Star (Budget)", "2-Star (Tourist Class)", "3-Star (Mid-Scale / First Class)", "4-Star (Upscale / Deluxe)", "5-Star (Luxury / Superior Deluxe)"];
   const parseMoney = (value) => Number.isFinite(Number(value)) && Number(value) >= 0 ? Math.round(Number(value) * 100) / 100 : null;
   const parseHotel = (body) => {
@@ -223,22 +273,23 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
   registerVoucherRoutes({ management, db, requireAdmin, config });
   registerInvoiceRoutes({ router: management, db, requireAccount: requireAdmin, realtime: enquirySystem.realtime });
   const invoiceApi = express.Router();
+  invoiceApi.use(activityLog.middleware);
   registerInvoiceRoutes({ router: invoiceApi, db, realtime: enquirySystem.realtime, requireAccount: async (req, res, next) => {
     const result = await authenticatePanel({ db, config, token: req.cookies?.[tokenCookieName], panel: "either" });
     if (!result.admin) return res.status(result.status).json({ message: result.status === 403 ? "Your role cannot manage invoices." : "Please sign in to continue." });
-    req.admin = result.admin; next();
+    req.admin = result.admin; req.authClaims = result.claims; await activityLog.captureBefore(req); next();
   } });
   app.use("/api", invoiceApi);
   registerEnquiryRoutes({ app, management, db, config, requireAdmin, ...enquirySystem });
   registerAccounts({ app, management, db, requireAdmin, config, sendPasswordReset, notifications: enquirySystem.notifications });
-  const festivals = registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions });
+  const festivals = registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions, activityLog });
   registerPromotions({ app, management, db, requireAdmin });
   registerGstRoutes({ management, db, requireAdmin, realtime: enquirySystem.realtime });
   registerOfficeRoutes({ management, db, requireAdmin, realtime: enquirySystem.realtime });
   registerStaffRoutes({ management, db, requireAdmin, config });
-  registerStaffPortal({ app, management, db, requireAdmin, config, enquiries: enquirySystem.enquiries });
+  registerStaffPortal({ app, management, db, requireAdmin, config, enquiries: enquirySystem.enquiries, activityLog, realtime: enquirySystem.realtime });
   registerLetterRoutes({ management, db, requireAdmin, config });
-  registerDataControl({ app, control: dataControl, db, config });
+  registerDataControl({ app, control: dataControl, db, config, activityLog });
   app.use(["/api/admin", "/api/technical"], management);
   app.use("/api", (_req, res) => res.status(404).json({ message: "API endpoint not found." }));
 
@@ -265,5 +316,5 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     const unavailable = /^Mongo(?:Network|ServerSelection|TopologyClosed|NotConnected)/.test(error.name);
     res.status(unavailable ? 503 : 500).json({ message: "We couldn't complete your request. Please try again shortly." });
   });
-  return { app, store, drainSessions, enquirySystem, dataControl, dataControlReady, decorationScheduler: festivals.scheduler, decorationsReady: festivals.ready };
+  return { app, store, drainSessions, drainActivity: activityLog.drain, enquirySystem, dataControl, dataControlReady, decorationScheduler: festivals.scheduler, decorationsReady: festivals.ready };
 }

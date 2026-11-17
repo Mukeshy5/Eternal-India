@@ -30,7 +30,7 @@ async function start() {
   connection = await connectDatabase(config);
   await ensureInitialAdmin(connection.db, config);
 
-  const { app, drainSessions, decorationScheduler, decorationsReady, enquirySystem, dataControl, dataControlReady } = createApp({ ...connection, config });
+  const { app, drainSessions, drainActivity, decorationScheduler, decorationsReady, enquirySystem, dataControl, dataControlReady } = createApp({ ...connection, config });
   await decorationsReady;
   await dataControlReady;
 
@@ -87,6 +87,7 @@ async function start() {
     server.close(async () => {
       try {
         await drainSessions();
+        await drainActivity();
       } catch {}
       await closeDatabase();
       process.exit(0);

@@ -1,0 +1,32 @@
+.activity-history { display: grid; gap: 20px; min-width: 0; color: #263e47; }
+.activity-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.activity-history-heading > div > span { color: #658578; font-size: 10px; font-weight: 700; letter-spacing: 1.8px; }
+.activity-history-heading h1 { margin: 7px 0; font-size: clamp(24px, 3vw, 34px); letter-spacing: -.7px; }
+.activity-history-heading p { margin: 0; color: #657982; line-height: 1.6; }
+.activity-history button { min-height: 40px; padding: 9px 13px; border: 1px solid #d7e3dc; border-radius: 7px; background: #f8fbf9; color: #2c5546; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.activity-history button:disabled { opacity: .5; cursor: default; }
+.activity-history button:focus-visible,.activity-history input:focus-visible,.activity-history select:focus-visible,.activity-history summary:focus-visible { outline: 3px solid #95beac; outline-offset: 2px; }
+.activity-history-card { min-width: 0; padding: clamp(16px, 3vw, 28px); border: 1px solid #e2ebe7; border-radius: 15px; background: #fff; box-shadow: 0 4px 18px #20453904; }
+.activity-history-filters { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.activity-history-filters label { display: grid; flex: 1 1 210px; max-width: 440px; gap: 7px; color: #42584f; font-size: 12px; font-weight: 600; }
+.activity-history input,.activity-history select { min-width: 0; width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid #dbe5df; border-radius: 7px; background: #fff; color: #29443b; font: inherit; font-size: 13px; }
+.activity-history-item { padding: 17px 0; border-top: 1px solid #e8efeb; }
+.activity-history-item > header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.activity-history-item > header > div { display: grid; gap: 4px; min-width: 0; }
+.activity-history-item > header strong { color: #29443b; font-size: 13px; }
+.activity-history-item > header span,.activity-history-item > p,.activity-history-item time { color: #657982; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.activity-history-item > p { margin: 7px 0; }
+.activity-history-item details { margin-top: 9px; color: #317258; font-size: 12px; }
+.activity-history-item summary { width: fit-content; cursor: pointer; font-weight: 600; }
+.activity-history-data { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; margin-top: 12px; }
+.activity-history-data section { min-width: 0; padding: 12px; border: 1px solid #e4ede7; border-radius: 8px; background: #f8fbf9; }
+.activity-history-data strong { font-size: 11px; }
+.activity-history-data pre { max-height: 360px; overflow: auto; margin: 8px 0 0; color: #42584f; font: 11px/1.6 ui-monospace, "Cascadia Code", monospace; overflow-wrap: anywhere; white-space: pre-wrap; }
+.activity-history-pagination { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding-top: 16px; border-top: 1px solid #e8efeb; color: #657982; font-size: 12px; }
+.activity-history-pagination > div { display: flex; gap: 8px; }
+.activity-history-error { color: #9a3932; }
+.activity-history-empty { padding: 25px 10px; color: #71817a; text-align: center; }
+@media (max-width: 560px) {
+  .activity-history-item > header { display: grid; }
+  .activity-history-filters button { flex: 1 1 100px; }
+}

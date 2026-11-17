@@ -36,7 +36,16 @@ try {
   const photo = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAABAAAAAUCAIAAAALACogAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAHUlEQVQokWO48+g1SYhhVMOj0VC6M5o0Xg/a/AAAqQdTblFbfKMAAAAASUVORK5CYII=", "base64"), now = new Date();
   const employee = { employeeId: "EI-AABBCCDDEEFF", name: "Staff UI Employee", email: "staff-ui-person@example.com", phone: "+919876543219", department: "Operations", designation: "Tour coordinator", status: "active", photo, photoMime: "image/png", version: 1, createdAt: now, updatedAt: now, deletedAt: null };
   await db.collection("staff").insertOne(employee);
-  const invoice = (await call("/technical/invoices", { requestId: randomUUID(), invoiceDate: invoiceToday(), clientName: "Staff UI Client", totalPerson: 2, perPersonAmount: "1500", recipientDetails: "Delhi", description: "Travel / Tour Services", notes: invoiceNotes, invoiceType: "invoice" })).invoice;
+  const invoiceDraft = { requestId: randomUUID(), invoiceDate: invoiceToday(), clientName: "Staff UI Client", totalPerson: 2, perPersonAmount: "1500", recipientDetails: "Delhi", description: "Travel / Tour Services", notes: invoiceNotes, invoiceType: "invoice" };
+  const invoice = (await call("/invoices", invoiceDraft)).invoice;
+  let invoiceActivity;
+  for (let attempt = 0; attempt < 30 && !invoiceActivity; attempt++) {
+    invoiceActivity = await db.collection("panel_activity_history").findOne({ resource: "invoices", resourceId: invoice._id });
+    if (!invoiceActivity) await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.ok(invoiceActivity, "shared invoice API mutations appear in activity history");
+  const technicalHistory = await call("/technical/activity?resource=invoices&page=1&pageSize=100", undefined, "GET");
+  assert.ok(technicalHistory.activities.some((entry) => entry.resourceId === invoice._id), "Technical Panel can query shared invoice activity history");
   const { createRoot } = await import("react-dom/client");
   const container = testWindow.document.createElement("div"); testWindow.document.body.append(container); root = createRoot(container);
   const { default: AccountManager } = await vite.ssrLoadModule("/src/Common/staff-portal/StaffAccountManager.jsx");
@@ -53,24 +62,63 @@ try {
   await act(async () => { type('[name="username"]', "staff.ui"); type('[name="password"]', "UiAssignedStaff12!"); }); await submit(".staff-create-form");
   await waitFor(() => container.textContent.includes("Staff Login account created"), "account persisted");
   const saved = await db.collection("staff_accounts").findOne({ staffId: employee._id }); assert.ok(saved); assert.equal(saved.username, "staff.ui");
+  assert.equal(saved.canViewActivity, false, "peer activity access is disabled by default");
   const enquiry = (await system.enquirySystem.enquiries.create({ name: "Staff UI Guest", message: "Please call", destination: "Jaipur", source: "WEBSITE", email: "staff-ui-guest@example.com", phone: "+919876543218" })).enquiry;
   await call(`/technical/enquiries/${enquiry._id}`, { assignedTo: saved._id }, "PATCH");
-  await waitFor(() => container.textContent.includes("Manage access"), "account row"); await click("Manage access"); await waitFor(() => container.textContent.includes(invoice.invoiceNumber), "invoice access choices"); await click("Grant access"); await waitFor(() => container.textContent.includes("Revoke access"), "invoice grant");
+  await waitFor(() => container.textContent.includes("Manage access"), "account row"); await click("Manage access"); await waitFor(() => container.textContent.includes(invoice.invoiceNumber), "invoice access choices");
+  const invoiceRow = [...container.querySelectorAll("tr")].find((row) => row.textContent.includes(invoice.invoiceNumber));
+  assert.ok(invoiceRow, "invoice is available for access management");
+  await click("Grant access", invoiceRow); await waitFor(() => [...container.querySelectorAll("tr")].some((row) => row.textContent.includes(invoice.invoiceNumber) && row.textContent.includes("Revoke access")), "invoice grant");
+  await click("Grant access", container.querySelector(".staff-activity-access")); await waitFor(() => container.querySelector(".staff-activity-access").textContent.includes("Revoke access"), "peer activity permission");
+  assert.equal((await db.collection("staff_accounts").findOne({ _id: saved._id })).canViewActivity, true);
+  const granted = await db.collection("billing_invoices").findOne({ invoiceNumber: invoice.invoiceNumber });
+  assert.ok(granted?.authorizedStaffIds?.includes(employee._id.toString()), `invoice access grant is stored against the employee ID: ${JSON.stringify({ stored: granted?.authorizedStaffIds, employeeId: employee._id?.toString(), accountStaffId: saved.staffId.toString() })}`);
+  await call(`/technical/invoices/${invoice._id}`, { ...invoiceDraft, version: granted.version, description: "Admin-updated travel services" }, "PUT");
+  let invoiceNotification;
+  for (let attempt = 0; attempt < 30 && !invoiceNotification; attempt++) {
+    invoiceNotification = await db.collection("staff_notifications").findOne({ staffId: employee._id, title: "Billing / invoice updated", message: { $regex: invoice.invoiceNumber } });
+    if (!invoiceNotification) await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.ok(invoiceNotification, "invoice changes from another panel notify authorized Staff accounts");
   await act(async () => root.render(createElement(MemoryRouter, { key: "staff", initialEntries: ["/staff/login"] }, createElement(StaffPanel))));
   await waitFor(() => container.querySelector("#staff-username"), "staff login"); assert.equal([...container.querySelectorAll("a")].some((link) => /register/.test(link.href)), false);
   await act(async () => { type("#staff-username", "staff.ui"); type("#staff-password", "UiAssignedStaff12!"); }); await submit(".admin-login-form");
   await waitFor(() => container.querySelector(".staff-session-strip"), "staff session");
-  const navigation = container.querySelector(".panel-navigation"); for (const label of ["All Enquiries", "Notifications", "Journey Voucher", "Journey History", "Download ID Card", "My Attendance History", "Billing / Invoice", "Change Password"]) assert.ok(navigation.textContent.includes(label), label);
+  assert.equal((await call("/staff/me", undefined, "GET")).staff.canViewActivity, true);
+  const accountNow = await db.collection("staff_accounts").findOne({ _id: saved._id });
+  await call(`/technical/staff-accounts/${saved._id}`, { version: accountNow.version, canViewActivity: false }, "PATCH");
+  assert.equal((await call("/staff/me", undefined, "GET")).staff.canViewActivity, false, "activity permission changes apply to the existing Staff session immediately");
+  const staffInvoiceDraft = { requestId: randomUUID(), invoiceDate: invoiceToday(), clientName: "Staff-created Client", totalPerson: 1, perPersonAmount: "1250", recipientDetails: "Jaipur", description: "Staff-issued travel services", notes: invoiceNotes, invoiceType: "invoice" };
+  const staffInvoice = (await call("/staff/invoices", staffInvoiceDraft)).invoice;
+  assert.equal(staffInvoice.createdBy.role, "staff");
+  const editedStaffInvoice = (await call(`/staff/invoices/${staffInvoice._id}`, { ...staffInvoiceDraft, version: staffInvoice.version, description: "Updated staff travel services" }, "PUT")).invoice;
+  assert.equal(editedStaffInvoice.version, staffInvoice.version + 1);
+  let staffHistory;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    staffHistory = await call("/staff/activity?page=1&pageSize=100", undefined, "GET");
+    if (staffHistory.activities.some((entry) => entry.resourceId === staffInvoice._id)) break;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.ok(staffHistory.activities.some((entry) => entry.resourceId === staffInvoice._id), "Staff invoice changes appear in the actor's activity history");
+  assert.ok(staffHistory.activities.every((entry) => entry.actor.id === saved._id.toString()), "Staff activity history is restricted to the signed-in employee by default");
+  assert.equal(staffHistory.activities.some((entry) => entry.resourceId === invoice._id), false, "Staff cannot see panel-wide activity without peer-history permission");
+  const deniedGrantedEdit = await fetch(`${base}/api/staff/invoices/${invoice._id}`, { method: "PUT", headers: { "Content-Type": "application/json", Origin: "http://localhost:5173", Cookie: cookie }, body: JSON.stringify({ ...staffInvoiceDraft, requestId: randomUUID(), version: invoice.version }) });
+  assert.equal(deniedGrantedEdit.status, 403, "granted invoices remain read-only for Staff");
+  const authorizedInvoices = await call("/staff/invoices?search=&date=&from=&to=&month=&year=&sort=latest&page=1&pageSize=20", undefined, "GET");
+  assert.ok(authorizedInvoices.invoices.some((item) => item._id === invoice._id), `an explicitly authorized invoice is visible in the Staff Panel: ${JSON.stringify(authorizedInvoices)}; grant: ${JSON.stringify(granted?.authorizedStaffIds)}`);
+  assert.ok(authorizedInvoices.invoices.some((item) => item._id === staffInvoice._id), "Staff-created invoices are visible to their creator");
+  const navigation = container.querySelector(".panel-navigation"); for (const label of ["All Enquiries", "Notifications", "Activity History", "Journey Voucher", "Journey History", "Download ID Card", "My Attendance History", "Billing / Invoice", "Change Password"]) assert.ok(navigation.textContent.includes(label), label);
   assert.equal(container.querySelector('a[href="/admin"]'), null); assert.equal(container.querySelector('a[href="/technical"]'), null);
   const bell = container.querySelector(".staff-notification-button"); assert.ok(bell); await act(async () => bell.click());
   await waitFor(() => container.querySelector(".staff-notification-dropdown")?.textContent.includes("Staff UI Guest"), "recent enquiry notification details");
-  await click("View all", container.querySelector(".staff-notification-dropdown")); await waitFor(() => container.textContent.includes("Welcome to your Staff Panel"), "personal notifications");
+  await click("View all", container.querySelector(".staff-notification-dropdown")); await waitFor(() => container.textContent.includes("Welcome to your Staff Panel"), "personal notifications"); assert.ok(container.textContent.includes("Billing / invoice updated"), "invoice notifications are available in notification history");
   assert.ok(container.textContent.includes("staff-ui-guest@example.com"), "assigned enquiry notification includes customer contact details");
   await click("My Attendance History", navigation); await waitFor(() => container.textContent.includes("No attendance has been recorded"), "personal attendance");
   await click("Download ID Card", navigation); await waitFor(() => container.querySelector(".staff-card-view img"), "ID card preview"); await click("Download printable PDF"); await waitFor(() => downloads.some((blob) => blob.type === "application/pdf"), "PDF download");
-  await click("Billing / Invoice", navigation); await waitFor(() => container.textContent.includes(invoice.invoiceNumber), "authorized invoice"); await click("View invoice"); await waitFor(() => container.querySelector(".invoice-document"), "invoice preview");
+  await click("Billing / Invoice", navigation); await waitFor(() => container.textContent.includes(invoice.invoiceNumber), "authorized invoice"); await click("View"); await waitFor(() => container.querySelector(".invoice-document"), "invoice preview"); await click("Download PDF"); await waitFor(() => downloads.some((blob) => blob.type === "application/pdf"), "invoice PDF download");
   await click("Journey History", navigation); await waitFor(() => container.querySelector(".billing-history"), "journey history");
   await click("Journey Voucher", navigation); await waitFor(() => container.querySelector(".billing-editor-heading h2")?.textContent.startsWith("Invoice #"), "reused voucher editor and completed invoice reservation");
+  await call(`/staff/invoices/${staffInvoice._id}`, { version: editedStaffInvoice.version }, "DELETE");
   await click("Change Password", navigation); await waitFor(() => container.querySelector(".staff-password-form"), "password form");
   const passwordInputs = container.querySelectorAll('.staff-password-form input');
   await act(async () => { for (const [index, value] of ["UiAssignedStaff12!", "NewUiAssignedStaff34!", "NewUiAssignedStaff34!"].entries()) { Object.getOwnPropertyDescriptor(testWindow.HTMLInputElement.prototype, "value").set.call(passwordInputs[index], value); passwordInputs[index].dispatchEvent(new testWindow.Event("input", { bubbles: true })); } });
@@ -79,6 +127,6 @@ try {
 } finally {
   if (root) await act(async () => root.unmount()); globalThis.fetch = originalFetch; URL.createObjectURL = originalCreateURL; URL.revokeObjectURL = originalRevokeURL;
   for (const [key, descriptor] of previous) if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
-  await testWindow?.happyDOM.close(); system?.decorationScheduler.stop(); await system?.enquirySystem.stop(); await system?.drainSessions(); if (server) await new Promise((resolve) => server.close(resolve));
+  await testWindow?.happyDOM.close(); system?.decorationScheduler.stop(); await system?.enquirySystem.stop(); await system?.drainSessions(); if (server) await new Promise((resolve) => server.close(resolve)); await system?.drainActivity();
   if (db) { if (!config.databaseName.startsWith("eternal_india_test_spui_")) throw new Error("Unsafe test database cleanup"); await db.dropDatabase(); } await client?.close(); await vite.close();
 }

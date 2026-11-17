@@ -3,8 +3,9 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api, apiUrl } from "../api";
 import PanelLayout, { PanelErrorBoundary } from "../panel/PanelLayout";
 import { PanelNavigationProvider, usePanelNavigation, usePanelNavigationGuard } from "../panel/PanelNavigationContext";
+import ActivityHistory from "../ActivityHistory";
 import JourneyBillingWorkspace from "../JourneyBillingWorkspace";
-import InvoiceTemplate from "../invoices/InvoiceTemplate";
+import InvoiceDashboard from "../invoices/InvoiceDashboard";
 import { downloadVoucherFile, todayInIndia, voucherFile } from "../voucherClient";
 import { enquiryStatusLabels } from "../../../../shared/enquiries.js";
 import { attendanceStatuses } from "../../../../shared/staff.js";
@@ -15,6 +16,7 @@ import "./portal.css";
 export const staffSections = {
   enquiries: { label: "All Enquiries", title: "Assigned Enquiries", group: "Workspace", icon: "inbox" },
   notifications: { label: "Notifications", title: "Notifications", group: "Workspace", icon: "bell" },
+  activity: { label: "Activity History", title: "Activity History", group: "Workspace", icon: "clock" },
   vouchers: { label: "Journey Voucher", title: "Journey Voucher", group: "Journeys", icon: "calendar" },
   "voucher-history": { label: "Journey History", title: "Journey History", group: "Journeys", icon: "archive" },
   "id-card": { label: "Download ID Card", title: "My ID Card", group: "My account", icon: "people" },
@@ -22,7 +24,6 @@ export const staffSections = {
   invoices: { label: "Billing / Invoice", title: "Billing / Invoice", group: "Journeys", icon: "archive" },
   "change-password": { label: "Change Password", title: "Change Password", group: "My account", icon: "people" },
 };
-const rupees = (paise) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format((paise || 0) / 100);
 const dateTime = (date) => new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(new Date(date));
 export default function StaffPanel() { return <PanelNavigationProvider><Workspace /></PanelNavigationProvider>; }
 
@@ -56,7 +57,7 @@ function Workspace() {
       finally { running = false; }
     };
     void load(); const timer = window.setInterval(() => { void load(); }, 15000);
-    const update = () => { if (disposed) return; setRefresh((value) => value + 1); window.dispatchEvent(new Event("journey-vouchers-changed")); window.dispatchEvent(new Event("journey-voucher-options-changed")); void load(); };
+    const update = () => { if (disposed) return; setRefresh((value) => value + 1); window.dispatchEvent(new Event("journey-vouchers-changed")); window.dispatchEvent(new Event("journey-voucher-options-changed")); window.dispatchEvent(new Event("invoices-changed")); void load(); };
     let source;
     if (typeof EventSource !== "undefined") {
       source = new EventSource(apiUrl("/staff/events"), { withCredentials: true });
@@ -94,7 +95,7 @@ function Workspace() {
     <div className="staff-session-strip"><span>Welcome, <strong>{staff.name}</strong> · {staff.employeeId}</span><span className={connected ? "staff-live is-connected" : "staff-live"}>{connected ? "Live updates connected" : "Refreshing automatically"}</span></div>
     {error && <p className="staff-error" role="alert">{error}</p>}
     <PanelErrorBoundary key={section} onHome={() => go("enquiries")}>
-      {section === "enquiries" ? <Enquiries refresh={refresh} onUnauthorized={unauthorized} /> : section === "notifications" ? <Notifications refresh={refresh} onUnauthorized={unauthorized} onChanged={() => setRefresh((value) => value + 1)} onOpen={() => go("enquiries")} /> : ["vouchers", "voucher-history"].includes(section) ? <JourneyBillingWorkspace key={section} apiBase="/staff" initialCreate={section === "vouchers"} onUnauthorized={unauthorized} /> : section === "attendance" ? <Attendance refresh={refresh} onUnauthorized={unauthorized} /> : section === "id-card" ? <IdCard staff={staff} refresh={refresh} onUnauthorized={unauthorized} /> : section === "invoices" ? <Invoices refresh={refresh} onUnauthorized={unauthorized} /> : section === "change-password" ? <PasswordForm onUnauthorized={unauthorized} onChanged={(message) => { setStaff(null); setNotice(message); navigate("/staff/login", { replace: true }); }} /> : <div className="staff-portal staff-surface"><h1>Section not found</h1><button onClick={() => go("enquiries")}>Open my enquiries</button></div>}
+      {section === "enquiries" ? <Enquiries refresh={refresh} onUnauthorized={unauthorized} /> : section === "notifications" ? <Notifications refresh={refresh} onUnauthorized={unauthorized} onChanged={() => setRefresh((value) => value + 1)} onOpen={() => go("enquiries")} /> : section === "activity" ? <ActivityHistory apiBase="/staff" staff={staff} onUnauthorized={unauthorized} /> : ["vouchers", "voucher-history"].includes(section) ? <JourneyBillingWorkspace key={section} apiBase="/staff" initialCreate={section === "vouchers"} onUnauthorized={unauthorized} /> : section === "attendance" ? <Attendance refresh={refresh} onUnauthorized={unauthorized} /> : section === "id-card" ? <IdCard staff={staff} refresh={refresh} onUnauthorized={unauthorized} /> : section === "invoices" ? <InvoiceDashboard apiBase="/staff" onUnauthorized={unauthorized} /> : section === "change-password" ? <PasswordForm onUnauthorized={unauthorized} onChanged={(message) => { setStaff(null); setNotice(message); navigate("/staff/login", { replace: true }); }} /> : <div className="staff-portal staff-surface"><h1>Section not found</h1><button onClick={() => go("enquiries")}>Open my enquiries</button></div>}
     </PanelErrorBoundary>
     {toasts.length > 0 && <div className="staff-toast-shell" role="status" aria-live="polite" aria-label="New notifications">{toasts.map((item) => <NotificationToast key={item.id} item={item} dismiss={dismissToast} onOpen={() => go(item.enquiryId ? "enquiries" : "notifications")} />)}</div>}
   </PanelLayout></div>;
@@ -188,10 +189,11 @@ function Enquiries({ refresh, onUnauthorized }) {
 }
 
 function Notifications({ refresh, onUnauthorized, onChanged, onOpen }) {
-  const [page, setPage] = useState(1), [revision, setRevision] = useState(0);
-  const state = useRecords(`/notifications?page=${page}`, `${refresh}:${revision}`, onUnauthorized), operation = useOperation(onUnauthorized);
+  const [page, setPage] = useState(1), [revision, setRevision] = useState(0), [search, setSearch] = useState(""), [status, setStatus] = useState("all"), [query, setQuery] = useState("");
+  const state = useRecords(`/notifications?${new URLSearchParams({ search: query, status, page })}`, `${refresh}:${revision}`, onUnauthorized), operation = useOperation(onUnauthorized);
   const mutate = (path, method) => void operation.run(async (signal) => { await api(`/staff/notifications${path}`, { method, body: method === "PATCH" ? "{}" : undefined, signal }); if (!signal.aborted) { setRevision((value) => value + 1); onChanged(); } });
   return <section className="staff-portal"><Heading title="Notifications">Your enquiry, attendance and account updates, saved in your workspace.</Heading><section className="staff-surface"><div className="staff-section-heading"><h2>{state.data?.unread ?? "—"} unread updates</h2><button disabled={operation.busy || !state.data?.unread} onClick={() => mutate("/read-all", "PATCH")}>Mark all as read</button></div><LoadState state={state} /><OperationState operation={operation} />
+    <form className="staff-fields" onSubmit={(event) => { event.preventDefault(); setQuery(search.trim()); setPage(1); }}><label>Search notifications<input type="search" value={search} maxLength={120} onChange={(event) => setSearch(event.target.value)} /></label><label>Read status<select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="all">All notifications</option><option value="unread">Unread</option><option value="read">Read</option></select></label><button>Search</button><button type="button" onClick={() => { setSearch(""); setQuery(""); setStatus("all"); setPage(1); }}>Clear</button></form>
     {state.data?.notifications.map((item) => <article className={`staff-notification ${item.read ? "is-read" : ""}`} key={item._id}><div className="staff-section-heading"><strong>{item.title}</strong><time dateTime={item.createdAt}>{dateTime(item.createdAt)}</time></div><p>{item.message}</p>{item.enquiry && <p className="staff-notification-details"><strong>{item.enquiry.name}</strong>{item.enquiry.phone && ` · ${item.enquiry.phone}`}{item.enquiry.email && ` · ${item.enquiry.email}`}{item.enquiry.destination && ` · ${item.enquiry.destination}`}</p>}<div className="staff-actions">{item.enquiryId && <button onClick={onOpen}>Open my enquiries</button>}{!item.read && <button disabled={operation.busy} onClick={() => mutate(`/${encodeURIComponent(item._id)}/read`, "PATCH")}>Mark as read</button>}<button disabled={operation.busy} onClick={() => mutate(`/${encodeURIComponent(item._id)}`, "DELETE")}>Dismiss</button></div></article>)}
     {state.data?.total === 0 && <p className="staff-empty">You’re all caught up. New updates will appear here automatically.</p>}<Pagination data={state.data} page={page} onPage={setPage} loading={state.loading} /></section></section>;
 }
@@ -212,13 +214,6 @@ function IdCard({ staff, refresh, onUnauthorized }) {
     return () => { controller.abort(); if (url) URL.revokeObjectURL(url); };
   }, [refresh, retry, onUnauthorized]);
   return <section className="staff-portal"><Heading title="Download ID Card">Your current employee ID card in a print-ready PDF.</Heading><section className="staff-surface staff-card-view"><div>{loading && <p role="status">Preparing your ID card…</p>}{error && <p role="alert" className="staff-error">{error} <button onClick={() => setRetry((value) => value + 1)}>Retry</button></p>}{preview && <img src={preview} alt={`Employee ID card for ${staff.name}`} />}</div><div><h2>{staff.name}</h2><p>{staff.designation} · {staff.department}</p><p>{staff.employeeId}</p><p>Print at 100% scale to preserve the ID card dimensions.</p><OperationState operation={operation} /><button className="staff-primary" disabled={operation.busy} onClick={() => void operation.run(async (signal) => { const blob = await voucherFile("/staff/id-card", signal); if (!signal.aborted) downloadVoucherFile(blob, `${staff.employeeId}-card.pdf`); })}>Download printable PDF</button></div></section></section>;
-}
-
-function Invoices({ refresh, onUnauthorized }) {
-  const [search, setSearch] = useState(""), [page, setPage] = useState(1), [selected, setSelected] = useState(null), operation = useOperation(onUnauthorized);
-  const state = useRecords(`/invoices?${new URLSearchParams({ search, page })}`, refresh, onUnauthorized);
-  useEffect(() => { setSelected(null); }, [refresh]);
-  return <section className="staff-portal"><Heading title="Billing / Invoice">View and download invoices authorized by your Technical Panel administrator.</Heading><section className="staff-surface"><Search onSearch={(value) => { setSearch(value); setPage(1); }} /><LoadState state={state} /><OperationState operation={operation} /><div className="staff-table-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Client</th><th>Amount</th><th>Actions</th></tr></thead><tbody>{state.data?.invoices.map((invoice) => <tr key={invoice._id}><td>{invoice.invoiceNumber}</td><td>{invoice.invoiceDate}</td><td>{invoice.clientName}</td><td>{rupees(invoice.totalPaise)}</td><td><div className="staff-actions"><button disabled={operation.busy} onClick={() => void operation.run(async (signal) => { const result = await api(`/staff/invoices/${invoice._id}`, { signal }); if (!signal.aborted) setSelected(result.invoice); })}>View invoice</button><button disabled={operation.busy} onClick={() => void operation.run(async (signal) => { const blob = await voucherFile(`/staff/invoices/${invoice._id}/pdf`, signal); if (!signal.aborted) downloadVoucherFile(blob, `${invoice.invoiceNumber}.pdf`); })}>Download PDF</button></div></td></tr>)}</tbody></table></div>{state.data?.total === 0 && <p className="staff-empty">No invoices have been authorized for your account.</p>}<Pagination data={state.data} page={page} onPage={setPage} loading={state.loading} /></section>{selected && <section className="staff-surface"><button onClick={() => setSelected(null)}>Close invoice</button><div className="staff-invoice-preview"><InvoiceTemplate invoice={selected} /></div></section>}</section>;
 }
 
 function PasswordForm({ onUnauthorized, onChanged }) {

@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { Eyebrow } from "./SiteUI";
 import NotificationList from "./NotificationList";
 
 export default function NotificationCenter({ notifications, onOpenEnquiry }) {
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
   function clearAll() {
     if (notifications.items.length && window.confirm("Clear your notifications in both panels? Other users keep their notifications.")) {
       void notifications.clearAll();
@@ -19,6 +22,12 @@ export default function NotificationCenter({ notifications, onOpenEnquiry }) {
         <button type="button" className="dashboard-button" disabled={!notifications.items.length} onClick={clearAll}>Clear all</button>
       </div>
     </header>
+    <form className="notification-history-filters" onSubmit={(event) => { event.preventDefault(); notifications.setFilters({ search: search.trim(), status }); }}>
+      <label>Search notifications<input type="search" maxLength={120} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, category or message" /></label>
+      <label>Read status<select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All notifications</option><option value="unread">Unread</option><option value="read">Read</option></select></label>
+      <button type="submit" className="dashboard-button">Search</button>
+      <button type="button" className="dashboard-button" onClick={() => { setSearch(""); setStatus("all"); notifications.setFilters({ search: "", status: "all" }); }}>Clear</button>
+    </form>
     <div className="notification-preferences">
       <label><input type="checkbox" checked={notifications.preferences.sound} disabled={notifications.savingPreferences || notifications.loading} onChange={notifications.toggleSound} />Notification sound</label>
       <label><input type="checkbox" checked={notifications.preferences.popup} disabled={notifications.savingPreferences || notifications.loading} onChange={notifications.togglePopup} />Show popups</label>

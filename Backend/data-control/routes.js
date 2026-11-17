@@ -5,13 +5,14 @@ import { catalog, fail } from "./catalog.js";
 import { exportRecords } from "./exports.js";
 import { inspectOptimization, optimizeStorage } from "./optimization.js";
 
-export function registerDataControl({ app, control, db, config }) {
+export function registerDataControl({ app, control, db, config, activityLog }) {
   const router = express.Router();
   router.use(async (req, res, next) => {
     const result = await authenticatePanel({ db, config, token: req.cookies?.["eternal_india.auth"], panel: "technical" });
     if (!result.admin) return res.status(result.status).json({ message: "Sign in with an authorized Technical Panel account." });
     req.admin = result.admin; next();
   });
+  if (activityLog) router.use(activityLog.middleware);
   router.use(rateLimit({ windowMs: 60000, limit: 120, standardHeaders: "draft-8", legacyHeaders: false }));
   const locked = action => async (req, res) => res.json(await control.withQueuedLock(check => action(req, check)));
   router.get("/catalog", (_req, res) => res.json({ sections: Object.entries(catalog).map(([key, value]) => ({ key, label: value.label, protected: Boolean(value.protected) })) }));

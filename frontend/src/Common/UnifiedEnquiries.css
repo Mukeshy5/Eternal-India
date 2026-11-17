@@ -93,6 +93,10 @@
 .notification-center-heading h1 { margin: 7px 0 5px; color: #173657; font-size: clamp(24px, 4vw, 34px); }
 .notification-center-heading p { margin: 0; color: #68798e; font-size: 13px; }
 .notification-center-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.notification-history-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; margin: 0 0 18px; }
+.notification-history-filters label { display: grid; flex: 1 1 210px; max-width: 420px; gap: 7px; color: #53647a; font-size: 11px; font-weight: 600; }
+.notification-history-filters :is(input, select) { width: 100%; min-width: 0; min-height: 40px; padding: 9px 11px; border: 1px solid #d8e0ed; border-radius: 8px; background: #fcfdff; color: #303b50; font: inherit; font-size: 13px; }
+.notification-history-filters button { min-height: 40px; }
 .notification-center > .notification-list { overflow: hidden; border: 1px solid #e3e8ef; border-radius: 10px; background: white; padding: 0 16px; }
 .notification-center > .notification-list .notification-card:last-child { border-bottom: 0; }
 .notification-center .notification-card { padding: 18px 4px; }
@@ -124,6 +128,8 @@
   .notification-center-heading { align-items: flex-start; flex-direction: column; gap: 14px; }
   .notification-center-actions { justify-content: flex-start; width: 100%; }
   .notification-center-actions button { min-height: 40px; }
+  .notification-history-filters label { flex-basis: 100%; max-width: none; }
+  .notification-history-filters button { flex: 1 1 120px; }
   .notification-center > .notification-list { padding-inline: 11px; }
   .enquiry-toasts { right: 10px; bottom: 10px; width: calc(100vw - 20px); }
   .enquiry-toasts article { gap: 8px; padding: 13px; }

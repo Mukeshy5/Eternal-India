@@ -18,5 +18,5 @@ export async function authenticateStaff({ db, config, token }) {
   return employee ? { account, employee, claims } : null;
 }
 export function publicStaff(account, employee) {
-  return { id: account._id.toString(), username: account.username, role: "staff", employeeId: employee.employeeId, staffId: employee._id.toString(), name: employee.name, email: employee.email, phone: employee.phone, department: employee.department, designation: employee.designation, joiningDate: employee.joiningDate || "" };
+  return { id: account._id.toString(), username: account.username, role: "staff", canViewActivity: account.canViewActivity === true, employeeId: employee.employeeId, staffId: employee._id.toString(), name: employee.name, email: employee.email, phone: employee.phone, department: employee.department, designation: employee.designation, joiningDate: employee.joiningDate || "" };
 }

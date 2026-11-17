@@ -23,7 +23,7 @@ const imageType = (bytes) => {
   return null;
 };
 
-export function registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions }) {
+export function registerFestivalRoutes({ app, db, requireAdmin, config, schedulerOptions, activityLog }) {
   const ready = ensureDecorationModels(db);
   // Do not start ticking until MongoDB indexes and real library definitions exist.
   const scheduler = createDecorationScheduler(db, { ...schedulerOptions, intervalMs: 0 });
@@ -40,6 +40,7 @@ export function registerFestivalRoutes({ app, db, requireAdmin, config, schedule
   const router = express.Router();
   const allow = (permission) => technicalGuard(requireAdmin, config, permission);
   router.use(async (_req, _res, next) => { await ready; next(); });
+  if (activityLog) router.use(activityLog.middleware);
   const audit = (req, action, previousValues, newValues, remarks = "") => db.collection("decoration_activity").insertOne({ action, decorationId: newValues?.festivalId || previousValues?.festivalId || newValues?._id?.toString() || previousValues?._id?.toString() || null, festivalName: newValues?.name || previousValues?.name || "", performedBy: actorFor(req), performedByRole: "technical", previousValues: previousValues ? { _id: previousValues._id, festivalId: previousValues.festivalId, name: previousValues.name, enabled: previousValues.enabled, published: previousValues.published } : null, newValues: newValues ? { _id: newValues._id, festivalId: newValues.festivalId, name: newValues.name, enabled: newValues.enabled, published: newValues.published } : null, timestamp: scheduler.clock(), expiresAt: new Date(scheduler.clock().getTime() + 30 * 86400000), remarks });
   async function withScheduleLock(res, operation) {
     const token = randomUUID();
