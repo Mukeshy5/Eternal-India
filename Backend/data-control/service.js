@@ -10,6 +10,7 @@ import { createInterface } from "node:readline";
 import { setTimeout as delay } from "node:timers/promises";
 import { BSON } from "mongodb";
 import { catalog, businessCollections, assetCollections, CAPACITY, DAY, fail, ejson, parse, bytesOf, sectionFor, buildFilter, storageStatus, publicRecord } from "./catalog.js";
+import { createMongoBackupStore } from "./backup-store.js";
 
 const hash = value => createHash("sha256").update(value).digest("hex");
 const digest = doc => hash(ejson(doc));
@@ -42,7 +43,10 @@ async function fileHash(path) { const sha = createHash("sha256"); for await (con
 
 export function createDataControl({ db, config = {}, clock = () => new Date() }) {
   const base = fileURLToPath(new URL("../var/", import.meta.url));
-  const backupRoot = resolve(config.dataControl?.backupDirectory || resolve(base, "backups", db.databaseName));
+  const backupStorage = config.dataControl?.backupStorage || (config.render ? "mongodb" : "filesystem");
+  const mongoBackups = backupStorage === "mongodb";
+  const backupRoot = mongoBackups ? resolve(base, "backup-cache", db.databaseName) : resolve(config.dataControl?.backupDirectory || resolve(base, "backups", db.databaseName));
+  const backupStore = createMongoBackupStore(db);
   const uploadRoot = resolve(config.dataControl?.uploadDirectory || resolve(base, "uploads"));
   const tempRoot = resolve(config.dataControl?.tempDirectory || resolve(base, "temporary"));
   for (const a of [backupRoot, uploadRoot, tempRoot]) for (const b of [backupRoot, uploadRoot, tempRoot]) if (a !== b && (!relative(a, b).startsWith("..") || a === b)) throw new Error("Backup, upload and temporary directories must be separate.");
@@ -52,7 +56,7 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
   let writeAdmission = Promise.resolve();
   let maintenanceQueue = Promise.resolve();
   const audit = (actor, action, details = {}) => db.collection("data_control_audit").insertOne({ actor: String(actor?._id || actor || "scheduler"), action, ...details, at: clock() });
-  const renderDiskRequired = config.render && process.platform === "linux" && Boolean(process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_HOSTNAME);
+  const renderDiskRequired = !mongoBackups && config.render && process.platform === "linux" && Boolean(process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_HOSTNAME);
   async function verifyBackupMount() {
     if (renderDiskRequired) {
       const mountPath = "/var/data", mountParent = "/var";
@@ -84,7 +88,7 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
     }
   }
   async function initialize() {
-    if (config.production && (!config.dataControl?.backupDirectory || !isAbsolute(config.dataControl.backupDirectory))) {
+    if (!mongoBackups && config.production && (!config.dataControl?.backupDirectory || !isAbsolute(config.dataControl.backupDirectory))) {
       throw new Error("Set DATA_CONTROL_BACKUP_DIR to an absolute, persistent storage path before starting production.");
     }
     await verifyBackupMount();
@@ -98,6 +102,7 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
       }
     }
     await verifyBackupStorage();
+    if (mongoBackups) await backupStore.initialize();
     await Promise.all([
       backups.createIndex({ createdAt: -1 }), db.collection("data_control_audit").createIndex({ at: -1 }),
       db.collection("data_control_previews").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
@@ -163,17 +168,19 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
     return operation;
   }
   async function overview({ snapshot = false } = {}) {
-    const [stats, uploadFiles, tempFiles, backupFiles, embedded] = await Promise.all([
+    const [stats, uploadFiles, tempFiles, backupFiles, embedded, embeddedBackupBytes] = await Promise.all([
       db.command({ dbStats: 1, scale: 1, freeStorage: 1 }), walkFiles(uploadRoot), walkFiles(tempRoot), walkFiles(backupRoot),
       Promise.all(assetCollections.map(async name => {
         const field = { staff: "photo", employment_letter_images: "bytes", employment_letters: "pdf" }[name] || "data";
         return (await db.collection(name).aggregate([{ $group: { _id: null, bytes: { $sum: { $cond: [{ $eq: [{ $type: `$${field}` }, "binData"] }, { $binarySize: `$${field}` }, 0] } } } }]).toArray())[0]?.bytes || 0;
       })),
+      backupStore.bytes(),
     ]);
     if (![stats.storageSize, stats.indexSize, stats.dataSize].every(value => Number.isFinite(value) && value >= 0)) throw fail(503, "MongoDB storage statistics are unavailable. Storage is not estimated.");
-    const databaseBytes = stats.storageSize + stats.indexSize, uploadedFilesBytes = uploadFiles.reduce((sum, f) => sum + f.bytes, 0), temporaryBytes = tempFiles.reduce((sum, f) => sum + f.bytes, 0), backupBytes = backupFiles.reduce((sum, f) => sum + f.bytes, 0);
-    const usedBytes = databaseBytes + uploadedFilesBytes + temporaryBytes + backupBytes, percent = usedBytes / CAPACITY * 100;
-    const result = { capacityBytes: CAPACITY, usedBytes, availableBytes: Math.max(0, CAPACITY - usedBytes), databaseBytes, databaseDocumentBytes: stats.dataSize, databaseIndexBytes: stats.indexSize, databaseReusableBytes: stats.totalFreeStorageSize ?? stats.freeStorageSize ?? 0, uploadedFilesBytes, embeddedUploadBytes: embedded.reduce((a, b) => a + b, 0), temporaryBytes, backupBytes, percent, status: storageStatus(percent), warnings: [70, 80, 90, 95].filter(value => percent >= value), measuredAt: clock(), persistentBackupDirectoryConfigured: Boolean(config.dataControl?.backupDirectory), note: "Embedded uploads are included in database storage. Deleted document bytes may remain allocated for reuse by MongoDB." };
+    const databaseBytes = stats.storageSize + stats.indexSize, uploadedFilesBytes = uploadFiles.reduce((sum, f) => sum + f.bytes, 0), localBackupBytes = backupFiles.reduce((sum, f) => sum + f.bytes, 0);
+    const externalBackupBytes = mongoBackups ? 0 : localBackupBytes, temporaryBytes = tempFiles.reduce((sum, f) => sum + f.bytes, 0) + (mongoBackups ? localBackupBytes : 0), backupBytes = externalBackupBytes + embeddedBackupBytes;
+    const usedBytes = databaseBytes + uploadedFilesBytes + temporaryBytes + externalBackupBytes, percent = usedBytes / CAPACITY * 100;
+    const result = { capacityBytes: CAPACITY, usedBytes, availableBytes: Math.max(0, CAPACITY - usedBytes), databaseBytes, databaseDocumentBytes: stats.dataSize, databaseIndexBytes: stats.indexSize, databaseReusableBytes: stats.totalFreeStorageSize ?? stats.freeStorageSize ?? 0, uploadedFilesBytes, embeddedUploadBytes: embedded.reduce((a, b) => a + b, 0), temporaryBytes, backupBytes, embeddedBackupBytes, externalBackupBytes, backupStorage, percent, status: storageStatus(percent), warnings: [70, 80, 90, 95].filter(value => percent >= value), measuredAt: clock(), persistentBackupDirectoryConfigured: mongoBackups || Boolean(config.dataControl?.backupDirectory), note: "Embedded uploads and MongoDB backups are already included in database storage. Local backup caches count as temporary files. Deleted document bytes may remain allocated for reuse by MongoDB." };
     if (snapshot) { const hour = new Date(clock()); hour.setUTCMinutes(0, 0, 0); await db.collection("data_control_snapshots").updateOne({ _id: hour.toISOString() }, { $set: { ...result, at: clock() } }, { upsert: true }); }
     return result;
   }
@@ -198,15 +205,15 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
   }
   function backupPath(id) { if (!/^[a-f0-9-]{36}$/.test(id)) throw fail(400, "Invalid backup ID."); return resolve(backupRoot, `${id}.ndjson.gz`); }
   async function createBackup({ actor, key, input = {}, reason = "manual", check = async () => {} } = {}) {
-    if (config.production && (!config.dataControl?.backupDirectory || !isAbsolute(config.dataControl.backupDirectory))) throw fail(503, "Configure DATA_CONTROL_BACKUP_DIR as an absolute persistent-disk path before creating production backups.");
+    if (!mongoBackups && config.production && (!config.dataControl?.backupDirectory || !isAbsolute(config.dataControl.backupDirectory))) throw fail(503, "Configure DATA_CONTROL_BACKUP_DIR as an absolute persistent-disk path before creating production backups.");
     await assertSpace(65536);
     const id = randomUUID(), path = backupPath(id), temporary = `${path}.partial`, createdAt = clock();
     const dependencies = { enquiries: ["enquiry_history"], notifications: [], payments: ["payment_webhook_events"], vouchers: ["hotels", "gst_rates", "office_addresses", "billing_counters", "journey_invoice_reservations"], attendance: ["staff", "staff_settings"], invoices: ["billing_counters", "invoice_requests"] };
     const collections = key ? [...new Set([sectionFor(key).collection, ...dependencies[key]])] : businessCollections;
-    const entry = { _id: id, status: "running", reason, section: key || "all", createdAt, actor: String(actor?._id || actor || "scheduler"), records: 0, files: 0 };
+    const entry = { _id: id, status: "running", storage: backupStorage, reason, section: key || "all", createdAt, actor: String(actor?._id || actor || "scheduler"), records: 0, files: 0 };
     await backups.insertOne(entry); await audit(actor, "backup.started", { backupId: id, reason });
     let records = 0, files = 0, logicalBytes = 0, compressed = 0;
-    const current = await overview(), remaining = CAPACITY - current.usedBytes - 65536;
+    const current = await overview(), remaining = Math.floor((CAPACITY - current.usedBytes - 65536) / (mongoBackups ? 2 : 1));
     async function* lines() {
       yield `${ejson({ type: "header", format: "eternal-india-backup", version: 1, id, createdAt, collections, scope: key || "all", database: db.databaseName })}\n`;
       for (const name of collections) {
@@ -229,12 +236,16 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
     try {
       await pipeline(Readable.from(lines()), createGzip({ level: 9 }), quota, createWriteStream(temporary, { flags: "wx", mode: 0o600 }));
       await check(); await rename(temporary, path);
-      await backups.updateOne({ _id: id }, { $set: { status: "verifying", records, files, logicalBytes, bytes: compressed, sha256: await fileHash(path) } });
+      const sha256 = await fileHash(path);
+      if (mongoBackups) { await backupStore.save(id, path, sha256); await check(); await unlink(path); }
+      await backups.updateOne({ _id: id }, { $set: { status: "verifying", records, files, logicalBytes, bytes: compressed, sha256 } });
       await verifyBackup(id);
+      if (mongoBackups) await unlink(path);
       await audit(actor, "backup.completed", { backupId: id, records, files, bytes: compressed });
       return backups.findOne({ _id: id });
     } catch (error) {
       await unlink(temporary).catch(() => {}); await unlink(path).catch(() => {});
+      if (mongoBackups) await backupStore.remove(id);
       await backups.updateOne({ _id: id }, { $set: { status: "failed", error: error.publicMessage ? error.message : "Backup failed. Check storage availability and permissions.", finishedAt: clock() } });
       await audit(actor, "backup.failed", { backupId: id }); throw error;
     }
@@ -243,6 +254,7 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
     const saved = await backups.findOne({ _id: id });
     if (!saved || !["verified", "verifying"].includes(saved.status)) throw fail(409, "A completed backup is required.");
     const path = backupPath(id); let info;
+    if (saved.storage === "mongodb") await backupStore.materialize(id, path);
     try { info = await lstat(path); } catch { throw fail(409, "The backup file is missing. Deletion and restore are blocked."); }
     if (!info.isFile() || info.isSymbolicLink() || info.size !== saved.bytes || await fileHash(path) !== saved.sha256) throw fail(409, "Backup checksum verification failed.");
     let header, footer, activeFile, records = 0, files = 0, logicalBytes = 0, expanded = 0;
@@ -280,7 +292,7 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
   }
   async function verifyBackup(id, actor) {
     try { const result = await readBackup(id); await backups.updateOne({ _id: id }, { $set: { status: "verified", verifiedAt: clock(), finishedAt: clock() }, $unset: { error: "" } }); if (actor) await audit(actor, "backup.verified", { backupId: id }); return result; }
-    catch (error) { await backups.updateOne({ _id: id }, { $set: { status: "invalid", error: "Backup verification failed.", verifiedAt: clock() } }); if (actor) await audit(actor, "backup.verification-failed", { backupId: id }); throw error; }
+    catch (error) { if (error.status !== 503) await backups.updateOne({ _id: id }, { $set: { status: "invalid", error: "Backup verification failed.", verifiedAt: clock() } }); if (actor) await audit(actor, "backup.verification-failed", { backupId: id }); throw error; }
   }
   async function preview(key, input, actor) {
     const section = sectionFor(key), filter = buildFilter(key, input), records = []; let bytes = 0, firstDate, lastDate;
@@ -342,6 +354,7 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
       if (!other.length) throw fail(409, "Keep at least one verified complete backup."); await readBackup(other[0]._id);
     }
     await check(); await audit(actor, "backup.delete-started", { backupId: id, bytes: saved.bytes || 0 });
+    if (saved.storage === "mongodb") await backupStore.remove(id);
     await unlink(backupPath(id)).catch(error => { if (error.code !== "ENOENT") throw error; });
     await backups.updateOne({ _id: id }, { $set: { status: "deleted", deletedAt: clock() } }); await audit(actor, "backup.deleted", { backupId: id });
   }
@@ -416,6 +429,7 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
         } else {
           await unlink(`${backupPath(interrupted._id)}.partial`).catch(error => { if (error.code !== "ENOENT") throw error; });
           await unlink(backupPath(interrupted._id)).catch(error => { if (error.code !== "ENOENT") throw error; });
+          if (interrupted.storage === "mongodb") await backupStore.remove(interrupted._id);
           await backups.updateOne({ _id: interrupted._id }, { $set: { status: "failed", error: "Backup was interrupted before verification. No database records were removed.", finishedAt: clock() } });
         }
         await audit("scheduler", "backup.recovered-after-interruption", { backupId: interrupted._id });

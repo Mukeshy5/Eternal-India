@@ -52,6 +52,8 @@ export function readConfig(env = process.env) {
   if (gmailRedirect && production && new URL(gmailRedirect).protocol !== "https:") throw new Error("GMAIL_REDIRECT_URI must use HTTPS in production.");
   if (env.GMAIL_INBOX_EMAIL && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.GMAIL_INBOX_EMAIL.trim())) throw new Error("GMAIL_INBOX_EMAIL must be the business inbox email address.");
   if (env.INTEGRATION_TOKEN_SECRET && env.INTEGRATION_TOKEN_SECRET.length < 32) throw new Error("INTEGRATION_TOKEN_SECRET must contain at least 32 characters.");
+  const backupStorage = (env.DATA_CONTROL_BACKUP_STORAGE || (onRender ? "mongodb" : "filesystem")).trim().toLowerCase();
+  if (!["mongodb", "filesystem"].includes(backupStorage)) throw new Error("DATA_CONTROL_BACKUP_STORAGE must be mongodb or filesystem.");
   return {
     port,
     host: onRender ? "0.0.0.0" : env.HOST || (production ? "0.0.0.0" : "127.0.0.1"),
@@ -66,7 +68,7 @@ export function readConfig(env = process.env) {
     adminPassword: env.ADMIN_PASSWORD || "",
     technicalEmail: (env.TECHNICAL_EMAIL || "").trim().toLowerCase(),
     companyName: env.COMPANY_NAME || "Eternal India",
-    dataControl: { backupDirectory: (env.DATA_CONTROL_BACKUP_DIR || "").trim(), uploadDirectory: (env.DATA_CONTROL_UPLOAD_DIR || "").trim(), tempDirectory: (env.DATA_CONTROL_TEMP_DIR || "").trim() },
+    dataControl: { backupStorage, backupDirectory: (env.DATA_CONTROL_BACKUP_DIR || "").trim(), uploadDirectory: (env.DATA_CONTROL_UPLOAD_DIR || "").trim(), tempDirectory: (env.DATA_CONTROL_TEMP_DIR || "").trim() },
     otpSecret: env.OTP_HASH_SECRET || env.SESSION_SECRET,
     enquiries: {
       tokenSecret: env.INTEGRATION_TOKEN_SECRET || env.SESSION_SECRET,
