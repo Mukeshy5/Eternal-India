@@ -11,7 +11,7 @@ import { billingError, validObjectId, validateVoucher, voucherFilter } from "./v
 import { historyExcel, historyPdf, voucherPdf } from "./documents.js";
 import { staffActor } from "../staff-portal/auth.js";
 
-export function registerVoucherRoutes({ management, db, requireAdmin, config, staffMode = false }) {
+export function registerVoucherRoutes({ management, db, requireAdmin, config, realtime, staffMode = false }) {
   let readiness;
   const guard = [requireAdmin, async (req, _res, next) => {
     if (staffMode ? !req.staffAccount : !adminPanelAccess(req.admin, config) && !technicalAccess(req.admin, config).technical) throw billingError("Your role cannot manage billing.", 403);
@@ -20,14 +20,15 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config, st
   }];
   const records = () => db.collection(voucherCollection);
   const actor = (req) => staffMode ? staffActor(req.employee._id) : req.admin._id.toString();
-  const scope = (req) => staffMode ? { createdBy: actor(req) } : {};
-  async function getVoucher(req, id) {
+  const scope = () => ({});
+  async function getVoucher(req, id, write = false) {
     if (!validObjectId(id)) throw billingError("Choose a valid voucher.");
     const voucher = await records().findOne({ _id: new ObjectId(id), ...scope(req) });
     if (!voucher) throw billingError("Voucher not found.", 404);
+    if (write && staffMode && voucher.createdBy !== actor(req)) throw billingError("You can only change vouchers created by your Staff account.", 403);
     return voucher;
   }
-  const publicVoucher = ({ createHash: _hash, ...voucher }) => voucher;
+  const publicVoucher = ({ createHash: _hash, ...voucher }, req) => ({ ...voucher, ...(staffMode ? { canEdit: voucher.createdBy === actor(req) } : {}) });
   async function pricingData(body, previous) {
     if (!validObjectId(body?.hotelId) || !validObjectId(body?.gstId)) throw billingError("Select a saved hotel and company GST record.");
     const officeAddressId = body.officeAddressId ?? previous?.officeAddressId ?? "";
@@ -94,15 +95,15 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config, st
     const [total, totals] = await Promise.all([records().countDocuments(filter), records().aggregate([{ $match: filter }, { $group: { _id: null, totalBillingPaise: { $sum: "$pricing.totalPaise" } } }]).toArray()]);
     const pages = Math.max(1, Math.ceil(total / pageSize)), page = Math.min(requestedPage, pages);
     const vouchers = await records().find(filter, { projection: { createHash: 0 } }).sort({ voucherDate: -1, _id: -1 }).skip((page - 1) * pageSize).limit(pageSize).toArray();
-    res.json({ vouchers, total, page, pages, pageSize, totalBillingPaise: totals[0]?.totalBillingPaise ?? 0 });
+    res.json({ vouchers: vouchers.map((voucher) => publicVoucher(voucher, req)), total, page, pages, pageSize, totalBillingPaise: totals[0]?.totalBillingPaise ?? 0 });
   });
   management.get("/vouchers/:id/pdf", ...guard, async (req, res) => {
     const voucher = await getVoucher(req, req.params.id);
     const output = await voucherPdf(voucher);
     res.set({ "Content-Type": "application/pdf", "Content-Disposition": `${req.query.inline === "1" ? "inline" : "attachment"}; filename="journey-voucher-${voucher.invoiceNumber}.pdf"` }).send(output);
   });
-  management.get("/vouchers/:id/print-data", ...guard, async (req, res) => res.json({ voucher: publicVoucher(await getVoucher(req, req.params.id)) }));
-  management.get("/vouchers/:id", ...guard, async (req, res) => res.json({ voucher: publicVoucher(await getVoucher(req, req.params.id)) }));
+  management.get("/vouchers/:id/print-data", ...guard, async (req, res) => res.json({ voucher: publicVoucher(await getVoucher(req, req.params.id), req) }));
+  management.get("/vouchers/:id", ...guard, async (req, res) => res.json({ voucher: publicVoucher(await getVoucher(req, req.params.id), req) }));
   management.post("/vouchers", ...guard, async (req, res) => {
     const fields = validateVoucher(req.body);
     if (!validObjectId(req.body.reservationId)) throw billingError("Reserve an invoice number before saving.");
@@ -112,7 +113,7 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config, st
     const existing = await records().findOne({ _id: reservation._id });
     if (existing) {
       if (existing.createHash !== hash) throw billingError("This invoice already exists. Open it in History to edit it.", 409);
-      return res.json({ voucher: publicVoucher(existing) });
+      return res.json({ voucher: publicVoucher(existing, req) });
     }
     // A deleted invoice remains consumed and can never be recreated.
     if (reservation.consumedAt && (reservation.deletedAt || reservation.pendingHash !== hash)) throw billingError("This invoice was already used. Create a new voucher.", 409);
@@ -123,23 +124,26 @@ export function registerVoucherRoutes({ management, db, requireAdmin, config, st
     const claimed = await db.collection("journey_invoice_reservations").updateOne({ _id: reservation._id, $or: [{ consumedAt: { $exists: false } }, { pendingHash: hash, deletedAt: { $exists: false } }] }, { $set: { consumedAt: now, pendingHash: hash } });
     if (!claimed.matchedCount) throw billingError("This invoice is already in use.", 409);
     try { await records().insertOne(voucher); }
-    catch (error) { if (error.code !== 11000) throw error; const duplicate = await records().findOne({ _id: reservation._id }); if (duplicate?.createHash === hash) return res.json({ voucher: publicVoucher(duplicate) }); throw billingError("This invoice number is already in use.", 409); }
-    res.status(201).json({ voucher: publicVoucher(voucher) });
+    catch (error) { if (error.code !== 11000) throw error; const duplicate = await records().findOne({ _id: reservation._id }); if (duplicate?.createHash === hash) return res.json({ voucher: publicVoucher(duplicate, req) }); throw billingError("This invoice number is already in use.", 409); }
+    await realtime?.workspaceChanged("journeys", "created", voucher._id);
+    res.status(201).json({ voucher: publicVoucher(voucher, req) });
   });
   management.patch("/vouchers/:id", ...guard, async (req, res) => {
-    const previous = await getVoucher(req, req.params.id), fields = validateVoucher(req.body, previous);
+    const previous = await getVoucher(req, req.params.id, true), fields = validateVoucher(req.body, previous);
     if (!Number.isInteger(req.body.revision) || req.body.revision !== previous.revision) throw billingError("Another user changed this voucher. Reopen it before editing.", 409);
     const data = await pricingData(req.body, previous);
     const saved = await records().findOneAndUpdate({ _id: previous._id, revision: req.body.revision }, { $set: { ...fields, ...data, ...(fields.officeAddressId && fields.mealPlan ? { schemaVersion: 2 } : {}), updatedAt: new Date(), updatedBy: actor(req) }, $inc: { revision: 1 } }, { returnDocument: "after", projection: { createHash: 0 } });
     if (!saved) throw billingError("Another user changed or deleted this voucher. Refresh History.", 409);
-    res.json({ voucher: saved });
+    await realtime?.workspaceChanged("journeys", "updated", saved._id);
+    res.json({ voucher: publicVoucher(saved, req) });
   });
   management.delete("/vouchers/:id", ...guard, async (req, res) => {
-    const previous = await getVoucher(req, req.params.id);
+    const previous = await getVoucher(req, req.params.id, true);
     if (String(previous.revision) !== req.query.revision) throw billingError("This voucher changed. Refresh it before deleting.", 409);
     // Tombstone first: a concurrent create/retry must never resurrect a deleted invoice.
     await db.collection("journey_invoice_reservations").updateOne({ _id: previous._id }, { $set: { deletedAt: new Date() } });
     if (!(await records().deleteOne({ _id: previous._id, revision: previous.revision })).deletedCount) throw billingError("This voucher changed. Refresh it before deleting.", 409);
+    await realtime?.workspaceChanged("journeys", "deleted", previous._id);
     res.sendStatus(204);
   });
 }

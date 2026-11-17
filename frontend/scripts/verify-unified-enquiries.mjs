@@ -33,14 +33,15 @@ export async function verifyUnifiedEnquiries(vite) {
     function Probe() { latest = useNotifications({ admin: { id: "notification-test" }, apiBase: "/admin", socketFactory, onRefresh: () => refreshes++, onDeleted: (id) => { deletedId = id; }, onUnauthorized: () => assert.fail("Unexpected unauthorized request") }); return createElement(Notifications, { notifications: latest, onOpen: (id) => { openId = id; } }); }
     await act(async () => root.render(createElement(Probe))); assert.equal(sockets.length, 1); assert.equal(sockets[0].url, "http://localhost"); assert.equal(sockets[0].options.path, "/api/enquiries/socket.io"); assert.equal(sockets[0].options.withCredentials, undefined); assert.equal(sockets[0].options.transports[0], "websocket"); assert.equal(sockets[0].auth.panel, "admin"); assert.equal(sockets[0].auth.ticket, "single-use-test-socket-ticket"); assert.equal(sockets[0].options.auth instanceof Function, true);
     assert.ok(container.textContent.includes("Live"));
+    assert.equal(refreshes, 1, "connecting refreshes the inbox to recover changes missed while offline");
     await act(async () => { testWindow.document.dispatchEvent(new testWindow.Event("pointerdown")); await Promise.resolve(); });
     await act(async () => container.querySelector('input[type="checkbox"]').click());
     assert.equal(prefs.sound, true); const before = audiblePlays;
     const event = { action: "created", notification: { id: "test1", category: "WhatsApp enquiry", title: "New WhatsApp enquiry", message: "A new enquiry has arrived from WhatsApp Customer.", enquiryId: "test1", source: "WHATSAPP", createdAt: new Date().toISOString(), read: false }, actorId: "" };
-    const requestsBeforeBurst = notificationRequests;
+    const requestsBeforeBurst = notificationRequests, refreshesBeforeBurst = refreshes;
     unread = 2;
     await act(async () => { handlers["notification:event"](event); handlers["notification:event"](event); handlers["enquiry:event"]({ id: "created:test1", type: "created", enquiryId: "test1", source: "WHATSAPP" }); });
-    assert.equal(testWindow.document.querySelectorAll(".enquiry-toasts article").length, 1); assert.equal(audiblePlays, before + 1); assert.ok(decodeURIComponent(latestAudio).includes("Notification Ring/notification-ring.mp3")); assert.equal(latest.unread, 2); await act(async () => runTimeouts(120)); assert.equal(refreshes, 1, "bursts coalesce into a single inbox refresh");
+    assert.equal(testWindow.document.querySelectorAll(".enquiry-toasts article").length, 1); assert.equal(audiblePlays, before + 1); assert.ok(decodeURIComponent(latestAudio).includes("Notification Ring/notification-ring.mp3")); assert.equal(latest.unread, 2); await act(async () => runTimeouts(120)); assert.equal(refreshes - refreshesBeforeBurst, 1, "bursts coalesce into a single inbox refresh");
     assert.equal(notificationRequests - requestsBeforeBurst, 1, "notification and enquiry events share one notification refresh");
     await act(async () => testWindow.document.querySelector(".enquiry-toasts article button").click()); assert.equal(openId, "test1"); assert.equal(testWindow.document.querySelectorAll(".enquiry-toasts article").length, 0);
     const afterFresh = audiblePlays;

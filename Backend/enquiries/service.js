@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { ObjectId } from "mongodb";
 import { enquirySection, enquirySources, enquiryStatus } from "../../shared/enquiries.js";
 import { publicEnquiry } from "./model.js";
-import { publishStaffNotification } from "../staff-portal/notifications.js";
+import { publishStaffNotification, publishStaffWorkspaceNotification } from "../staff-portal/notifications.js";
 import { broadcastChanged } from "../staff-portal/livehub.js";
 
 export const enquiryError = (status, message, details = {}) => Object.assign(new Error(message), { status, publicMessage: true, details });
@@ -27,6 +27,14 @@ export function createEnquiryService({ db, notifications }) {
           message: `${record.name.slice(0, 100)}: ${(record.subject || record.destination || record.message || "New travel request").replace(/\s+/g, " ").slice(0, 180)}`,
           source,
           enquiryId: record._id.toString(),
+        });
+        await publishStaffWorkspaceNotification(db, {
+          id: `enquiry:${event.id}`,
+          title: `New ${sourceName} enquiry`,
+          message: `${record.reference}: ${record.name} · ${record.destination || record.subject || "New travel request"}`,
+          enquiryId: record._id.toString(),
+          enquiry: { reference: record.reference, name: record.name, email: record.email || "", phone: record.phone || "", destination: record.destination || "" },
+          createdAt: event.at,
         });
         await db.collection("enquiry_events").updateOne({ _id: event.id }, { $set: { notificationCreated: true } });
       }

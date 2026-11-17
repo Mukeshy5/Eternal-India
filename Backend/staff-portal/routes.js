@@ -17,10 +17,11 @@ import { indiaDate } from "../../shared/staff.js";
 import { reportRange, summary } from "../staff/validation.js";
 import { cardPdf } from "../staff/exports.js";
 import { cardSvg } from "../staff/card.js";
-import { authenticateStaff, publicStaff, staffActor, staffCookie, staffJwt, staffPasswordValid } from "./auth.js";
+import { authenticateStaff, publicStaff, staffCookie, staffJwt, staffPasswordValid } from "./auth.js";
 import { ensureStaffPortalModels } from "./models.js";
 import { publishStaffNotification } from "./notifications.js";
 import { registerStaffLiveConnection, unregisterStaffLiveConnection, broadcastChanged } from "./livehub.js";
+import { staffActivityFilter } from "./workspace.js";
 
 const objectId = (value) => typeof value === "string" && /^[a-f\d]{24}$/i.test(value) ? new ObjectId(value) : null;
 const usernameOf = (value) => typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -114,13 +115,13 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
   });
   management.patch("/staff-accounts/:id/invoices/:invoiceId", ...technical, async (req, res) => {
     const account = await findAccount(req.params.id), invoiceId = objectId(req.params.invoiceId);
-    if (!invoiceId || typeof req.body?.authorized !== "boolean") throw enquiryError(400, "Choose an invoice and a valid access setting.");
+    if (!invoiceId || typeof req.body?.authorized !== "boolean") throw enquiryError(400, "Choose an invoice and a valid alert setting.");
     const invoice = await db.collection(invoiceCollection).findOneAndUpdate({ _id: invoiceId }, { [req.body.authorized ? "$addToSet" : "$pull"]: { authorizedStaffIds: account.staffId.toString() }, $set: { updatedAt: new Date() }, $inc: { version: 1 } }, { returnDocument: "after" });
     if (!invoice) throw enquiryError(404, "Invoice not found.");
     await audit(req, `invoice-${req.body.authorized ? "granted" : "revoked"}:${invoiceId}`, account);
-    await publishStaffNotification(db, { id: `invoice:${invoiceId}:${account.staffId}:${invoice.version}`, staffId: account.staffId, title: "Invoice access updated", message: `${invoice.invoiceNumber}: access ${req.body.authorized ? "granted" : "revoked"} by the Technical Panel.` });
+    await publishStaffNotification(db, { id: `invoice:${invoiceId}:${account.staffId}:${invoice.version}`, staffId: account.staffId, title: "Invoice alerts updated", message: `${invoice.invoiceNumber}: update alerts ${req.body.authorized ? "enabled" : "disabled"} by the Technical Panel.` });
     void broadcastChanged(account.staffId.toString());
-    res.json({ message: "Invoice access updated." });
+    res.json({ message: "Invoice update alerts changed." });
   });
 
   const loginLimit = rateLimit({ windowMs: 15 * 60000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false, skipSuccessfulRequests: true, message: { message: "Too many login attempts. Please try again in 15 minutes." } });
@@ -163,9 +164,7 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
   router.get("/activity", requireStaff, async (req, res) => {
     try {
       const options = activityQuery(req.query);
-      const filter = req.staffAccount.canViewActivity
-        ? { "actor.type": "staff" }
-        : { "actor.id": req.staffAccount._id.toString() };
+      const filter = staffActivityFilter(req.staffAccount);
       res.json(await activityLog.list({ ...options, filter }));
     } catch (error) {
       res.status(400).json({ message: error.message || "Choose valid activity filters." });
@@ -180,22 +179,23 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     await tokens.deleteMany({ accountId: req.staffAccount._id }); clearCookie(res);
     res.json({ message: "Password changed. Sign in with your new password." });
   });
-  const enquiryScope = (req) => ({ "assignedTo.id": req.staffAccount._id.toString(), archivedAt: { $exists: false } });
+  const enquiryScope = () => ({ archivedAt: { $exists: false } });
+  const staffEnquiry = (row, req) => ({ ...publicEnquiry(row), canEdit: row.assignedTo?.id === req.staffAccount._id.toString() && !row.archivedAt });
   router.get("/enquiries", requireStaff, async (req, res) => {
     const filter = enquiryScope(req), search = regexOf(req.query.search), page = pageOf(req.query);
     if (req.query.status) { const status = enquiryStatus(req.query.status); if (!status) throw enquiryError(400, "Choose a valid status."); filter.status = status; }
     if (search) filter.$or = ["name", "reference", "email", "phone", "destination"].map((key) => ({ [key]: { $regex: search, $options: "i" } }));
     const [rows, total] = await Promise.all([db.collection("enquiries").find(filter, { projection: { originalPayload: 0, pendingEvents: 0, submissionHash: 0, submissionId: 0, changes: 0 } }).sort({ updatedAt: -1, _id: -1 }).skip((page - 1) * 20).limit(20).toArray(), db.collection("enquiries").countDocuments(filter)]);
-    res.json({ enquiries: rows.map(publicEnquiry), page, pages: Math.max(1, Math.ceil(total / 20)), total });
+    res.json({ enquiries: rows.map((row) => staffEnquiry(row, req)), page, pages: Math.max(1, Math.ceil(total / 20)), total });
   });
   router.get("/enquiries/:id", requireStaff, async (req, res) => {
     const row = objectId(req.params.id) && await db.collection("enquiries").findOne({ _id: objectId(req.params.id), ...enquiryScope(req) });
-    if (!row) throw enquiryError(404, "Assigned enquiry not found."); res.json({ enquiry: publicEnquiry(row) });
+    if (!row) throw enquiryError(404, "Enquiry not found."); res.json({ enquiry: staffEnquiry(row, req) });
   });
   router.patch("/enquiries/:id", requireStaff, async (req, res) => {
     if (Object.keys(req.body || {}).some((key) => !["status", "revision"].includes(key)) || !Number.isInteger(req.body?.revision) || !enquiryStatus(req.body?.status)) throw enquiryError(400, "Choose a status and the current enquiry revision.");
     res.json({ message: "Enquiry updated.", enquiry: await enquiries.update(req.params.id, req.body, { _id: req.staffAccount._id, staffAccountId: req.staffAccount._id.toString() }) });
-    void broadcastChanged(req.staffAccount._id.toString());
+    void broadcastChanged(req.employee._id.toString());
   });
   router.get("/attendance", requireStaff, async (req, res) => {
     const range = reportRange(req.query.from || req.query.to || req.query.month ? req.query : { month: indiaDate().slice(0, 7) });
@@ -210,9 +210,8 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     if (req.path.endsWith("/preview")) return res.type("image/svg+xml").send(await cardSvg(employee));
     res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${employee.employeeId}-card.pdf"` }).send(await cardPdf(employee));
   });
-  const invoiceScope = (req) => ({ $or: [{ authorizedStaffIds: req.employee._id.toString() }, { "createdBy.id": req.staffAccount._id.toString(), "createdBy.role": "staff" }] });
   registerInvoiceRoutes({ router, db, requireAccount: requireStaff, realtime, staffMode: true });
-  registerVoucherRoutes({ management: router, db, requireAdmin: requireStaff, config, staffMode: true });
+  registerVoucherRoutes({ management: router, db, requireAdmin: requireStaff, config, realtime, staffMode: true });
   const notifications = db.collection("staff_notifications");
   router.get("/notifications", requireStaff, async (req, res) => {
     const page = pageOf(req.query), filter = staffNotificationFilter(req);
@@ -231,8 +230,8 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
   router.delete("/notifications/:id", requireStaff, async (req, res) => {
     if (!(await notifications.deleteOne({ _id: req.params.id, ...staffNotificationFilter(req) })).deletedCount) throw enquiryError(404, "Notification not found."); void broadcastChanged(req.employee._id.toString()); res.sendStatus(204);
   });
-  // Server-sent updates are scoped before querying. No global panel events or
-  // other employees' identifiers are ever broadcast to staff connections.
+  // Shared business records participate in revision recovery, while personal
+  // records and notifications remain scoped to the authenticated employee.
   const connections = new Map();
   router.get("/events", requireStaff, async (req, res) => {
     const key = req.employee._id.toString();
@@ -241,14 +240,15 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
     res.set({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" }); res.flushHeaders();
     registerStaffLiveConnection(key, res);
     let closed = false, running = false, previous = "", timer;
+    const connectedAt = new Date(), sentNotifications = new Set();
     const send = (event, value) => { if (!closed) { res.write(`event: ${event}\ndata: ${JSON.stringify(value)}\n\n`); res.flush?.(); } };
     const tick = async () => {
       if (closed || running) return; running = true;
       try {
         const authenticated = await authenticateStaff({ db, config, token: req.cookies?.[staffCookie] });
         if (!authenticated) { send("revoked", {}); res.end(); return; }
-        const activityFilter = authenticated.account.canViewActivity ? { "actor.type": "staff" } : { "actor.id": authenticated.account._id.toString() };
-        const scopes = [["staff", { _id: req.employee._id }], ["enquiries", enquiryScope(req)], ["staff_attendance", { staffId: req.employee._id }], [voucherCollection, { createdBy: staffActor(req.employee._id) }], [invoiceCollection, invoiceScope(req)], ["staff_notifications", staffNotificationFilter(req)], ["panel_activity_history", activityFilter], ["hotels", {}], ["gst_rates", {}], ["office_addresses", {}]];
+        const activityFilter = staffActivityFilter(authenticated.account);
+        const scopes = [["staff", { _id: req.employee._id }], ["enquiries", enquiryScope(req)], ["staff_attendance", { staffId: req.employee._id }], [voucherCollection, {}], [invoiceCollection, {}], ["staff_notifications", staffNotificationFilter(req)], ["panel_activity_history", activityFilter], ["hotels", {}], ["gst_rates", {}], ["office_addresses", {}]];
         const state = await Promise.all(scopes.map(async ([name, filter]) => {
           const collection = db.collection(name);
           const [total, latest] = await Promise.all([collection.countDocuments(filter), collection.find(filter, { projection: { updatedAt: 1, createdAt: 1, version: 1, revision: 1 } }).sort({ updatedAt: -1, createdAt: -1, _id: -1 }).limit(1).toArray()]);
@@ -257,6 +257,12 @@ export function registerStaffPortal({ app, management, db, config, requireAdmin,
         state.push(await notifications.countDocuments({ ...staffNotificationFilter(req), read: false }));
         const revision = createHash("sha256").update(JSON.stringify(state)).digest("hex");
         if (revision !== previous) { previous = revision; send("changed", { revision }); } else { res.write(": heartbeat\n\n"); res.flush?.(); }
+        for await (const notification of notifications.find({ ...staffNotificationFilter(req), read: false, createdAt: { $gte: connectedAt } }).sort({ createdAt: -1, _id: -1 }).limit(50)) {
+          if (sentNotifications.has(notification._id)) continue;
+          sentNotifications.add(notification._id);
+          if (sentNotifications.size > 1000) sentNotifications.delete(sentNotifications.values().next().value);
+          send("notification:event", { ...notification, id: notification._id });
+        }
       } catch { send("retry", { message: "Live updates interrupted. Reconnecting…" }); res.end(); }
       finally { running = false; }
     };

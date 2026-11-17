@@ -22,7 +22,16 @@ try {
   server = system.app.listen(0, "127.0.0.1"); await once(server, "listening");
   const base = `http://127.0.0.1:${server.address().port}`;
   testWindow = new Window({ url: "http://localhost/staff/login" });
-  for (const [key, value] of Object.entries({ window: testWindow, document: testWindow.document, navigator: testWindow.navigator, HTMLElement: testWindow.HTMLElement, Event: testWindow.Event, IS_REACT_ACT_ENVIRONMENT: true })) { previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value }); }
+  const liveSources = [];
+  class StaffEventSource {
+    constructor(url) { this.url = url; this.handlers = new Map(); liveSources.push(this); }
+    addEventListener(event, callback) { this.handlers.set(event, callback); }
+    emit(event, data) { this.handlers.get(event)?.({ data: JSON.stringify(data) }); }
+    close() { this.closed = true; }
+  }
+  testWindow.HTMLMediaElement.prototype.play = async () => {};
+  testWindow.HTMLMediaElement.prototype.pause = () => {};
+  for (const [key, value] of Object.entries({ window: testWindow, document: testWindow.document, navigator: testWindow.navigator, HTMLElement: testWindow.HTMLElement, Event: testWindow.Event, EventSource: StaffEventSource, IS_REACT_ACT_ENVIRONMENT: true })) { previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key)); Object.defineProperty(globalThis, key, { configurable: true, writable: true, value }); }
   let cookie = ""; const downloads = [];
   URL.createObjectURL = (blob) => { downloads.push(blob); return `blob:staff-portal-${downloads.length}`; }; URL.revokeObjectURL = () => {};
   testWindow.HTMLAnchorElement.prototype.click = () => {}; testWindow.confirm = () => true;
@@ -68,7 +77,7 @@ try {
   await waitFor(() => container.textContent.includes("Manage access"), "account row"); await click("Manage access"); await waitFor(() => container.textContent.includes(invoice.invoiceNumber), "invoice access choices");
   const invoiceRow = [...container.querySelectorAll("tr")].find((row) => row.textContent.includes(invoice.invoiceNumber));
   assert.ok(invoiceRow, "invoice is available for access management");
-  await click("Grant access", invoiceRow); await waitFor(() => [...container.querySelectorAll("tr")].some((row) => row.textContent.includes(invoice.invoiceNumber) && row.textContent.includes("Revoke access")), "invoice grant");
+  await click("Enable alerts", invoiceRow); await waitFor(() => [...container.querySelectorAll("tr")].some((row) => row.textContent.includes(invoice.invoiceNumber) && row.textContent.includes("Disable alerts")), "invoice alert subscription");
   await click("Grant access", container.querySelector(".staff-activity-access")); await waitFor(() => container.querySelector(".staff-activity-access").textContent.includes("Revoke access"), "peer activity permission");
   assert.equal((await db.collection("staff_accounts").findOne({ _id: saved._id })).canViewActivity, true);
   const granted = await db.collection("billing_invoices").findOne({ invoiceNumber: invoice.invoiceNumber });
@@ -100,8 +109,7 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   assert.ok(staffHistory.activities.some((entry) => entry.resourceId === staffInvoice._id), "Staff invoice changes appear in the actor's activity history");
-  assert.ok(staffHistory.activities.every((entry) => entry.actor.id === saved._id.toString()), "Staff activity history is restricted to the signed-in employee by default");
-  assert.equal(staffHistory.activities.some((entry) => entry.resourceId === invoice._id), false, "Staff cannot see panel-wide activity without peer-history permission");
+  assert.ok(staffHistory.activities.some((entry) => entry.resourceId === invoice._id), "shared business history includes changes from Admin and Technical without peer-account permission");
   const deniedGrantedEdit = await fetch(`${base}/api/staff/invoices/${invoice._id}`, { method: "PUT", headers: { "Content-Type": "application/json", Origin: "http://localhost:5173", Cookie: cookie }, body: JSON.stringify({ ...staffInvoiceDraft, requestId: randomUUID(), version: invoice.version }) });
   assert.equal(deniedGrantedEdit.status, 403, "granted invoices remain read-only for Staff");
   const authorizedInvoices = await call("/staff/invoices?search=&date=&from=&to=&month=&year=&sort=latest&page=1&pageSize=20", undefined, "GET");
@@ -109,6 +117,15 @@ try {
   assert.ok(authorizedInvoices.invoices.some((item) => item._id === staffInvoice._id), "Staff-created invoices are visible to their creator");
   const navigation = container.querySelector(".panel-navigation"); for (const label of ["All Enquiries", "Notifications", "Activity History", "Journey Voucher", "Journey History", "Download ID Card", "My Attendance History", "Billing / Invoice", "Change Password"]) assert.ok(navigation.textContent.includes(label), label);
   assert.equal(container.querySelector('a[href="/admin"]'), null); assert.equal(container.querySelector('a[href="/technical"]'), null);
+  const source = liveSources.at(-1); assert.ok(source, "Staff workspace opens its live stream");
+  await act(async () => source.onopen());
+  const liveEnquiry = (await system.enquirySystem.enquiries.create({ name: "Live unassigned guest", message: "Notify every staff member", destination: "Delhi", source: "WEBSITE", email: "live-guest@example.com" })).enquiry;
+  const liveNotification = await db.collection("staff_notifications").findOne({ staffId: employee._id, enquiryId: liveEnquiry._id });
+  await act(async () => { source.emit("notification:event", { ...liveNotification, id: liveNotification._id }); source.emit("notification:event", { ...liveNotification, id: liveNotification._id }); });
+  await waitFor(() => container.querySelector(".staff-table-wrap")?.textContent.includes("Live unassigned guest"), "new unassigned enquiry appears without navigation or refresh");
+  assert.equal(container.querySelectorAll(".staff-notification-toast").length, 1, "duplicate live/recovery events create one popup");
+  const sharedEnquiryRow = [...container.querySelectorAll("tr")].find((row) => row.textContent.includes("Live unassigned guest"));
+  assert.equal(sharedEnquiryRow.querySelector("select").disabled, true, "unassigned enquiries are readable with status edits reserved for assigned staff");
   const bell = container.querySelector(".staff-notification-button"); assert.ok(bell); await act(async () => bell.click());
   await waitFor(() => container.querySelector(".staff-notification-dropdown")?.textContent.includes("Staff UI Guest"), "recent enquiry notification details");
   await click("View all", container.querySelector(".staff-notification-dropdown")); await waitFor(() => container.textContent.includes("Welcome to your Staff Panel"), "personal notifications"); assert.ok(container.textContent.includes("Billing / invoice updated"), "invoice notifications are available in notification history");
@@ -116,7 +133,31 @@ try {
   await click("My Attendance History", navigation); await waitFor(() => container.textContent.includes("No attendance has been recorded"), "personal attendance");
   await click("Download ID Card", navigation); await waitFor(() => container.querySelector(".staff-card-view img"), "ID card preview"); await click("Download printable PDF"); await waitFor(() => downloads.some((blob) => blob.type === "application/pdf"), "PDF download");
   await click("Billing / Invoice", navigation); await waitFor(() => container.textContent.includes(invoice.invoiceNumber), "authorized invoice"); await click("View"); await waitFor(() => container.querySelector(".invoice-document"), "invoice preview"); await click("Download PDF"); await waitFor(() => downloads.some((blob) => blob.type === "application/pdf"), "invoice PDF download");
+  await click("Activity History", navigation); await waitFor(() => container.querySelector(".activity-history"), "shared activity history");
+  const sharedInvoice = (await call("/technical/invoices", { ...invoiceDraft, requestId: randomUUID(), clientName: "Live shared invoice" })).invoice;
+  await system.drainActivity();
+  await act(async () => source.emit("workspace:changed", { resource: "invoices" }));
+  await waitFor(() => container.querySelector(".activity-history")?.textContent.includes("Live shared invoice"), "history updates from a Technical change while Staff is viewing it");
+  await click("Billing / Invoice", navigation); await waitFor(() => container.textContent.includes("Live shared invoice"), "shared invoice list");
+  const sharedInvoiceRow = [...container.querySelectorAll("tr")].find((row) => row.textContent.includes("Live shared invoice"));
+  assert.equal([...sharedInvoiceRow.querySelectorAll("button")].some((button) => button.textContent === "Edit"), false, "shared invoice actions respect ownership");
+  await call(`/technical/invoices/${sharedInvoice._id}`, { ...invoiceDraft, version: sharedInvoice.version, clientName: "Corrected shared invoice" }, "PUT");
+  await act(async () => source.emit("workspace:changed", { resource: "invoices" }));
+  await waitFor(() => container.textContent.includes("Corrected shared invoice"), "invoice corrections update the open Staff list");
   await click("Journey History", navigation); await waitFor(() => container.querySelector(".billing-history"), "journey history");
+  const sharedHotel = (await call("/technical/hotels", { name: "Live hotel", address: "Delhi", starRating: "4-Star (Upscale / Deluxe)", amount: 1000 })).hotel;
+  const sharedGst = (await call("/technical/gst", { gstNumber: "07ABCDE1234F1Z5" })).gstRate;
+  const sharedOffice = (await call("/technical/office-addresses", { address: "Live Delhi office" })).address;
+  const reservation = (await call("/technical/vouchers/invoice", { requestId: randomUUID() })).invoice;
+  const sharedVoucherBody = { reservationId: reservation.reservationId, hotelId: sharedHotel._id, gstId: sharedGst._id, officeAddressId: sharedOffice._id, guestName: "Live shared journey", voucherDate: invoiceToday(), mealPlan: "CP", requirement: "One room", checkInDate: "2026-12-01", checkOutDate: "2026-12-03", arrivalDate: "2026-12-01", arrivalPlace: "Delhi", departureDate: "2026-12-03", departurePlace: "Delhi", basePrice: "1000", status: "confirmed" };
+  const sharedVoucher = (await call("/technical/vouchers", sharedVoucherBody)).voucher;
+  await act(async () => source.emit("workspace:changed", { resource: "journeys" }));
+  await waitFor(() => container.querySelector(".billing-history")?.textContent.includes("Live shared journey"), "Technical-created voucher appears live in Staff history");
+  const sharedVoucherRow = [...container.querySelectorAll("tr")].find((row) => row.textContent.includes("Live shared journey"));
+  await click("View", sharedVoucherRow); await waitFor(() => container.querySelector(".billing-detail"), "shared voucher details");
+  await call(`/technical/vouchers/${sharedVoucher._id}`, { ...sharedVoucherBody, revision: sharedVoucher.revision, guestName: "Corrected shared journey" }, "PATCH");
+  await act(async () => source.emit("workspace:changed", { resource: "journeys" }));
+  await waitFor(() => container.querySelector(".billing-detail")?.textContent.includes("Corrected shared journey"), "open voucher details reflect remote corrections");
   await click("Journey Voucher", navigation); await waitFor(() => container.querySelector(".billing-editor-heading h2")?.textContent.startsWith("Invoice #"), "reused voucher editor and completed invoice reservation");
   await call(`/staff/invoices/${staffInvoice._id}`, { version: editedStaffInvoice.version }, "DELETE");
   await click("Change Password", navigation); await waitFor(() => container.querySelector(".staff-password-form"), "password form");

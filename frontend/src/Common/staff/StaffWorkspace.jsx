@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, apiUrl } from "../api";
+import { usePanelLiveRefresh } from "../usePanelLiveRefresh";
 import { indiaDate } from "../../../../shared/staff.js";
 import { AttendanceEditor, Field, StaffEditor, StaffPhoto } from "./StaffForms";
 import { AttendanceReport, Pager, ReportFilters, StaffStats } from "./StaffReports";
@@ -24,6 +25,7 @@ export default function StaffWorkspace({ apiBase, technical, admin, section, onS
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [errors, setErrors] = useState({}), [notice, setNotice] = useState("");
   const lock = useRef(false), alive = useRef(true), actionController = useRef(null);
   const reload = useCallback(() => setRefresh((value) => value + 1), []);
+  usePanelLiveRefresh("staff records|staff attendance", reload);
   const live = useStaffEvents(apiBase, reload);
   const navigation = usePanelNavigation();
   useEffect(() => { alive.current = true; return () => { alive.current = false; actionController.current?.abort(); }; }, []);

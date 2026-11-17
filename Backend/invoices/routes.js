@@ -17,25 +17,24 @@ export function registerInvoiceRoutes({ router, db, requireAccount, realtime, st
   const actor = (req) => staffMode
     ? { id: req.staffAccount._id.toString(), name: req.employee.name, email: req.employee.email, employeeId: req.employee.employeeId, staffId: req.employee._id.toString(), role: "staff" }
     : { id: req.admin._id.toString(), name: req.admin.name || req.admin.email, email: req.admin.email };
-  const publicInvoice = (invoice) => {
+  const publicInvoice = (invoice, req) => {
     const { requestKey: _key, ...publicData } = invoice;
-    if (staffMode) delete publicData.authorizedStaffIds;
+    if (staffMode) {
+      delete publicData.authorizedStaffIds;
+      publicData.canEdit = invoice.createdBy?.id === req.staffAccount._id.toString() && invoice.createdBy?.role === "staff";
+    }
     return publicData;
   };
-  const staffScope = (req) => ({ $or: [{ authorizedStaffIds: req.employee._id.toString() }, { "createdBy.id": req.staffAccount._id.toString(), "createdBy.role": "staff" }] });
-  const visibleToStaff = (invoice, req) => invoice.authorizedStaffIds?.includes(req.employee._id.toString())
-    || invoice.createdBy?.id === req.staffAccount._id.toString() && invoice.createdBy?.role === "staff";
   async function get(id, req) {
     if (!validObjectId(id)) throw billingError("Choose a valid invoice.");
     const invoice = await records.findOne({ _id: new ObjectId(id) });
     if (!invoice) throw billingError("Invoice not found.", 404);
-    if (staffMode && !visibleToStaff(invoice, req)) throw billingError("Authorized invoice not found.", 404);
     return invoice;
   }
   router.get("/invoices", ...guard, async (req, res) => {
     const { filter: searchFilter, page: requested, pageSize, direction } = invoiceQuery(req.query), today = invoiceToday(), month = today.slice(0, 7);
-    const filter = staffMode ? { $and: [staffScope(req), searchFilter] } : searchFilter;
-    const statsFilter = staffMode ? staffScope(req) : {};
+    const filter = searchFilter;
+    const statsFilter = {};
     const [total, summary, matched] = await Promise.all([
       records.countDocuments(filter),
       records.aggregate([{ $match: statsFilter }, { $group: { _id: null, total: { $sum: 1 }, totalPaise: { $sum: "$totalPaise" }, today: { $sum: { $cond: [{ $eq: ["$invoiceDate", today] }, 1, 0] } }, month: { $sum: { $cond: [{ $eq: [{ $substrBytes: ["$invoiceDate", 0, 7] }, month] }, 1, 0] } } } }]).toArray(),
@@ -43,13 +42,13 @@ export function registerInvoiceRoutes({ router, db, requireAccount, realtime, st
     ]);
     const pages = Math.max(1, Math.ceil(total / pageSize)), page = Math.min(requested, pages);
     const invoices = await records.find(filter, { projection: { requestKey: 0, ...(staffMode ? { authorizedStaffIds: 0 } : {}) } }).sort({ invoiceDate: direction, _id: direction }).skip((page - 1) * pageSize).limit(pageSize).toArray();
-    res.json({ invoices, total, page, pages, pageSize, filteredAmount: (matched[0]?.totalPaise || 0) / 100, stats: { total: summary[0]?.total || 0, totalAmount: (summary[0]?.totalPaise || 0) / 100, today: summary[0]?.today || 0, month: summary[0]?.month || 0 } });
+    res.json({ invoices: invoices.map((invoice) => publicInvoice(invoice, req)), total, page, pages, pageSize, filteredAmount: (matched[0]?.totalPaise || 0) / 100, stats: { total: summary[0]?.total || 0, totalAmount: (summary[0]?.totalPaise || 0) / 100, today: summary[0]?.today || 0, month: summary[0]?.month || 0 } });
   });
   router.get("/invoices/:id/pdf", ...guard, rateLimit({ windowMs: 60000, limit: 60, standardHeaders: "draft-8", legacyHeaders: false }), async (req, res) => {
     const invoice = await get(req.params.id, req), bytes = await invoicePdf(invoice);
     res.set({ "Content-Type": "application/pdf", "Content-Disposition": `${req.query.inline === "1" ? "inline" : "attachment"}; filename="Invoice-${invoice.invoiceNumber}.pdf"` }).send(bytes);
   });
-  router.get("/invoices/:id", ...guard, async (req, res) => res.json({ invoice: publicInvoice(await get(req.params.id, req)) }));
+  router.get("/invoices/:id", ...guard, async (req, res) => res.json({ invoice: publicInvoice(await get(req.params.id, req), req) }));
   router.post("/invoices", ...guard, async (req, res) => {
     const fields = validateInvoice(req.body);
     if (typeof req.body.requestId !== "string" || !/^[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/i.test(req.body.requestId)) throw billingError("Supply a valid invoice request ID.");
@@ -73,7 +72,7 @@ export function registerInvoiceRoutes({ router, db, requireAccount, realtime, st
     const saved = created ? invoice : await records.findOne({ _id: reservation._id });
     if (!saved) throw billingError("This invoice was deleted.", 410);
     if (created) await realtime?.invoicesChanged("created", saved._id);
-    res.status(created ? 201 : 200).json({ invoice: publicInvoice(saved) });
+    res.status(created ? 201 : 200).json({ invoice: publicInvoice(saved, req) });
   });
   router.put("/invoices/:id", ...guard, async (req, res) => {
     const previous = await get(req.params.id, req);
@@ -83,7 +82,7 @@ export function registerInvoiceRoutes({ router, db, requireAccount, realtime, st
     const invoice = await records.findOneAndUpdate({ _id: previous._id, version: req.body.version }, { $set: { ...fields, updatedBy: actor(req), updatedAt: new Date() }, $inc: { version: 1 } }, { returnDocument: "after" });
     if (!invoice) throw billingError("This invoice changed or was deleted. Reload it before editing.", 409);
     await realtime?.invoicesChanged("updated", invoice._id);
-    res.json({ invoice: publicInvoice(invoice) });
+    res.json({ invoice: publicInvoice(invoice, req) });
   });
   router.delete("/invoices/:id", ...guard, async (req, res) => {
     const previous = await get(req.params.id, req);

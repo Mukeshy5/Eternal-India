@@ -168,7 +168,7 @@ export default function useEnquiryNotifications({ admin, apiBase, onRefresh, onD
       }
       scheduleRefresh();
     };
-    const onConnect = () => { if (active()) { current.retries = 0; window.clearTimeout(current.retry); setConnected(true); setConnectionNotice(""); voucherOptionsChanged(); window.dispatchEvent(new window.Event("invoices-changed")); void current.refresh().catch(report); if (!current.settingsLoaded) void current.loadSettings().catch(report); } };
+    const onConnect = () => { if (active()) { current.retries = 0; window.clearTimeout(current.retry); setConnected(true); setConnectionNotice(""); voucherOptionsChanged(); window.dispatchEvent(new window.Event("invoices-changed")); window.dispatchEvent(new window.Event("panel:data-changed")); callbacks.current.onRefresh?.(); void current.refresh().catch(report); if (!current.settingsLoaded) void current.loadSettings().catch(report); } };
     const reconnect = () => {
       if (!active()) return;
       setConnected(false); window.clearTimeout(current.retry);

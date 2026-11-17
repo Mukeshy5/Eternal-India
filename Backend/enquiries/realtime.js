@@ -3,6 +3,8 @@ import { ObjectId } from "mongodb";
 import { Server } from "socket.io";
 import { adminPanelAccess } from "../lib/panel-access.js";
 import { technicalAccess } from "../festivals/permissions.js";
+import { broadcastAll } from "../staff-portal/livehub.js";
+import { staffWorkspaceResources } from "../staff-portal/workspace.js";
 
 export function createEnquiryRealtime({ db, config, enquiries, notifications }) {
   let io, poller, polling = false;
@@ -59,8 +61,10 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
   }
   const unsubscribe = notifications.onEvent(emitNotification);
   function emitGstChange(event) {
-    if (!io || !remember(`gst:${event._id}`)) return;
-    io.to("enquiries").emit("gst:changed", { action: event.action, gstId: event.gstId });
+    if (!remember(`gst:${event._id}`)) return;
+    const change = { action: event.action, gstId: event.gstId };
+    broadcastAll("workspace:changed", { resource: "GST settings", ...change });
+    io?.to("enquiries").emit("gst:changed", change);
   }
   async function gstChanged(action, id) {
     const event = { _id: randomUUID(), type: "gst-change", action, gstId: id.toString(), publishedAt: new Date() };
@@ -78,13 +82,16 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     emit(event);
   }
   function emit(event) {
-    if (!io || !remember(`enquiry:${event._id}`)) return;
-    io.to("enquiries").emit("enquiry:event", { id: event._id, type: event.type, enquiryId: event.enquiryId, name: event.name, source: event.source, at: event.at, publishedAt: event.publishedAt });
+    if (!remember(`enquiry:${event._id}`)) return;
+    broadcastAll("workspace:changed", { resource: "enquiries", action: event.type, resourceId: event.enquiryId });
+    io?.to("enquiries").emit("enquiry:event", { id: event._id, type: event.type, enquiryId: event.enquiryId, name: event.name, source: event.source, at: event.at, publishedAt: event.publishedAt });
   }
   enquiries.onEvent(emit);
   function emitInvoiceChange(event) {
-    if (!io || !remember(`invoice:${event._id}`)) return;
-    io.to("enquiries").emit("invoices:changed", { action: event.action, invoiceId: event.invoiceId });
+    if (!remember(`invoice:${event._id}`)) return;
+    const change = { action: event.action, invoiceId: event.invoiceId };
+    broadcastAll("workspace:changed", { resource: "invoices", ...change });
+    io?.to("enquiries").emit("invoices:changed", change);
   }
   async function invoicesChanged(action, id) {
     const event = { _id: randomUUID(), type: "invoice-change", action, invoiceId: id.toString(), publishedAt: new Date() };
@@ -93,8 +100,10 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     catch (error) { console.error("Invoice live refresh recovery could not be saved:", error.name); }
   }
   function emitWorkspaceChange(event) {
-    if (!io || !remember(`workspace:${event._id}`)) return;
-    io.to("enquiries").emit("workspace:changed", { resource: event.resource, action: event.action, resourceId: event.resourceId });
+    if (!remember(`workspace:${event._id}`)) return;
+    // Staff refetch their APIs; private record payloads stay off SSE.
+    broadcastAll("workspace:changed", { resource: event.resource, action: event.action, ...(staffWorkspaceResources.includes(event.resource) ? { resourceId: event.resourceId } : {}) });
+    io?.to("enquiries").emit("workspace:changed", { resource: event.resource, action: event.action, resourceId: event.resourceId });
   }
   async function workspaceChanged(resource, action, id = "") {
     const event = { _id: randomUUID(), type: "workspace-change", resource, action, resourceId: id?.toString() || "", publishedAt: new Date() };
@@ -103,8 +112,10 @@ export function createEnquiryRealtime({ db, config, enquiries, notifications }) 
     catch (error) { console.error("Workspace live refresh recovery could not be saved:", error.name); }
   }
   function emitVoucherOptionsChange(event) {
-    if (!io || !remember(`voucher-options:${event._id}`)) return;
-    io.to("enquiries").emit("voucher-options:changed", { kind: event.kind, action: event.action, recordId: event.recordId });
+    if (!remember(`voucher-options:${event._id}`)) return;
+    const change = { kind: event.kind, action: event.action, recordId: event.recordId };
+    broadcastAll("workspace:changed", { resource: "voucher options", ...change });
+    io?.to("enquiries").emit("voucher-options:changed", change);
   }
   async function voucherOptionsChanged(kind, action, id) {
     const event = { _id: randomUUID(), type: "voucher-options-change", kind, action, recordId: id.toString(), publishedAt: new Date() };

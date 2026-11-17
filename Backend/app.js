@@ -270,7 +270,7 @@ export function createApp({ client, db, config, schedulerOptions, sendPasswordRe
     if (!result.deletedCount) return res.status(404).json({ message: "Hotel not found." });
     res.status(204).send();
   });
-  registerVoucherRoutes({ management, db, requireAdmin, config });
+  registerVoucherRoutes({ management, db, requireAdmin, config, realtime: enquirySystem.realtime });
   registerInvoiceRoutes({ router: management, db, requireAccount: requireAdmin, realtime: enquirySystem.realtime });
   const invoiceApi = express.Router();
   invoiceApi.use(activityLog.middleware);

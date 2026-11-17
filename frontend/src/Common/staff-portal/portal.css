@@ -272,5 +272,6 @@
 }
 @media(max-width: 640px) { .staff-fields { align-items: stretch; }.staff-fields label { flex-basis: 100%; max-width: none; }.staff-portal input,.staff-portal select { font-size: 16px; }.staff-login .admin-login-form input { font-size: 16px; }.staff-card-view { grid-template-columns: 1fr; }.staff-card-view img { max-width: 230px; }.staff-session-strip { font-size: 11px; }.staff-notification-button { font-size: 10px; padding: 7px; }.staff-toast-shell { top: 70px; right: 14px; }.staff-notification-toast { grid-template-columns: minmax(0, 1fr) auto; }.staff-notification-toast > button:last-child { grid-column: 2; grid-row: 1; }.staff-pagination { justify-content: center; } }
 .staff-activity-access { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid #e3ede6; border-radius: 9px; background: #f7fbf8; }
+.staff-session-strip > button { border: 1px solid #d3e4db; border-radius: 6px; background: #fff; color: #325a48; padding: 6px 10px; font: inherit; cursor: pointer; }
 .staff-activity-access p { margin: 5px 0 0; color: #657982; font-size: 12px; line-height: 1.6; }
 @media(max-width: 560px) { .staff-activity-access { align-items: flex-start; flex-direction: column; }.staff-activity-access button { width: 100%; } }

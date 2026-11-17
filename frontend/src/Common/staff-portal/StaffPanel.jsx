@@ -4,6 +4,7 @@ import { api, apiUrl } from "../api";
 import PanelLayout, { PanelErrorBoundary } from "../panel/PanelLayout";
 import { PanelNavigationProvider, usePanelNavigation, usePanelNavigationGuard } from "../panel/PanelNavigationContext";
 import ActivityHistory from "../ActivityHistory";
+import { createNotificationSound } from "../notificationSound";
 import JourneyBillingWorkspace from "../JourneyBillingWorkspace";
 import InvoiceDashboard from "../invoices/InvoiceDashboard";
 import { downloadVoucherFile, todayInIndia, voucherFile } from "../voucherClient";
@@ -14,7 +15,7 @@ import "../invoices/Invoices.css";
 import "./portal.css";
 
 export const staffSections = {
-  enquiries: { label: "All Enquiries", title: "Assigned Enquiries", group: "Workspace", icon: "inbox" },
+  enquiries: { label: "All Enquiries", title: "All Enquiries", group: "Workspace", icon: "inbox" },
   notifications: { label: "Notifications", title: "Notifications", group: "Workspace", icon: "bell" },
   activity: { label: "Activity History", title: "Activity History", group: "Workspace", icon: "clock" },
   vouchers: { label: "Journey Voucher", title: "Journey Voucher", group: "Journeys", icon: "calendar" },
@@ -32,6 +33,7 @@ function Workspace() {
   const navigateRef = useRef(navigate); navigateRef.current = navigate;
   const [staff, setStaff] = useState(null), [checking, setChecking] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [refresh, setRefresh] = useState(0), [connected, setConnected] = useState(false), [unread, setUnread] = useState(0), [notifications, setNotifications] = useState([]), [toasts, setToasts] = useState([]);
+  const [soundReady, setSoundReady] = useState(false), notificationSound = useRef(null);
   const path = location.pathname.replace(/\/+$/, ""), section = path === "/staff" ? "enquiries" : path.slice(7);
   const initialPath = useRef(path), lock = useRef(false);
   const unauthorized = useCallback((message) => { setStaff(null); setUnread(0); setNotifications([]); setNotice(typeof message === "string" ? message : "Your staff session expired or access was disabled. Please sign in again."); navigateRef.current("/staff/login", { replace: true }); }, []);
@@ -47,36 +49,67 @@ function Workspace() {
   const staffId = staff?.id;
   useEffect(() => {
     if (!staffId) return undefined;
-    const controller = new AbortController(); let running = false, disposed = false;
+    const controller = new AbortController(), seen = new Set(), startedAt = Date.now();
+    let running = false, disposed = false, reload = false, revision = 0, updateTimer;
+    setConnected(false); setToasts([]); setSoundReady(false);
+    const sound = createNotificationSound({ onState: (ready) => { if (!disposed) setSoundReady(ready); } });
+    notificationSound.current = sound;
+    const prime = () => { void sound.unlock(); };
+    document.addEventListener("pointerdown", prime, { passive: true }); document.addEventListener("keydown", prime);
     const load = async () => {
+      reload = true;
       if (running || disposed) return; running = true;
       try {
-        const [profile, notifications] = await Promise.all([api("/staff/me", { signal: controller.signal }), api("/staff/notifications", { signal: controller.signal })]);
-        if (!controller.signal.aborted) { setStaff(profile.staff); setUnread(notifications.unread); setNotifications(notifications.notifications); }
+        while (reload && !disposed) {
+          reload = false;
+          const snapshot = revision;
+          const [profile, notifications] = await Promise.all([api("/staff/me", { signal: controller.signal }), api("/staff/notifications", { signal: controller.signal })]);
+          if (disposed) return;
+          if (snapshot !== revision) { reload = true; continue; }
+          setStaff(profile.staff); setUnread(notifications.unread); setNotifications(notifications.notifications);
+          const unreadIds = new Set(notifications.notifications.filter((item) => !item.read).map((item) => item._id || item.id));
+          setToasts((current) => current.filter((item) => unreadIds.has(item.id)));
+        }
       } catch (failure) { if (!controller.signal.aborted && failure.status === 401) unauthorized(failure.message); }
       finally { running = false; }
     };
     void load(); const timer = window.setInterval(() => { void load(); }, 15000);
-    const update = () => { if (disposed) return; setRefresh((value) => value + 1); window.dispatchEvent(new Event("journey-vouchers-changed")); window.dispatchEvent(new Event("journey-voucher-options-changed")); window.dispatchEvent(new Event("invoices-changed")); void load(); };
+    const update = () => {
+      if (disposed) return;
+      revision++;
+      window.clearTimeout(updateTimer);
+      updateTimer = window.setTimeout(() => {
+        if (disposed) return;
+        setRefresh((value) => value + 1);
+        for (const event of ["panel:data-changed", "journey-vouchers-changed", "journey-voucher-options-changed", "invoices-changed"]) window.dispatchEvent(new window.Event(event));
+        void load();
+      }, 100);
+    };
     let source;
     if (typeof EventSource !== "undefined") {
       source = new EventSource(apiUrl("/staff/events"), { withCredentials: true });
-      source.onopen = () => setConnected(true);
+      source.onopen = () => { if (!disposed) { setConnected(true); update(); } };
       source.onerror = () => { if (!disposed) setConnected(false); };
       source.addEventListener("changed", update);
+      source.addEventListener("workspace:changed", update);
       source.addEventListener("revoked", () => { source.close(); unauthorized(); });
       source.addEventListener("notification:event", (event) => {
         if (disposed) return;
         try {
-          const notification = JSON.parse(event.data);
-          setToasts((current) => [notification, ...current.filter((item) => item.id !== notification.id)].slice(0, 10));
-          void load();
+          const notification = JSON.parse(event.data), id = notification.id || notification._id;
+          if (!id || seen.has(id)) return;
+          seen.add(id); if (seen.size > 5000) seen.delete(seen.values().next().value);
+          if (!notification.read && Date.parse(notification.createdAt) >= startedAt) {
+            setToasts((current) => [{ ...notification, id }, ...current.filter((item) => item.id !== id)].slice(0, 3));
+            void sound.play(id, () => !disposed);
+          }
+          update();
         } catch { /* ignore malformed notification events */ }
       });
     }
     const fallback = window.setInterval(() => { if (!document.hidden) update(); }, 30000);
     window.addEventListener("focus", update); window.addEventListener("online", update);
-    return () => { disposed = true; controller.abort(); source?.close(); window.clearInterval(timer); window.clearInterval(fallback); window.removeEventListener("focus", update); window.removeEventListener("online", update); };
+    return () => { disposed = true; controller.abort(); source?.close(); sound.dispose(); notificationSound.current = null; window.clearTimeout(updateTimer); window.clearInterval(timer); window.clearInterval(fallback); document.removeEventListener("pointerdown", prime); document.removeEventListener("keydown", prime); window.removeEventListener("focus", update); window.removeEventListener("online", update); };
   }, [staffId, unauthorized]);
   function go(key) { if (!navigation.confirmNavigation()) return false; setError(""); navigate(key === "enquiries" ? "/staff" : `/staff/${key}`); return true; }
   async function login(credentials) {
@@ -92,10 +125,10 @@ function Workspace() {
   if (checking) return <section className="admin-checking"><h1>Staff Panel</h1><p role="status">Checking your staff session…</p></section>;
   if (!staff) return <StaffLogin busy={busy} error={error} notice={notice} onLogin={login} />;
   return <div className="admin-shell staff-shell"><PanelLayout staffPanel sections={staffSections} admin={staff} section={section} busy={busy} onNavigate={go} onLogout={logout} notifications={<StaffNotificationBell items={notifications} unread={unread} onOpen={(item) => go(item?.enquiryId ? "enquiries" : "notifications")} />}>
-    <div className="staff-session-strip"><span>Welcome, <strong>{staff.name}</strong> · {staff.employeeId}</span><span className={connected ? "staff-live is-connected" : "staff-live"}>{connected ? "Live updates connected" : "Refreshing automatically"}</span></div>
+    <div className="staff-session-strip"><span>Welcome, <strong>{staff.name}</strong> · {staff.employeeId}</span><span className={connected ? "staff-live is-connected" : "staff-live"}>{connected ? "Live updates connected" : "Refreshing automatically"}</span>{!soundReady && <button type="button" onClick={() => void notificationSound.current?.unlock()}>Enable notification sound</button>}</div>
     {error && <p className="staff-error" role="alert">{error}</p>}
     <PanelErrorBoundary key={section} onHome={() => go("enquiries")}>
-      {section === "enquiries" ? <Enquiries refresh={refresh} onUnauthorized={unauthorized} /> : section === "notifications" ? <Notifications refresh={refresh} onUnauthorized={unauthorized} onChanged={() => setRefresh((value) => value + 1)} onOpen={() => go("enquiries")} /> : section === "activity" ? <ActivityHistory apiBase="/staff" staff={staff} onUnauthorized={unauthorized} /> : ["vouchers", "voucher-history"].includes(section) ? <JourneyBillingWorkspace key={section} apiBase="/staff" initialCreate={section === "vouchers"} onUnauthorized={unauthorized} /> : section === "attendance" ? <Attendance refresh={refresh} onUnauthorized={unauthorized} /> : section === "id-card" ? <IdCard staff={staff} refresh={refresh} onUnauthorized={unauthorized} /> : section === "invoices" ? <InvoiceDashboard apiBase="/staff" onUnauthorized={unauthorized} /> : section === "change-password" ? <PasswordForm onUnauthorized={unauthorized} onChanged={(message) => { setStaff(null); setNotice(message); navigate("/staff/login", { replace: true }); }} /> : <div className="staff-portal staff-surface"><h1>Section not found</h1><button onClick={() => go("enquiries")}>Open my enquiries</button></div>}
+      {section === "enquiries" ? <Enquiries refresh={refresh} onUnauthorized={unauthorized} /> : section === "notifications" ? <Notifications refresh={refresh} onUnauthorized={unauthorized} onChanged={() => setRefresh((value) => value + 1)} onOpen={() => go("enquiries")} /> : section === "activity" ? <ActivityHistory apiBase="/staff" staff={staff} onUnauthorized={unauthorized} /> : ["vouchers", "voucher-history"].includes(section) ? <JourneyBillingWorkspace key={section} apiBase="/staff" initialCreate={section === "vouchers"} onUnauthorized={unauthorized} /> : section === "attendance" ? <Attendance refresh={refresh} onUnauthorized={unauthorized} /> : section === "id-card" ? <IdCard staff={staff} refresh={refresh} onUnauthorized={unauthorized} /> : section === "invoices" ? <InvoiceDashboard apiBase="/staff" onUnauthorized={unauthorized} /> : section === "change-password" ? <PasswordForm onUnauthorized={unauthorized} onChanged={(message) => { setStaff(null); setNotice(message); navigate("/staff/login", { replace: true }); }} /> : <div className="staff-portal staff-surface"><h1>Section not found</h1><button onClick={() => go("enquiries")}>Open enquiries</button></div>}
     </PanelErrorBoundary>
     {toasts.length > 0 && <div className="staff-toast-shell" role="status" aria-live="polite" aria-label="New notifications">{toasts.map((item) => <NotificationToast key={item.id} item={item} dismiss={dismissToast} onOpen={() => go(item.enquiryId ? "enquiries" : "notifications")} />)}</div>}
   </PanelLayout></div>;
@@ -155,8 +188,11 @@ function NotificationToast({ item, dismiss, onOpen }) {
 
 function useRecords(path, refresh, onUnauthorized) {
   const [data, setData] = useState(null), [error, setError] = useState(""), [loading, setLoading] = useState(true), [retry, setRetry] = useState(0);
+  const previousPath = useRef(path);
   useEffect(() => {
-    const controller = new AbortController(); setLoading(true); setError(""); setData(null);
+    const controller = new AbortController(); setLoading(true); setError("");
+    if (previousPath.current !== path) setData(null);
+    previousPath.current = path;
     api(`/staff${path}`, { signal: controller.signal }).then((result) => { if (!controller.signal.aborted) setData(result); }).catch((failure) => { if (!controller.signal.aborted) { setError(failure.message); if (failure.status === 401) onUnauthorized?.(failure.message); } }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [path, refresh, retry, onUnauthorized]);
@@ -181,10 +217,22 @@ function OperationState({ operation }) { usePanelNavigationGuard(false, operatio
 function Enquiries({ refresh, onUnauthorized }) {
   const [search, setSearch] = useState(""), [status, setStatus] = useState(""), [page, setPage] = useState(1), [revision, setRevision] = useState(0), [selected, setSelected] = useState(null), [notice, setNotice] = useState("");
   const state = useRecords(`/enquiries?${new URLSearchParams({ search, status, page })}`, `${refresh}:${revision}`, onUnauthorized), operation = useOperation(onUnauthorized);
-  useEffect(() => { setSelected(null); }, [refresh]);
-  return <section className="staff-portal"><Heading title="All Enquiries">View and manage enquiries assigned to you by your team.</Heading><section className="staff-surface"><Search onSearch={(value) => { setSearch(value); setPage(1); }} /><label className="staff-status-filter">Status <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">All statuses</option>{Object.entries(enquiryStatusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><LoadState state={state} /><OperationState operation={operation} />{notice && <p role="status" className="staff-success">{notice}</p>}
-    <div className="staff-table-wrap"><table><thead><tr><th>Reference / guest</th><th>Contact</th><th>Destination</th><th>Status</th><th>Actions</th></tr></thead><tbody>{state.data?.enquiries.map((enquiry) => <tr key={enquiry._id}><td><strong>{enquiry.name}</strong><small>{enquiry.reference}</small></td><td>{enquiry.email}<small>{enquiry.phone}</small></td><td>{enquiry.destination || enquiry.subject}</td><td><form className="staff-actions" onSubmit={(event) => { event.preventDefault(); const value = new FormData(event.currentTarget).get("status"); void operation.run(async (signal) => { await api(`/staff/enquiries/${enquiry._id}`, { method: "PATCH", body: JSON.stringify({ status: value, revision: enquiry.revision }), signal }); if (!signal.aborted) { setNotice("Enquiry status updated."); setRevision((current) => current + 1); } }); }}><select aria-label={`Status for ${enquiry.reference}`} name="status" key={`${enquiry._id}:${enquiry.revision}`} defaultValue={enquiry.status}>{Object.entries(enquiryStatusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><button disabled={operation.busy}>Save</button></form></td><td><button disabled={operation.busy} onClick={() => void operation.run(async (signal) => { const result = await api(`/staff/enquiries/${enquiry._id}`, { signal }); if (!signal.aborted) setSelected(result.enquiry); })}>View details</button></td></tr>)}</tbody></table></div>
-    {state.data?.total === 0 && <p className="staff-empty">No assigned enquiries match your filters.</p>}<Pagination {...{ data: state.data, page, onPage: setPage, loading: state.loading }} />
+  const selectedId = selected?._id;
+  useEffect(() => {
+    if (!selectedId) return undefined;
+    const controller = new AbortController();
+    api(`/staff/enquiries/${selectedId}`, { signal: controller.signal }).then(({ enquiry }) => {
+      if (!controller.signal.aborted) setSelected(enquiry);
+    }).catch((failure) => {
+      if (controller.signal.aborted) return;
+      if (failure.status === 404) setSelected(null);
+      else if (failure.status === 401) onUnauthorized(failure.message);
+    });
+    return () => controller.abort();
+  }, [selectedId, refresh, revision, onUnauthorized]);
+  return <section className="staff-portal"><Heading title="All Enquiries">View all guest enquiries. Update the status of enquiries assigned to you.</Heading><section className="staff-surface"><Search onSearch={(value) => { setSearch(value); setPage(1); }} /><label className="staff-status-filter">Status <select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">All statuses</option>{Object.entries(enquiryStatusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><LoadState state={state} /><OperationState operation={operation} />{notice && <p role="status" className="staff-success">{notice}</p>}
+    <div className="staff-table-wrap"><table><thead><tr><th>Reference / guest</th><th>Contact</th><th>Destination</th><th>Status</th><th>Actions</th></tr></thead><tbody>{state.data?.enquiries.map((enquiry) => <tr key={enquiry._id}><td><strong>{enquiry.name}</strong><small>{enquiry.reference}</small></td><td>{enquiry.email}<small>{enquiry.phone}</small></td><td>{enquiry.destination || enquiry.subject}</td><td><form className="staff-actions" onSubmit={(event) => { event.preventDefault(); const value = new FormData(event.currentTarget).get("status"); void operation.run(async (signal) => { await api(`/staff/enquiries/${enquiry._id}`, { method: "PATCH", body: JSON.stringify({ status: value, revision: enquiry.revision }), signal }); if (!signal.aborted) { setNotice("Enquiry status updated."); setRevision((current) => current + 1); } }); }}><select aria-label={`Status for ${enquiry.reference}`} name="status" key={`${enquiry._id}:${enquiry.revision}`} defaultValue={enquiry.status} disabled={!enquiry.canEdit || operation.busy}>{Object.entries(enquiryStatusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><button disabled={!enquiry.canEdit || operation.busy}>Save</button></form></td><td><button disabled={operation.busy} onClick={() => void operation.run(async (signal) => { const result = await api(`/staff/enquiries/${enquiry._id}`, { signal }); if (!signal.aborted) setSelected(result.enquiry); })}>View details</button></td></tr>)}</tbody></table></div>
+    {state.data?.total === 0 && <p className="staff-empty">No enquiries match your filters.</p>}<Pagination {...{ data: state.data, page, onPage: setPage, loading: state.loading }} />
   </section>{selected && <article className="staff-surface"><div className="staff-section-heading"><h2>{selected.reference} · {selected.name}</h2><button onClick={() => setSelected(null)}>Close details</button></div><p>{selected.subject}</p><p>{selected.email} · {selected.phone}</p><p>{selected.destination}</p><p className="staff-message">{selected.message}</p></article>}</section>;
 }
 
@@ -194,7 +242,7 @@ function Notifications({ refresh, onUnauthorized, onChanged, onOpen }) {
   const mutate = (path, method) => void operation.run(async (signal) => { await api(`/staff/notifications${path}`, { method, body: method === "PATCH" ? "{}" : undefined, signal }); if (!signal.aborted) { setRevision((value) => value + 1); onChanged(); } });
   return <section className="staff-portal"><Heading title="Notifications">Your enquiry, attendance and account updates, saved in your workspace.</Heading><section className="staff-surface"><div className="staff-section-heading"><h2>{state.data?.unread ?? "—"} unread updates</h2><button disabled={operation.busy || !state.data?.unread} onClick={() => mutate("/read-all", "PATCH")}>Mark all as read</button></div><LoadState state={state} /><OperationState operation={operation} />
     <form className="staff-fields" onSubmit={(event) => { event.preventDefault(); setQuery(search.trim()); setPage(1); }}><label>Search notifications<input type="search" value={search} maxLength={120} onChange={(event) => setSearch(event.target.value)} /></label><label>Read status<select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="all">All notifications</option><option value="unread">Unread</option><option value="read">Read</option></select></label><button>Search</button><button type="button" onClick={() => { setSearch(""); setQuery(""); setStatus("all"); setPage(1); }}>Clear</button></form>
-    {state.data?.notifications.map((item) => <article className={`staff-notification ${item.read ? "is-read" : ""}`} key={item._id}><div className="staff-section-heading"><strong>{item.title}</strong><time dateTime={item.createdAt}>{dateTime(item.createdAt)}</time></div><p>{item.message}</p>{item.enquiry && <p className="staff-notification-details"><strong>{item.enquiry.name}</strong>{item.enquiry.phone && ` · ${item.enquiry.phone}`}{item.enquiry.email && ` · ${item.enquiry.email}`}{item.enquiry.destination && ` · ${item.enquiry.destination}`}</p>}<div className="staff-actions">{item.enquiryId && <button onClick={onOpen}>Open my enquiries</button>}{!item.read && <button disabled={operation.busy} onClick={() => mutate(`/${encodeURIComponent(item._id)}/read`, "PATCH")}>Mark as read</button>}<button disabled={operation.busy} onClick={() => mutate(`/${encodeURIComponent(item._id)}`, "DELETE")}>Dismiss</button></div></article>)}
+    {state.data?.notifications.map((item) => <article className={`staff-notification ${item.read ? "is-read" : ""}`} key={item._id}><div className="staff-section-heading"><strong>{item.title}</strong><time dateTime={item.createdAt}>{dateTime(item.createdAt)}</time></div><p>{item.message}</p>{item.enquiry && <p className="staff-notification-details"><strong>{item.enquiry.name}</strong>{item.enquiry.phone && ` · ${item.enquiry.phone}`}{item.enquiry.email && ` · ${item.enquiry.email}`}{item.enquiry.destination && ` · ${item.enquiry.destination}`}</p>}<div className="staff-actions">{item.enquiryId && <button onClick={onOpen}>Open enquiries</button>}{!item.read && <button disabled={operation.busy} onClick={() => mutate(`/${encodeURIComponent(item._id)}/read`, "PATCH")}>Mark as read</button>}<button disabled={operation.busy} onClick={() => mutate(`/${encodeURIComponent(item._id)}`, "DELETE")}>Dismiss</button></div></article>)}
     {state.data?.total === 0 && <p className="staff-empty">You’re all caught up. New updates will appear here automatically.</p>}<Pagination data={state.data} page={page} onPage={setPage} loading={state.loading} /></section></section>;
 }
 

@@ -38,7 +38,7 @@ export default function ActivityHistory({ apiBase = "/admin", staff = null, onUn
     return () => controller.abort();
   }, [apiBase, onUnauthorized, page, query, resource, refresh]);
   return <section className="activity-history" aria-busy={loading}>
-    <header className="activity-history-heading"><div><span>WORKSPACE AUDIT</span><h1>Activity History</h1><p>{staff?.canViewActivity ? "Staff activity across the workspace, including recorded changes." : staff ? "Activity associated with your Staff account." : "Recorded changes and actions across authorized panels."}</p></div><button type="button" onClick={reload} disabled={loading}>Refresh</button></header>
+    <header className="activity-history-heading"><div><span>WORKSPACE AUDIT</span><h1>Activity History</h1><p>{staff ? "Shared enquiry, journey and invoice changes across all panels, plus your account activity." : "Recorded changes and actions across authorized panels."}</p></div><button type="button" onClick={reload} disabled={loading}>Refresh</button></header>
     <section className="activity-history-card">
       <form className="activity-history-filters" onSubmit={(event) => { event.preventDefault(); setQuery(search.trim()); setPage(1); }}>
         <label>Search activity<input type="search" maxLength={120} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, ID, action or reference" /></label>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { usePanelLiveRefresh } from "./usePanelLiveRefresh";
 import GmailVerification from "./GmailVerification";
 import { useGmailVerification } from "./useGmailVerification";
 import { usePanelNavigationGuard } from "./panel/PanelNavigationContext";
@@ -9,6 +10,8 @@ export default function AccountManager({ apiBase, onUnauthorized }) {
   const [accounts, setAccounts] = useState([]), [name, setName] = useState(""), [email, setEmail] = useState(""), [username, setUsername] = useState(""), [password, setPassword] = useState(""), [confirmPassword, setConfirmPassword] = useState(""), [role, setRole] = useState("technical"), [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const lock = useRef(false), editorHeading = useRef(null);
+  const [refresh, setRefresh] = useState(0);
+  usePanelLiveRefresh("workspace", () => setRefresh((value) => value + 1));
   const verification = useGmailVerification({ email, purpose: "account-edit", accountId: editing?._id, onUnauthorized });
   const unchangedVerified = !!editing?.emailVerified && email.trim().toLowerCase() === editing.email;
   const unchangedExisting = !!editing && (editing.isCurrent || editing.isOwner) && email.trim().toLowerCase() === editing.email;
@@ -21,7 +24,7 @@ export default function AccountManager({ apiBase, onUnauthorized }) {
     const controller = new AbortController();
     api(`${apiBase}/accounts`, { signal: controller.signal }).then((result) => { if (!controller.signal.aborted) setAccounts(result.accounts); }).catch((failure) => { if (!controller.signal.aborted) { setError(failure.message); if (failure.status === 401) onUnauthorized(); } }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [apiBase, onUnauthorized]);
+  }, [apiBase, onUnauthorized, refresh]);
   useEffect(() => {
     if (!editing) return;
     editorHeading.current?.scrollIntoView({ behavior: "smooth", block: "start" });

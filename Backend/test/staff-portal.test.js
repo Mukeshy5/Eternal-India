@@ -17,7 +17,7 @@ test("staff passwords require length, case, a digit and a symbol", () => {
   for (const value of ["short9!A", "lowercasepassword1!", "UPPERCASEPASSWORD1!", "NoNumbersHere!", "NoSymbolsHere123", null, "A1!".repeat(100)]) assert.equal(staffPasswordValid(value), false);
 });
 
-test("Staff Panel uses real MongoDB with technical provisioning and strict record isolation", async (t) => {
+test("Staff Panel shares business records while protecting personal data and write permissions", async (t) => {
   const config = { ...readConfig(), databaseName: `eternal_india_test_staff_${randomUUID().replaceAll("-", "").slice(0, 10)}`, adminEmail: "portal-owner@example.com", technicalEmail: "", adminPassword: "PortalAdminTest9!" };
   const { client, db } = await connectDatabase(config);
   await ensureAdmin(db, config);
@@ -72,8 +72,9 @@ test("Staff Panel uses real MongoDB with technical provisioning and strict recor
       assert.equal(assignedNotification.title, "New enquiry assigned");
       assert.deepEqual(assignedNotification.enquiry, { reference: enquiry.reference, name: "Assigned Guest", email: "guest@example.com", phone: "", destination: "Delhi" });
       const assignees = await json("/technical/enquiry-assignees"); assert.ok(assignees.assignees.some((row) => row._id === account._id));
-      assert.equal((await json("/staff/enquiries", { auth: staffCookie })).total, 1); assert.equal((await json("/staff/enquiries", { auth: secondCookie })).total, 0);
-      assert.equal((await request(`/staff/enquiries/${enquiry._id}`, { auth: secondCookie })).status, 404);
+      assert.equal((await json("/staff/enquiries", { auth: staffCookie })).total, 1); assert.equal((await json("/staff/enquiries", { auth: secondCookie })).total, 1);
+      assert.equal((await json(`/staff/enquiries/${enquiry._id}`, { auth: secondCookie })).enquiry.canEdit, false);
+      assert.ok((await json("/staff/notifications", { auth: secondCookie })).notifications.some((row) => row.enquiryId === enquiry._id), "unassigned staff receive new enquiry notifications too");
       const current = (await json(`/staff/enquiries/${enquiry._id}`, { auth: staffCookie })).enquiry;
       assert.equal((await request(`/staff/enquiries/${enquiry._id}`, { auth: staffCookie, method: "PATCH", body: { status: "RESOLVED", revision: current.revision, assignedTo: secondAccount._id } })).status, 400);
       const updated = await json(`/staff/enquiries/${enquiry._id}`, { auth: staffCookie, method: "PATCH", body: { status: "IN_PROGRESS", revision: current.revision } }); assert.equal(updated.enquiry.status, "IN_PROGRESS");
@@ -92,18 +93,19 @@ test("Staff Panel uses real MongoDB with technical provisioning and strict recor
       await json(`/staff/notifications/${encodeURIComponent(note._id)}/read`, { auth: staffCookie, method: "PATCH", body: {} });
       await json("/staff/notifications/read-all", { auth: staffCookie, method: "PATCH", body: {} }); assert.equal((await json("/staff/notifications", { auth: staffCookie })).unread, 0);
     });
-    await t.test("staff voucher CRUD, quoting, history and PDF exports cannot cross ownership", async () => {
+    await t.test("voucher history and PDFs are shared while mutations retain ownership checks", async () => {
       const hotel = (await json("/technical/hotels", { method: "POST", body: { name: "Portal hotel", address: "Delhi", starRating: "4-Star (Upscale / Deluxe)", amount: 1000 } })).hotel;
       const gst = (await json("/technical/gst", { method: "POST", body: { gstNumber: "07ABCDE1234F1Z5" } })).gstRate;
       const office = (await json("/technical/office-addresses", { method: "POST", body: { name: "Delhi office", address: "12 Office Road, Delhi", phone: "+91 11 41715155" } })).address;
       const reservation = (await json("/staff/vouchers/invoice", { auth: staffCookie, method: "POST", body: { requestId: randomUUID() } })).invoice;
       voucherBody = { reservationId: reservation.reservationId, hotelId: hotel._id, gstId: gst._id, officeAddressId: office._id, mealPlan: "MAP", guestName: "Portal Guest", voucherDate: indiaDate(), requirement: "Two rooms", checkInDate: "2026-12-01", checkOutDate: "2026-12-03", arrivalDate: "2026-12-01", arrivalPlace: "Delhi airport", departureDate: "2026-12-03", departurePlace: "Delhi station", basePrice: "1000", status: "confirmed", createdBy: "spoofed-admin" };
       voucher = (await json("/staff/vouchers", { auth: staffCookie, method: "POST", body: voucherBody })).voucher; assert.equal(voucher.createdBy, staffActor(employee._id));
-      assert.equal((await json("/staff/vouchers", { auth: secondCookie })).total, 0); assert.equal((await json("/technical/vouchers")).total, 1);
-      for (const suffix of ["", "/pdf", "/print-data"]) assert.equal((await request(`/staff/vouchers/${voucher._id}${suffix}`, { auth: secondCookie })).status, 404);
-      assert.equal((await request("/staff/vouchers/quote", { auth: secondCookie, method: "POST", body: { ...voucherBody, voucherId: voucher._id } })).status, 404);
-      assert.equal((await request(`/staff/vouchers/${voucher._id}`, { auth: secondCookie, method: "PATCH", body: { ...voucherBody, revision: voucher.revision } })).status, 404);
-      assert.equal((await request(`/staff/vouchers/${voucher._id}?revision=${voucher.revision}`, { auth: secondCookie, method: "DELETE" })).status, 404);
+      assert.equal((await json("/staff/vouchers", { auth: secondCookie })).total, 1); assert.equal((await json("/technical/vouchers")).total, 1);
+      assert.equal((await json(`/staff/vouchers/${voucher._id}`, { auth: secondCookie })).voucher.canEdit, false);
+      for (const suffix of ["", "/pdf", "/print-data"]) assert.equal((await request(`/staff/vouchers/${voucher._id}${suffix}`, { auth: secondCookie })).status, 200);
+      assert.equal((await request("/staff/vouchers/quote", { auth: secondCookie, method: "POST", body: { ...voucherBody, voucherId: voucher._id } })).status, 200);
+      assert.equal((await request(`/staff/vouchers/${voucher._id}`, { auth: secondCookie, method: "PATCH", body: { ...voucherBody, revision: voucher.revision } })).status, 403);
+      assert.equal((await request(`/staff/vouchers/${voucher._id}?revision=${voucher.revision}`, { auth: secondCookie, method: "DELETE" })).status, 403);
       voucher = (await json(`/staff/vouchers/${voucher._id}`, { auth: staffCookie, method: "PATCH", body: { ...voucherBody, revision: voucher.revision, guestName: "Updated Guest" } })).voucher; assert.equal(voucher.guestName, "Updated Guest");
       voucher = (await json(`/technical/vouchers/${voucher._id}`, { method: "PATCH", body: { ...voucherBody, revision: voucher.revision, guestName: "Technical Update" } })).voucher;
       assert.equal(voucher.createdBy, staffActor(employee._id));
@@ -115,16 +117,16 @@ test("Staff Panel uses real MongoDB with technical provisioning and strict recor
       assert.ok(journeyNotification, "updates to a Staff-owned journey notify its owner");
       const pdf = await request(`/staff/vouchers/${voucher._id}/pdf`, { auth: staffCookie }); assert.equal(pdf.status, 200); assert.match(Buffer.from(await pdf.arrayBuffer()).toString("latin1"), /^%PDF-/);
       assert.equal((await request("/staff/vouchers/export?format=pdf", { auth: staffCookie })).status, 200);
-      assert.equal((await json("/staff/vouchers/options", { auth: secondCookie })).usedHotels.length, 0);
+      assert.equal((await json("/staff/vouchers/options", { auth: secondCookie })).usedHotels.length, 1);
     });
-    await t.test("Technical Panel explicitly grants and revokes invoice read/download access", async () => {
+    await t.test("invoices are shared across panels and invoice alert subscriptions remain independent", async () => {
       invoice = (await json("/technical/invoices", { method: "POST", body: { requestId: randomUUID(), invoiceDate: invoiceToday(), clientName: "Authorized Client", totalPerson: 2, perPersonAmount: "1500", recipientDetails: "Delhi", description: "Travel / Tour Services", notes: invoiceNotes, invoiceType: "invoice" } })).invoice;
-      assert.equal((await request(`/staff/invoices/${invoice._id}`, { auth: staffCookie })).status, 404);
+      assert.equal((await json(`/staff/invoices/${invoice._id}`, { auth: staffCookie })).invoice.canEdit, false);
       await json(`/technical/staff-accounts/${account._id}/invoices/${invoice._id}`, { method: "PATCH", body: { authorized: true } });
-      assert.equal((await json("/staff/invoices", { auth: staffCookie })).total, 1); assert.equal((await json("/staff/invoices", { auth: secondCookie })).total, 0);
-      assert.equal((await request(`/staff/invoices/${invoice._id}/pdf`, { auth: staffCookie })).status, 200); assert.equal((await request(`/staff/invoices/${invoice._id}/pdf`, { auth: secondCookie })).status, 404);
+      assert.equal((await json("/staff/invoices", { auth: staffCookie })).total, 1); assert.equal((await json("/staff/invoices", { auth: secondCookie })).total, 1);
+      assert.equal((await request(`/staff/invoices/${invoice._id}/pdf`, { auth: staffCookie })).status, 200); assert.equal((await request(`/staff/invoices/${invoice._id}/pdf`, { auth: secondCookie })).status, 200);
       assert.equal((await request(`/staff/invoices/${invoice._id}`, { auth: staffCookie, method: "PUT", body: {} })).status, 403);
-      await json(`/technical/staff-accounts/${account._id}/invoices/${invoice._id}`, { method: "PATCH", body: { authorized: false } }); assert.equal((await request(`/staff/invoices/${invoice._id}/pdf`, { auth: staffCookie })).status, 404);
+      await json(`/technical/staff-accounts/${account._id}/invoices/${invoice._id}`, { method: "PATCH", body: { authorized: false } }); assert.equal((await request(`/staff/invoices/${invoice._id}/pdf`, { auth: staffCookie })).status, 200);
     });
     await t.test("live updates reach every staff tab with assigned customer details and revoke active connections", async () => {
       const controllers = [new AbortController(), new AbortController()], responses = await Promise.all(controllers.map((controller) => fetch(`${base}/staff/events`, { headers: { Cookie: staffCookie }, signal: controller.signal })));

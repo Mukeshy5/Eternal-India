@@ -79,6 +79,7 @@ export function createActivityLog(db, { onRecorded } = {}) {
     req.activityBefore = await db.collection(info.collection).findOne({ _id: new ObjectId(info.id) });
   }
   function middleware(req, res, next) {
+    if (req.activityMutation) return next();
     if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
     const info = mutationInfo(req);
     if (!info) return next();

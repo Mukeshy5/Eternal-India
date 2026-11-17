@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import { usePanelLiveRefresh } from "../usePanelLiveRefresh";
 import { letterDate, letterTypes } from "../../../../shared/employmentLetters.js";
 import { usePanelNavigationGuard } from "../panel/PanelNavigationContext";
 import LetterEditor from "./LetterEditor";
@@ -11,6 +12,7 @@ import "./letters.css";
 export default function LetterWorkspace({ type, apiBase, admin, onUnauthorized }) {
   const [settings, setSettings] = useState(null), [data, setData] = useState(null), [loading, setLoading] = useState(true), [refresh, setRefresh] = useState(0);
   const [settingsRefresh, setSettingsRefresh] = useState(0);
+  usePanelLiveRefresh("employment letters|staff records", () => { setRefresh((value) => value + 1); setSettingsRefresh((value) => value + 1); });
   const [search, setSearch] = useState(""), [query, setQuery] = useState(""), [from, setFrom] = useState(""), [to, setTo] = useState(""), [page, setPage] = useState(1);
   const [editor, setEditor] = useState(null), [selected, setSelected] = useState(null), [pdf, setPdf] = useState(null), [busy, setBusy] = useState(false);
   const [error, setError] = useState(""), [errors, setErrors] = useState({}), [notice, setNotice] = useState(""), [existingId, setExistingId] = useState("");

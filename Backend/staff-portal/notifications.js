@@ -19,3 +19,16 @@ export async function publishStaffNotification(db, { id, staffId, title, message
     read: false,
   });
 }
+
+export async function publishStaffWorkspaceNotification(db, notification) {
+  const recipients = db.collection("staff_accounts").aggregate([
+    { $match: { status: "active" } },
+    { $lookup: { from: "staff", localField: "staffId", foreignField: "_id", as: "employee" } },
+    { $unwind: "$employee" },
+    { $match: { "employee.status": "active", "employee.deletedAt": null, $expr: { $eq: ["$employee.employeeId", "$employeeId"] } } },
+    { $project: { staffId: 1 } },
+  ]);
+  for await (const { staffId } of recipients) {
+    await publishStaffNotification(db, { ...notification, id: `${notification.id}:${staffId}`, staffId });
+  }
+}

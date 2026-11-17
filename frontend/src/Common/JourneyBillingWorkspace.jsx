@@ -36,6 +36,19 @@ export default function JourneyBillingWorkspace({ apiBase = "/admin", initialCre
     window.addEventListener("focus", refreshHistory); window.addEventListener("journey-vouchers-changed", refreshHistory); window.addEventListener("journey-voucher-options-changed", refreshHistory);
     return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener("focus", refreshHistory); window.removeEventListener("journey-vouchers-changed", refreshHistory); window.removeEventListener("journey-voucher-options-changed", refreshHistory); };
   }, [apiBase, query, page, pageSize, refresh, fail]);
+  const selectedId = selected?._id;
+  useEffect(() => {
+    if (!selectedId) return undefined;
+    const controller = new AbortController();
+    api(`${apiBase}/vouchers/${selectedId}`, { signal: controller.signal }).then(({ voucher }) => {
+      if (!controller.signal.aborted) setSelected(voucher);
+    }).catch((failure) => {
+      if (controller.signal.aborted) return;
+      if (failure.status === 404) { setSelected(null); setNotice("This voucher was deleted in another panel."); }
+      else fail(failure);
+    });
+    return () => controller.abort();
+  }, [apiBase, selectedId, data, fail]);
   async function run(action) {
     if (lock.current) return; lock.current = true; setBusy(true); setError("");
     const controller = new AbortController(); operation.current = controller;
@@ -50,7 +63,7 @@ export default function JourneyBillingWorkspace({ apiBase = "/admin", initialCre
   function file(voucher, print = false) { return run(async (signal) => { const blob = await voucherFile(`${apiBase}/vouchers/${voucher._id}/pdf`, signal); if (signal.aborted) return; if (print) setPdf({ blob, invoiceNumber: voucher.invoiceNumber }); else downloadVoucherFile(blob, `journey-voucher-${voucher.invoiceNumber}.pdf`); }); }
   function exportHistory(format) { return run(async (signal) => { const params = new URLSearchParams({ ...query, format }); const blob = await voucherFile(`${apiBase}/vouchers/export?${params}`, signal); if (!signal.aborted) downloadVoucherFile(blob, `journey-voucher-history.${format}`); }); }
   const closePdf = useCallback(() => setPdf(null), []);
-  function actions(voucher) { return <div className="billing-row-actions"><button type="button" disabled={busy || Boolean(editor)} onClick={() => open(voucher)}>View</button><button type="button" disabled={busy || Boolean(editor)} onClick={() => open(voucher, true)}>Edit</button><button type="button" disabled={busy || Boolean(editor)} onClick={() => file(voucher, true)}>Print</button><button type="button" disabled={busy || Boolean(editor)} onClick={() => file(voucher)}>Download PDF</button><button type="button" className="billing-danger" disabled={busy || Boolean(editor)} onClick={() => remove(voucher)}>Delete</button></div>; }
+  function actions(voucher) { return <div className="billing-row-actions"><button type="button" disabled={busy || Boolean(editor)} onClick={() => open(voucher)}>View</button>{voucher.canEdit !== false && <button type="button" disabled={busy || Boolean(editor)} onClick={() => open(voucher, true)}>Edit</button>}<button type="button" disabled={busy || Boolean(editor)} onClick={() => file(voucher, true)}>Print</button><button type="button" disabled={busy || Boolean(editor)} onClick={() => file(voucher)}>Download PDF</button>{voucher.canEdit !== false && <button type="button" className="billing-danger" disabled={busy || Boolean(editor)} onClick={() => remove(voucher)}>Delete</button>}</div>; }
   const hotelChoices = [...new Map([...(options?.usedHotels || []), ...(options?.hotels || [])].map((item) => [item._id, item])).values()];
   const gstChoices = [...new Map([...(options?.usedGst || []), ...(options?.gstRates || []).filter((item) => item.gstNumber)].map((item) => [item._id, item])).values()];
   const officeChoices = [...new Map([...(options?.usedOffices || []), ...(options?.officeAddresses || [])].map((item) => [item._id, item])).values()];
