@@ -1090,11 +1090,24 @@ main:focus {
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 36px;
   padding-block: 34px;
 }
-.home-company-intro p {
+.home-company-intro h2 {
+  flex: 0 0 auto;
+  font-size: clamp(24px, 2.5vw, 34px);
+}
+.home-company-intro-copy {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 36px;
+  min-width: 0;
+}
+.home-company-intro-copy p {
+  flex: 1;
   max-width: 930px;
   line-height: 1.8;
 }

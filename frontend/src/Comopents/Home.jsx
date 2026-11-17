@@ -105,6 +105,24 @@ export default function Home() {
           </div>
         </div>
       </section>
+      <section className="home-company-intro" aria-labelledby="home-company-intro-heading">
+        <div className="container">
+          <h2 id="home-company-intro-heading">About</h2>
+          <div className="home-company-intro-copy">
+            <p>
+              Eternal India one among the leading destination management company
+              in India with a decade of dedicated services to tourism. We at
+              Eternal India offer a good destination of holidays in India, Sri
+              Lanka, Nepal and Bhutan. Eternal India has been established various
+              specialized tour in India, Our pride is shown in its all aspect of
+              Inbound tours.
+            </p>
+            <Link to="/about" className="button button-small">
+              More view <Icon name="diagonal" size={17} />
+            </Link>
+          </div>
+        </div>
+      </section>
       <section className="section container available-places-section">
         <div className="section-heading">
           <div>
@@ -137,21 +155,6 @@ export default function Home() {
               <div className="promotion-card-footer"><PromotionDisplay targetId={destination.promotionId} /></div>
             </Link>
           ))}
-        </div>
-      </section>
-      <section className="home-company-intro" aria-label="About Eternal India">
-        <div className="container">
-          <p>
-            Eternal India one among the leading destination management company
-            in India with a decade of dedicated services to tourism. We at
-            Eternal India offer a good destination of holidays in India, Sri
-            Lanka, Nepal and Bhutan. Eternal India has been established various
-            specialized tour in India, Our pride is shown in its all aspect of
-            Inbound tours.
-          </p>
-          <Link to="/about" className="button button-small">
-            More view <Icon name="diagonal" size={17} />
-          </Link>
         </div>
       </section>
       <section className="home-regions section">
