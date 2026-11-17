@@ -1,5 +1,6 @@
 import { voucherCompany as company, voucherOffice, mealPlanLabel } from "../../../shared/voucherBilling.js";
 import { date } from "./voucherClient";
+import stamp from "../assets/Stamp and Signature/Stamp and Signature.png";
 import "./BillingDocument.css";
 export default function BillingDocument({ voucher: v }) {
   const office = voucherOffice(v), phone = office.phone || company.phone;
@@ -23,7 +24,7 @@ export default function BillingDocument({ voucher: v }) {
       ["Arrival", `${date(v.arrivalDate)} · ${v.arrivalPlace}`], ["Departure", `${date(v.departureDate)} · ${v.departurePlace}`],
     ].map(([label, value]) => <div key={label} className={label === "Guest name" ? "billing-document-guest" : label === "Meal plan" ? "billing-document-meal" : undefined}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
     <section className="billing-requirement"><h4>Your requirement</h4><p>{v.requirement}</p></section>
-    <div className="billing-signature">Authorized Signatory</div><p className="billing-document-note">{company.note}</p>
+    <div className="billing-signature"><img src={stamp} alt="Eternal India stamp and signature" /><span>Authorized Signatory</span></div><p className="billing-document-note">{company.note}</p>
     <footer><p><b>Address:</b> {office.address}</p><p><b>Phone:</b> {phone} <span> | </span> <b>Website:</b> {company.website}</p></footer>
   </article>;
 }

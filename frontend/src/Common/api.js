@@ -19,7 +19,7 @@ export function socketServerUrl() {
   if (socketOrigin) return new URL(socketOrigin, window.location.href).origin;
   // Vite proxies local sockets; Vercel only proxies HTTP API requests.
   return window.location.hostname === "eternal-india-phi.vercel.app"
-    ? "https://eternal-india-1.onrender.com" : window.location.origin;
+    ? "https://eternal-india-2.onrender.com" : window.location.origin;
 }
 
 export async function api(path, options = {}) {

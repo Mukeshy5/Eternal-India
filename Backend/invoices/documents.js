@@ -6,16 +6,17 @@ import { invoiceCompany, bankLabels, invoiceDateLabel, invoiceMoney } from "../.
 const font = fileURLToPath(new URL("../staff/fonts/NotoSansDevanagari.ttf", import.meta.url));
 const qr = fileURLToPath(new URL("../../frontend/src/assets/paymentpng/payment-QR.png", import.meta.url));
 const logoPath = fileURLToPath(new URL("../../frontend/src/assets/logo.webp", import.meta.url));
+const stampPath = fileURLToPath(new URL("../../frontend/src/assets/Stamp and Signature/Stamp and Signature.png", import.meta.url));
 let assets;
 async function invoiceAssets() {
-  assets ??= Promise.all([sharp(logoPath).png().toBuffer(), sharp(qr).png().toBuffer()]).catch((error) => { assets = undefined; throw error; });
+  assets ??= Promise.all([sharp(logoPath).png().toBuffer(), sharp(qr).png().toBuffer(), sharp(stampPath).png().toBuffer()]).catch((error) => { assets = undefined; throw error; });
   return assets;
 }
 
 // All layout dimensions are in points. PDFKit flows long client details and notes
 // between the reserved, repeated letterhead and footer on subsequent A4 pages.
 export async function invoicePdf(invoice) {
-  const [logo, paymentQr] = await invoiceAssets();
+  const [logo, paymentQr, stamp] = await invoiceAssets();
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margins: { top: 125, left: 38, right: 38, bottom: 70 }, bufferPages: true, info: { Title: `Invoice ${invoice.invoiceNumber}`, Author: invoiceCompany } });
     const chunks = [];
@@ -85,10 +86,11 @@ export async function invoicePdf(invoice) {
           ensure(24); text(`${index + 1}. ${note}`, left, doc.y, 7.5, muted, { width, lineGap: 1.5 }); doc.y += 3;
         }
       }
-      ensure(74);
-      const signatureY = doc.y + 12;
-      rule(signatureY + 42, right - 215, right - 10, gold);
-      text("Authorized Signature / Company Stamp", right - 225, signatureY + 48, 7.5, muted, { width: 225, align: "center" });
+      ensure(100);
+      const signatureY = doc.y + 4;
+      doc.image(stamp, right - 215, signatureY, { fit: [205, 72], align: "center", valign: "center" });
+      rule(signatureY + 74, right - 215, right - 10, gold);
+      text("Authorized Signature / Company Stamp", right - 225, signatureY + 80, 7.5, muted, { width: 225, align: "center" });
       const range = doc.bufferedPageRange();
       for (let i = 0; i < range.count; i++) {
         doc.switchToPage(i); doc.page.margins.bottom = 0;

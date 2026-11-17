@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 import { voucherCompany as company, formatVoucherDate as date, formatVoucherMoney as money, voucherOffice, mealPlanLabel } from "../../shared/voucherBilling.js";
 
 const fontPath = fileURLToPath(new URL("../staff/fonts/NotoSansDevanagari.ttf", import.meta.url));
-let logoPromise;
+const stampPath = fileURLToPath(new URL("../../frontend/src/assets/Stamp and Signature/Stamp and Signature.png", import.meta.url));
+let logoPromise, stampPromise;
 function pdf(draw, options = {}) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 36, bufferPages: true, ...options });
@@ -18,7 +19,8 @@ function pdf(draw, options = {}) {
 }
 export async function voucherPdf(voucher) {
   logoPromise ??= sharp(fileURLToPath(new URL("../../frontend/public/logo.webp", import.meta.url))).png().toBuffer().catch((error) => { logoPromise = undefined; throw error; });
-  const logo = await logoPromise;
+  stampPromise ??= sharp(stampPath).png().toBuffer().catch((error) => { stampPromise = undefined; throw error; });
+  const [logo, stamp] = await Promise.all([logoPromise, stampPromise]);
   const office = voucherOffice(voucher), contact = `${office.phone || company.phone}   |   ${company.website}`;
   return pdf((doc) => {
     const left = 36, width = doc.page.width - left * 2, right = left + width;
@@ -108,10 +110,11 @@ export async function voucherPdf(voucher) {
     y = doc.y + 16;
     doc.font("Voucher").fontSize(7.5);
     const noteHeight = doc.heightOfString(company.note, { width, align: "center" });
-    ensureSpace(84 + noteHeight + 12);
-    line(right - 200, y + 48, right - 14, y + 48, gold);
-    doc.font("Helvetica-Bold").fontSize(9).fillColor(plum).text("Authorized Signatory", right - 200, y + 60, { width: 186, align: "center" });
-    text(company.note, left, y + 84, 7.5, muted, { width, align: "center", height: noteHeight });
+    ensureSpace(94 + noteHeight + 12);
+    doc.image(stamp, right - 200, y + 2, { fit: [186, 66], align: "center", valign: "center" });
+    line(right - 200, y + 70, right - 14, y + 70, gold);
+    text("Authorized Signatory", right - 200, y + 75, 9, plum, { width: 186, align: "center" });
+    text(company.note, left, y + 94, 7.5, muted, { width, align: "center", height: noteHeight });
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {
       doc.switchToPage(i);

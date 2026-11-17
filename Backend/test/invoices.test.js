@@ -33,8 +33,8 @@ test("invoice APIs persist, authorize, number concurrently, synchronize and gene
     const reply = await request(`/technical/invoices/${id}/pdf`); assert.equal(reply.status, 200); assert.equal(reply.headers.get("content-type"), "application/pdf");
     assert.match(reply.headers.get("content-disposition"), /filename="Invoice-EI-INV-\d{6,}\.pdf"/);
     const bytes = Buffer.from(await reply.arrayBuffer()); assert.match(bytes.toString("latin1"), /^%PDF-/); assert.ok(bytes.length > 20000);
-    // Logo and the original QR must both be embedded as image XObjects.
-    assert.ok((bytes.toString("latin1").match(/\/Subtype \/Image/g) || []).length >= 2);
+    // The logo, original QR and company stamp must be embedded as image XObjects.
+    assert.ok((bytes.toString("latin1").match(/\/Subtype \/Image/g) || []).length >= 3);
     if (process.env.INVOICE_QA_DIR) { await mkdir(resolve(process.env.INVOICE_QA_DIR), { recursive: true }); await writeFile(resolve(process.env.INVOICE_QA_DIR, filename), bytes); }
     return bytes;
   }

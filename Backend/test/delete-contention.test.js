@@ -15,7 +15,7 @@ import { createApp } from "../app.js";
 
 test("session probes and backup-protected deletes tolerate storage contention", { timeout: 180000 }, async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "eternal-delete-"));
-  const config = { ...readConfig(), production: false, databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "")}`, adminEmail: "delete-owner@example.com", technicalEmail: "", adminPassword: "DeleteContentionTest9", dataControl: { backupDirectory: resolve(root, "backups"), uploadDirectory: resolve(root, "uploads"), tempDirectory: resolve(root, "temporary") } };
+  const config = { ...readConfig(), production: false, databaseName: `eternal_india_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`, adminEmail: "delete-owner@example.com", technicalEmail: "", adminPassword: "DeleteContentionTest9", dataControl: { backupDirectory: resolve(root, "backups"), uploadDirectory: resolve(root, "uploads"), tempDirectory: resolve(root, "temporary") } };
   const { db, client } = await connectDatabase(config);
   const owner = await ensureAdmin(db, config);
   const technical = { _id: new ObjectId(), email: "delete-technical@example.com", passwordHash: owner.passwordHash, roles: ["technical"], status: "active" };
@@ -73,9 +73,13 @@ test("session probes and backup-protected deletes tolerate storage contention", 
     });
     await t.test("simultaneous enquiry, attendance-range and staff deletes all finish with backups", async () => {
       const first = await enquiry(), archived = await enquiry();
-      const staff = [{ _id: new ObjectId(), employeeId: "DELETE-STAFF", name: "Delete staff", status: "active", deletedAt: null, version: 1 }, { _id: new ObjectId(), employeeId: "RANGE-STAFF", name: "Range staff", status: "active", deletedAt: null, version: 1 }];
+      const now = new Date();
+      const staff = [
+        { _id: new ObjectId(), employeeId: "EI-000000000001", name: "Delete staff", phone: "+919876543210", email: "delete-staff@example.com", department: "Operations", designation: "Coordinator", status: "active", deletedAt: null, photo: Buffer.from("photo"), photoMime: "image/png", version: 1, createdAt: now, updatedAt: now },
+        { _id: new ObjectId(), employeeId: "EI-000000000002", name: "Range staff", phone: "+919876543211", email: "range-staff@example.com", department: "Operations", designation: "Coordinator", status: "active", deletedAt: null, photo: Buffer.from("photo"), photoMime: "image/png", version: 1, createdAt: now, updatedAt: now },
+      ];
       await db.collection("staff").insertMany(staff);
-      await db.collection("staff_attendance").insertOne({ staffId: staff[1]._id, date: "2026-01-08", status: "present", version: 1 });
+      await db.collection("staff_attendance").insertOne({ staffId: staff[1]._id, date: "2026-01-08", status: "present", checkIn: "", checkOut: "", workingMinutes: 0, version: 1, createdAt: now, updatedAt: now });
       const replies = await Promise.all([
         request(`/admin/enquiries/${first._id}/permanent`, { method: "DELETE" }),
         request(`/technical/enquiries/${archived._id}`, { method: "DELETE" }),
@@ -102,6 +106,8 @@ test("session probes and backup-protected deletes tolerate storage contention", 
     });
     await t.test("cancelling a queued delete prevents it from executing later", async () => {
       const record = await enquiry(), control = backend.dataControl, original = control.withQueuedLock;
+      const runtime = db.collection("data_control_runtime");
+      await waitFor(async () => !await runtime.findOne({ _id: "operation", until: { $gt: new Date() } }));
       let release, entered;
       const held = new Promise((resolve) => { release = resolve; });
       const acquired = new Promise((resolve) => { entered = resolve; });

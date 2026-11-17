@@ -20,14 +20,14 @@ Use the actual `rzp_test_…` Key ID and its matching secret from the Razorpay T
 
 Render must use the **repository root** (leave Root Directory blank), build command `npm --prefix Backend ci`, start command `npm --prefix Backend start`, and `/api/health` for health checks. The backend imports `../shared`; selecting `Backend` as Render's Root Directory would exclude those files at runtime. Preserve the existing MongoDB, authentication and email environment variables. `render.yaml` is an optional Blueprint description for the existing service, not an instruction to create another service. `FRONTEND_URL` supports the existing comma-separated origin format and takes precedence over `FRONTEND_ORIGIN`. See [Render monorepo root directory rules](https://render.com/docs/monorepo-support).
 
-Vercel uses the `frontend` root, build command `npm run build`, output `dist`. Enable **Include source files outside of the Root Directory in the Build Step** for the existing shared catalog imports. The existing `frontend/vercel.json` proxies `/api/*` to `https://eternal-india-1.onrender.com/api/*` and preserves SPA routing. Update that destination if the backend hostname changes. Using the same-origin rewrite also retains existing admin cookie authentication. `VITE_API_BASE_URL` can instead point to the backend HTTPS origin without `/api`, with that frontend origin allowed by Render. For local development Vite proxies `/api` to port 5000.
+Vercel uses the `frontend` root, build command `npm run build`, output `dist`. Enable **Include source files outside of the Root Directory in the Build Step** for the existing shared catalog imports. The existing `frontend/vercel.json` proxies `/api/*` to `https://eternal-india-2.onrender.com/api/*` and preserves SPA routing. Update that destination if the backend hostname changes. Using the same-origin rewrite also retains existing admin cookie authentication. `VITE_API_BASE_URL` can instead point to the backend HTTPS origin without `/api`, with that frontend origin allowed by Render. For local development Vite proxies `/api` to port 5000.
 
 `frontend/.env.example` includes `VITE_RAZORPAY_KEY_ID`. It is optional and public; when provided it must match the backend Key ID. The order response supplies the authoritative Key ID, amount and currency. No key secret or webhook secret belongs in a `VITE_*` variable, source file, log or frontend bundle.
 
 In Razorpay **Test Mode**, create a webhook pointing directly to the backend:
 
 ```text
-https://eternal-india-1.onrender.com/api/payments/webhook
+https://eternal-india-2.onrender.com/api/payments/webhook
 ```
 
 Enable `payment.captured`, `payment.failed`, `order.paid`, `refund.processed`, and optionally `payment.authorized`. Save the same signing secret as `RAZORPAY_WEBHOOK_SECRET` in Render. Enable automatic payment capture in Razorpay's dashboard. An authorized payment stays `AUTHORIZED` until capture is independently confirmed; the app never silently captures it or treats authorization as money received. Use HTTPS for both deployed applications and the webhook endpoint.

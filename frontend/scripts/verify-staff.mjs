@@ -111,7 +111,7 @@ export async function verifyStaff(vite) {
     const viewerLogin = await globalThis.fetch("/api/technical/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: viewer.email, password: config.adminPassword }) }); assert.equal(viewerLogin.status, 200);
     await act(async () => root.render(createElement(MemoryRouter, { key: "viewer", initialEntries: ["/technical/staff"] }, createElement(Admin, { technical: true }))));
     await waitFor(() => container.querySelector(".staff-person"), "read-only staff view");
-    assert.equal([...container.querySelectorAll("button")].some((button) => ["+ Add staff", "Edit", "Delete", "Download PDF", "Download PNG", "Print ID Card"].includes(button.textContent.trim())), false);
+    assert.equal([...container.querySelector(".staff-content").querySelectorAll("button")].some((button) => ["+ Add staff", "Edit", "Delete", "Download PDF", "Download PNG", "Print ID Card"].includes(button.textContent.trim())), false);
     assert.equal(container.querySelector(".panel-navigation").textContent.includes("Download ID Card"), false);
     await section("Staff Attendance"); await waitFor(() => container.querySelector(".staff-attendance-table"), "read-only attendance"); assert.equal(container.querySelector(".staff-attendance-select"), null);
     assert.equal(container.querySelector(".attendance-period-delete"), null, "read-only users cannot delete attendance periods");

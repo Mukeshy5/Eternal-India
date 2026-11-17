@@ -110,7 +110,7 @@ test("journey billing persists CRUD, unique invoices, pricing, filters and docum
       assert.equal((await request(`/admin/vouchers/${saved._id}?revision=1`, { method: "DELETE" })).status, 409);
     });
     await t.test("PDF and Excel exports use persisted values and filters", async () => {
-      const reply = await request(`/admin/vouchers/${saved._id}/pdf`); assert.equal(reply.status, 200); assert.match(reply.headers.get("content-type"), /application\/pdf/); const pdf = Buffer.from(await reply.arrayBuffer()); assert.equal(pdf.subarray(0, 4).toString(), "%PDF"); assert.ok(pdf.length > 5000);
+      const reply = await request(`/admin/vouchers/${saved._id}/pdf`); assert.equal(reply.status, 200); assert.match(reply.headers.get("content-type"), /application\/pdf/); const pdf = Buffer.from(await reply.arrayBuffer()); assert.equal(pdf.subarray(0, 4).toString(), "%PDF"); assert.ok(pdf.length > 5000); assert.ok((pdf.toString("latin1").match(/\/Subtype \/Image/g) || []).length >= 2, "the logo and company stamp are embedded");
       const exportReply = await request(`/admin/vouchers/export?format=xlsx&invoiceNumber=${saved.invoiceNumber}`);
       assert.equal(exportReply.status, 200); const book = new ExcelJS.Workbook(); await book.xlsx.load(await exportReply.arrayBuffer()); const sheet = book.worksheets[0]; assert.equal(sheet.getCell("A2").value, saved.invoiceNumber); assert.equal(sheet.getCell("C2").value, "Edited guest"); assert.equal(sheet.getCell("M2").value, 100.1); assert.equal(sheet.getCell("A3").value, null);
       const history = await request("/admin/vouchers/export?format=pdf"); assert.equal(history.status, 200); assert.equal(Buffer.from(await history.arrayBuffer()).subarray(0, 4).toString(), "%PDF");

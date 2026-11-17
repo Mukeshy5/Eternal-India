@@ -40,9 +40,9 @@ The admin login has **Create account** and **Forgot password** options. Both pub
 
 ## Render backend deployment
 
-Production frontend: `https://eternal-india-phi.vercel.app/`. Production API: `https://eternal-india-1.onrender.com`. `frontend/vercel.json` forwards `/api/*` HTTP requests to the Render backend before the React route fallback. The authenticated Socket.IO connection uses the Render origin directly because Vercel's HTTP rewrite does not support WebSocket upgrades; a short-lived, single-use socket ticket is issued through the authenticated same-origin API. Leave Vercel's `VITE_API_BASE_URL` unset or blank for the HTTP proxy setup. Set `VITE_SOCKET_URL` only if the Socket.IO server is hosted at a different origin. API requests allow up to 60 seconds for a Render Free cold start.
+Production frontend: `https://eternal-india-phi.vercel.app/`. Production API: `https://eternal-india-2.onrender.com`. `frontend/vercel.json` forwards `/api/*` HTTP requests to the Render backend before the React route fallback. The authenticated Socket.IO connection uses the Render origin directly because Vercel's HTTP rewrite does not support WebSocket upgrades; a short-lived, single-use socket ticket is issued through the authenticated same-origin API. Leave Vercel's `VITE_API_BASE_URL` unset or blank for the HTTP proxy setup. Set `VITE_SOCKET_URL` only if the Socket.IO server is hosted at a different origin. API requests allow up to 60 seconds for a Render Free cold start.
 
-Render automatically uses this exact Vercel origin for password reset links and allows it in addition to configured `FRONTEND_ORIGIN` values, including when copied settings still contain localhost. Set `FRONTEND_ORIGIN=https://eternal-india-phi.vercel.app` in Render to keep its dashboard configuration aligned. Vercel should use Root Directory `frontend`, Build Command `npm run build` and Output Directory `dist`. Both services deploy branch `main`. After deployment, both `https://eternal-india-1.onrender.com/api/health` and `https://eternal-india-phi.vercel.app/api/health` must return the backend JSON health response, never `index.html`.
+Render automatically uses this exact Vercel origin for password reset links and allows it in addition to configured `FRONTEND_ORIGIN` values, including when copied settings still contain localhost. Set `FRONTEND_ORIGIN=https://eternal-india-phi.vercel.app` in Render to keep its dashboard configuration aligned. Vercel should use Root Directory `frontend`, Build Command `npm run build` and Output Directory `dist`. Both services deploy branch `main`. After deployment, both `https://eternal-india-2.onrender.com/api/health` and `https://eternal-india-phi.vercel.app/api/health` must return the backend JSON health response, never `index.html`.
 
 For the existing Render service, deploy branch `main`, leave **Root Directory** blank (repository root), set **Build Command** to `npm --prefix Backend ci` and **Start Command** to `npm --prefix Backend start`. The backend imports `shared/` from outside `Backend`, so that directory must remain available. Use `/api/health` as the health check path. Keep MongoDB, session, account and SMTP secrets in Render environment variables; set `FRONTEND_ORIGIN` to the actual frontend origin. Render detection forces production cookies and binds HTTP to `0.0.0.0` using the supplied `PORT`, even if copied development settings contain `HOST=127.0.0.1` or `NODE_ENV=development`. Deploy the latest commit: older deployments do not contain this fix.
 
@@ -50,7 +50,7 @@ SMTP verification starts after HTTP begins listening and does not hold up health
 
 ### Render Free: OTP and password recovery over HTTPS
 
-The backend supports Brevo's HTTPS API on port 443 for both Gmail verification codes and password reset emails. No SMTP connection or Gmail App Password is used in this mode. In Brevo, verify a sender domain you own, then create an API key with sending permission. Add these privately to **Render → Eternal-India-1 → Environment**, save and redeploy:
+The backend supports Brevo's HTTPS API on port 443 for both Gmail verification codes and password reset emails. No SMTP connection or Gmail App Password is used in this mode. In Brevo, verify a sender domain you own, then create an API key with sending permission. Add these privately to **Render → your existing backend service → Environment**, save and redeploy:
 
 ```dotenv
 EMAIL_PROVIDER=brevo
@@ -67,7 +67,7 @@ For actual delivery verification, set `OTP_TEST_EMAIL` to a Gmail inbox you own 
 
 ### Resend HTTPS (alternative)
 
-Instead of Brevo, you may use Resend's HTTPS API on port 443. Verify a sender domain you own, then create an API key with sending permission. Add these privately to **Render → Eternal-India-1 → Environment**, save and redeploy:
+Instead of Brevo, you may use Resend's HTTPS API on port 443. Verify a sender domain you own, then create an API key with sending permission. Add these privately to **Render → your existing backend service → Environment**, save and redeploy:
 
 ```dotenv
 EMAIL_PROVIDER=resend

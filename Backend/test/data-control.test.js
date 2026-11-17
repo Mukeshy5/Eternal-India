@@ -44,6 +44,10 @@ test("production data control refuses to start without an absolute persistent ba
     await assert.rejects(control.initialize(), /DATA_CONTROL_BACKUP_DIR/);
   }
 });
+test("Render MongoDB backup roots may be on a different drive from upload and temporary roots", { skip: process.platform !== "win32" }, () => {
+  const db = { databaseName: "startup-check", collection: () => ({}) };
+  assert.doesNotThrow(() => createDataControl({ db, config: { render: true, dataControl: { uploadDirectory: "C:\\data-control-test\\uploads", tempDirectory: "C:\\data-control-test\\temporary" } } }));
+});
 
 test("real MongoDB backup, export, verification, restore, cleanup and quota safety", { timeout: 180000 }, async t => {
   const config = readConfig(), client = new MongoClient(config.mongoUri, { serverSelectionTimeoutMS: 4000 });

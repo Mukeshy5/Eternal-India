@@ -49,7 +49,11 @@ export function createDataControl({ db, config = {}, clock = () => new Date() })
   const backupStore = createMongoBackupStore(db);
   const uploadRoot = resolve(config.dataControl?.uploadDirectory || resolve(base, "uploads"));
   const tempRoot = resolve(config.dataControl?.tempDirectory || resolve(base, "temporary"));
-  for (const a of [backupRoot, uploadRoot, tempRoot]) for (const b of [backupRoot, uploadRoot, tempRoot]) if (a !== b && (!relative(a, b).startsWith("..") || a === b)) throw new Error("Backup, upload and temporary directories must be separate.");
+  const containsPath = (root, path) => {
+    const relativePath = relative(root, path);
+    return relativePath === "" || (!isAbsolute(relativePath) && relativePath !== ".." && !relativePath.startsWith(`..${sep}`));
+  };
+  for (const a of [backupRoot, uploadRoot, tempRoot]) for (const b of [backupRoot, uploadRoot, tempRoot]) if (a !== b && containsPath(a, b)) throw new Error("Backup, upload and temporary directories must be separate.");
   if (new Set([backupRoot, uploadRoot, tempRoot]).size !== 3) throw new Error("Backup, upload and temporary directories must be separate.");
   const backups = db.collection("data_control_backups"), runtime = db.collection("data_control_runtime");
   let timer, ticking = false, stopped = false, tickPromise;

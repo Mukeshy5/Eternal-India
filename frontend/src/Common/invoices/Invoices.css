@@ -88,10 +88,11 @@
 .invoice-notes ol { padding-left: 16px; color: #728097; font-size: 9px; margin: 0; }
 .invoice-notes li { margin: 4px 0; white-space: pre-wrap; }
 .invoice-signature { width: 240px; max-width: 100%; margin: 20px 0 22px auto; text-align: center; font-size: 10px; }
-.invoice-signature > div { height: 57px; border-bottom: 1px solid #b89358; margin-bottom: 6px; }
+.invoice-signature > div { height: 67px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #b89358; margin-bottom: 6px; }
+.invoice-signature img { display: block; width: 190px; max-width: 100%; max-height: 60px; height: auto; object-fit: contain; }
 .invoice-signature small { color: #728097; }
 .invoice-document footer { border-top: 1px solid #b89358; padding-top: 13px; display: flex; flex-direction: column; gap: 3px; color: #71314f; font-size: 9px; }
 @media (max-width:1400px) { .invoice-edit-layout { grid-template-columns: 1fr; } .invoice-draft { max-width: 795px; width: 100%; margin: auto; } }
 @media (max-width:1000px) { .invoice-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width:650px) { .invoice-workspace { padding: 22px 13px 40px; } .invoice-heading { align-items: stretch; } .invoice-heading > .invoice-actions { width: 100%; } .invoice-form-grid,.invoice-filter-grid { grid-template-columns: 1fr; } .invoice-card > header,.invoice-filters,.invoice-pagination,.invoice-form fieldset { padding: 18px; } .invoice-workspace :is(input,select,textarea) { font-size: 16px; } .invoice-document { padding: 20px 14px; } .invoice-payment { grid-template-columns: 1fr; gap: 18px; padding: 15px; } .invoice-qr { border-right: 0; border-bottom: 1px solid #e0e5ed; padding: 0 0 16px; } .invoice-letterhead img { width: 120px; } .invoice-document h2 { font-size: 20px; } .invoice-preview-caption { flex-direction: column; } .invoice-calculation { align-items: start; flex-direction: column; } .invoice-detail .invoice-document { margin: 18px 8px; } }
-@media print { .invoice-document { box-shadow: none; border: 0; width: 100%; max-width: none; } .invoice-payment { grid-template-columns: 31% 1fr; break-inside: avoid; } .invoice-qr { border-bottom: 0; border-right: 1px solid #e0e5ed; } }
+@media print { @page { size: A4 portrait; margin: 12mm; } .invoice-document { box-shadow: none; border: 0; width: 100%; max-width: none; } .invoice-payment { grid-template-columns: 31% 1fr; break-inside: avoid; } .invoice-qr { border-bottom: 0; border-right: 1px solid #e0e5ed; } .invoice-signature,.invoice-document footer { break-inside: avoid; } }

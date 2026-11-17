@@ -54,7 +54,7 @@ WHATSAPP_PHONE_NUMBER_ID=
 Register the production callback in the Meta app:
 
 ```text
-https://eternal-india-1.onrender.com/api/integrations/whatsapp/webhook
+https://eternal-india-2.onrender.com/api/integrations/whatsapp/webhook
 ```
 
 Subscribe the WhatsApp Business Account/app to the `messages` webhook field for that business phone. The GET verification checks `hub.mode` and the verify token before returning `hub.challenge`. Every POST verifies `X-Hub-Signature-256` using HMAC-SHA256 over the exact raw request bytes with a constant-time comparison, before parsing or storing the message. The raw route is registered before `express.json()`, rejects oversized requests and applies per-IP rate limits to verification and delivery. Signed messages for another phone ID are ignored.
