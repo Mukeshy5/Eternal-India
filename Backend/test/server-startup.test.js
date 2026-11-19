@@ -42,9 +42,9 @@ test("the deployed server opens Render's public port with copied localhost setti
     const disabledLogin = await fetch(`http://127.0.0.1:${port}/api/technical/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: disabledAccount.email, password: "DisabledStartupPassword9" }) });
     assert.equal(disabledLogin.status, 403, "email verification must not reactivate a disabled account on deployment");
     assert.equal((await db.collection("admins").findOne({ email: disabledAccount.email })).status, "disabled", "startup preserves the disabled status in MongoDB");
-    const preflight = await fetch(`http://127.0.0.1:${port}/api/admin/login`, { method: "OPTIONS", headers: { Origin: "https://eternal-india-phi.vercel.app", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" } });
+    const preflight = await fetch(`http://127.0.0.1:${port}/api/admin/login`, { method: "OPTIONS", headers: { Origin: "https://www.eternal-india.com", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" } });
     assert.equal(preflight.status, 204);
-    assert.equal(preflight.headers.get("access-control-allow-origin"), "https://eternal-india-phi.vercel.app");
+    assert.equal(preflight.headers.get("access-control-allow-origin"), "https://www.eternal-india.com");
     assert.equal(preflight.headers.get("access-control-allow-credentials"), "true");
     assert.equal((await fetch(`http://127.0.0.1:${port}/api/health`, { headers: { Origin: "https://untrusted.example.com" } })).status, 403);
     const login = await fetch(`http://127.0.0.1:${port}/api/admin/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://frontend.example.com", "X-Forwarded-Proto": "https" }, body: JSON.stringify({ email: "render-startup@example.com", password: "RenderStartupPassword9" }) });

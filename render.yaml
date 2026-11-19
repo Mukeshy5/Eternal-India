@@ -28,7 +28,7 @@ services:
       - key: ADMIN_PASSWORD
         sync: false
       - key: FRONTEND_URL
-        value: https://eternal-india-phi.vercel.app
+        value: https://www.eternal-india.com
       - key: RAZORPAY_MODE
         value: test
       - key: RAZORPAY_KEY_ID
@@ -54,7 +54,7 @@ services:
       - key: GMAIL_INBOX_EMAIL
         sync: false
       - key: GMAIL_REDIRECT_URI
-        value: https://eternal-india-phi.vercel.app/api/integrations/gmail/callback
+        value: https://www.eternal-india.com/api/integrations/gmail/callback
       - key: GMAIL_SYNC_INTERVAL_SECONDS
         value: "30"
       - key: INTEGRATION_TOKEN_SECRET

@@ -13,7 +13,7 @@ RAZORPAY_KEY_SECRET=
 RAZORPAY_WEBHOOK_SECRET=
 PAYMENT_MIN_AMOUNT_INR=1
 PAYMENT_MAX_AMOUNT_INR=500000
-FRONTEND_URL=https://eternal-india-phi.vercel.app
+FRONTEND_URL=https://www.eternal-india.com
 ```
 
 Use the actual `rzp_test_…` Key ID and its matching secret from the Razorpay Test Mode dashboard. Choose a separate webhook signing secret when setting up the webhook. These are intentionally blank in versioned example files. Checkout stays unavailable until all three settings are present; the rest of the application continues to work. The backend refuses keys that do not match `RAZORPAY_MODE`, which defaults to `test` even in production. Configure the minimum and maximum amounts to the business's approved limits; defaults are ₹1–₹5,00,000. Limits accept at most two decimals.

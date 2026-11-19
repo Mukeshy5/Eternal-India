@@ -27,10 +27,10 @@ test("Gmail configuration rejects mailto links instead of attempting invalid SMT
 });
 test("Render allows the deployed Vercel frontend even with copied development origins", () => {
   const config = readConfig({ ...base, RENDER: "true", FRONTEND_ORIGIN: "http://localhost:5173/" });
-  assert.equal(config.origins[0], "https://eternal-india-phi.vercel.app", "password recovery links use the live frontend rather than copied localhost settings");
+  assert.equal(config.origins[0], "https://www.eternal-india.com", "password recovery links use the live frontend rather than copied localhost settings");
   assert.ok(!config.origins.includes("*"));
   assert.deepEqual(readConfig(base).origins, ["http://localhost:5173"]);
-  assert.deepEqual(readConfig({ ...base, NODE_ENV: "production" }).origins, ["https://eternal-india-phi.vercel.app"]);
+  assert.deepEqual(readConfig({ ...base, NODE_ENV: "production" }).origins, ["https://www.eternal-india.com"]);
 });
 test("HTTPS delivery takes precedence only when configured and SMTP remains explicitly selectable", () => {
   assert.equal(readConfig(base).email.provider, "smtp");

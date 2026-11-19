@@ -70,7 +70,7 @@ Gmail ingestion is separate from existing Gmail SMTP/OTP or HTTPS email delivery
 In your Google Cloud project, enable the Gmail API, configure the OAuth consent screen and create an OAuth **Web application** client. Grant the least required scope `https://www.googleapis.com/auth/gmail.readonly` and register this exact production redirect:
 
 ```text
-https://eternal-india-phi.vercel.app/api/integrations/gmail/callback
+https://www.eternal-india.com/api/integrations/gmail/callback
 ```
 
 The callback deliberately uses the Vercel frontend origin. Its existing `/api` rewrite forwards to Render while preserving the browser's HttpOnly admin JWT cookie. A direct Render callback will not receive a cookie originally issued on the Vercel host. For local Vite development use `http://localhost:5173/api/integrations/gmail/callback`. Update the registered redirect and backend environment together if the frontend hostname changes.
@@ -81,7 +81,7 @@ Set privately on the backend:
 GMAIL_CLIENT_ID=
 GMAIL_CLIENT_SECRET=
 GMAIL_INBOX_EMAIL=
-GMAIL_REDIRECT_URI=https://eternal-india-phi.vercel.app/api/integrations/gmail/callback
+GMAIL_REDIRECT_URI=https://www.eternal-india.com/api/integrations/gmail/callback
 GMAIL_SYNC_INTERVAL_SECONDS=30
 INTEGRATION_TOKEN_SECRET=
 ```
