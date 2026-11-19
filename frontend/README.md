@@ -17,7 +17,7 @@ npm run dev
 - `/contact` — All four office addresses, email and phone links, map searches, and direct support
 - `/request-quote` — Trip enquiry form; destination can be supplied with `?destination=Varanasi`
 - `/online-payment` — Bank details, QR payment with a 10-minute display timer, cash payment and New Delhi payment support
-- `/tour-packages` — Package listing, with individual Golden Triangle, Rajasthan Tour, Varanasi Tour and Manali Volvo Package pages
+- `/tour-packages` — Package listing, with individual Golden Triangle, Rajasthan Tour, Varanasi Tour, Manali Volvo Package and Himachal Tour Package pages
 - `/destinations-in-india` — All 17 requested state destinations, grouped under five regional collections
 - `/destinations-in-india/regions/:region` — Regional listing pages; each state also has its own `/destinations-in-india/:state` page
 - `/india` — Six India & beyond journeys: Uttarakhand, Jaipur, Kashmir, Andaman, Nepal–Kathmandu Tour and Sri Lanka 5D/4N

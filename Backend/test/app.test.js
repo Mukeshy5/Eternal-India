@@ -209,7 +209,7 @@ test("MongoDB enquiry and administrator workflow", async (t) => {
       assert.equal((await request("/technical/promotions", { sessionCookie: "" })).status, 401);
       assert.equal((await request(path, { method: "PATCH", body: promotion, sessionCookie: "" })).status, 401);
       const catalog = await (await request("/technical/promotions")).json();
-      assert.equal(catalog.targets.length, 35);
+      assert.equal(catalog.targets.length, 36);
       assert.deepEqual(catalog.targets, promotionTargets);
       assert.equal((await request("/technical/promotions/package:missing", { method: "PATCH", body: promotion })).status, 404);
       for (const patch of [{ amount: -1 }, { amount: true }, { amount: "25000" }, { amount: 0.001 }, { amount: 100000001 }, { offerAmount: 26000 }, { amount: null }, { offerEnabled: "true" }, { offerTitle: " " }, { offerImage: "javascript:alert(1)" }, { offerImage: "/api/offer-images/000000000000000000000001" }]) {

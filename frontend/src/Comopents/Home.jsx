@@ -110,12 +110,12 @@ export default function Home() {
           <h2 id="home-company-intro-heading">About</h2>
           <div className="home-company-intro-copy">
             <p>
-              Eternal India one among the leading destination management company
-              in India with a decade of dedicated services to tourism. We at
-              Eternal India offer a good destination of holidays in India, Sri
-              Lanka, Nepal and Bhutan. Eternal India has been established various
-              specialized tour in India, Our pride is shown in its all aspect of
-              Inbound tours.
+              Eternal India is one of India's leading destination management
+              companies, with over a decade of dedicated service to tourism. We
+              create memorable holidays across India, Sri Lanka, Nepal and
+              Bhutan. Our expertise spans a wide range of specialized tours
+              across India, with our pride reflected in every aspect of our
+              inbound travel experiences.
             </p>
             <Link to="/about" className="button button-small">
               More view <Icon name="diagonal" size={17} />

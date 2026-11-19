@@ -1083,34 +1083,36 @@ main:focus {
   margin-top: 20px;
 }
 .home-company-intro {
-  background: var(--cream);
+  background: linear-gradient(110deg, #f1efe6 0%, var(--cream) 72%);
   border-bottom: 1px solid var(--line);
 }
 .home-company-intro .container {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-start;
-  gap: 36px;
-  padding-block: 34px;
+  gap: clamp(32px, 6vw, 88px);
+  padding-block: clamp(42px, 6vw, 72px);
 }
 .home-company-intro h2 {
   flex: 0 0 auto;
-  font-size: clamp(24px, 2.5vw, 34px);
+  font-size: clamp(32px, 4vw, 48px);
+  line-height: 1.1;
 }
 .home-company-intro-copy {
   display: flex;
   flex: 1;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 36px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 22px;
   min-width: 0;
+  padding-left: clamp(22px, 3vw, 40px);
+  border-left: 1px solid #c9cbbf;
 }
 .home-company-intro-copy p {
-  flex: 1;
-  max-width: 930px;
-  line-height: 1.8;
+  max-width: 820px;
+  font-size: clamp(15px, 1.1vw, 17px);
+  line-height: 1.9;
 }
 .home-regions {
   background: #efeee5;

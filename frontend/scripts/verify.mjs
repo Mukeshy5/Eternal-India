@@ -99,7 +99,7 @@ try {
     console.log(`PASS ${route}: renders with working route and asset targets`);
   }
   const contact = pages.get("/contact");
-  assert.equal(tourPackages.length, 4);
+  assert.equal(tourPackages.length, 5);
   assert.equal(destinations.length, 17);
   assert.equal(regions.length, 5);
   assert.equal(indiaJourneys.length, 6);

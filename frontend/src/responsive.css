@@ -45,7 +45,7 @@
   .home-hero-photo::after { background: linear-gradient(0deg, #14291fa6, transparent 65%); }
   .home-hero-copy { width: 100%; max-width: 760px; margin-inline: auto; padding: 32px var(--page-gutter) 36px; background: var(--green); text-shadow: none; }
   .home-company-intro .container { align-items: flex-start; flex-direction: column; gap: 16px; }
-  .home-company-intro-copy { align-items: flex-start; flex-direction: column; gap: 16px; width: 100%; }
+  .home-company-intro-copy { align-items: flex-start; flex-direction: column; gap: 16px; width: 100%; padding-left: 0; border-left: 0; }
   .home-hero-copy h1 { font-size: clamp(34px, 5.5vw, 52px); line-height: 1.12; }
   .home-hero-copy > p:not(.eyebrow) { max-width: 620px; font-size: 16px; margin-top: 20px; }
   .home-hero-copy .eyebrow { margin-bottom: 16px; }
