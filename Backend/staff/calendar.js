@@ -29,7 +29,7 @@ export function registerStaffCalendar({ router, db, guard, searchFilter, config,
       staff.countDocuments(filter), staff.distinct("department", { status: "active", deletedAt: null }), db.collection("staff_runtime").findOne({ _id: "revision" }), db.collection("staff_settings").findOne({ _id: "attendance" }),
     ]);
     const records = people.length ? await attendance.find({ staffId: { $in: people.map((person) => person._id) }, date: { $gte: range.from, $lte: range.to } }, { projection: { createdBy: 0, updatedBy: 0 } }).toArray() : [];
-    const byStaff = new Map(), groups = new Map(), weeklyHolidays = settings?.weeklyHolidays || [0];
+    const byStaff = new Map(), groups = new Map(), weeklyHolidays = [...new Set([0, ...(settings?.weeklyHolidays || [])])].sort();
     for (const record of records) {
       const key = record.staffId.toString(); if (!byStaff.has(key)) byStaff.set(key, {}); byStaff.get(key)[record.date] = record;
       const group = groups.get(record.status) || { _id: record.status, count: 0, minutes: 0 }; group.count++; group.minutes += record.workingMinutes; groups.set(record.status, group);

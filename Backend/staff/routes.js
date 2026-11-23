@@ -81,7 +81,7 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
   });
   router.patch("/staff-calendar-settings", ...guard("attendance"), async (req, res) => {
     const values = req.body?.weeklyHolidays;
-    const weeklyHolidays = Array.isArray(values) && values.length <= 7 && values.every((day) => Number.isInteger(day) && day >= 0 && day <= 6) ? [...new Set(values)].sort() : null;
+    const weeklyHolidays = Array.isArray(values) && values.length <= 7 && values.every((day) => Number.isInteger(day) && day >= 0 && day <= 6) ? [...new Set([0, ...values])].sort() : null;
     if (!weeklyHolidays) return res.status(400).json({ message: "Choose valid weekly holidays." });
     await db.collection("staff_settings").updateOne({ _id: "attendance" }, { $set: { weeklyHolidays, updatedAt: new Date(), updatedBy: req.admin._id } }, { upsert: true });
     await changed();
@@ -146,13 +146,15 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
     const page = pageOf(req.query), limit = 50;
     const filter = { status: "active", deletedAt: null, ...searchFilter(req.query.search) };
     const activeLookup = [{ $lookup: { from: "staff", localField: "staffId", foreignField: "_id", pipeline: [{ $project: { status: 1, deletedAt: 1 } }], as: "person" } }, { $match: { "person.status": "active", "person.deletedAt": null } }];
-    const [records, total, counts, totalStaff] = await Promise.all([
+    const [records, total, counts, totalStaff, settings] = await Promise.all([
       staff.aggregate([{ $match: filter }, { $sort: { name: 1, _id: 1 } }, { $skip: (page - 1) * limit }, { $limit: limit }, { $project: projection }, { $lookup: { from: "staff_attendance", let: { personId: "$_id" }, pipeline: [{ $match: { $expr: { $and: [{ $eq: ["$staffId", "$$personId"] }, { $eq: ["$date", date] }] } } }], as: "attendance" } }, { $set: { attendance: { $ifNull: [{ $arrayElemAt: ["$attendance", 0] }, null] } } }]).toArray(),
       staff.countDocuments(filter), attendance.aggregate([{ $match: { date } }, ...activeLookup, ...grouped]).toArray(), staff.countDocuments({ deletedAt: null }),
+      db.collection("staff_settings").findOne({ _id: "attendance" }),
     ]);
     const activeStaff = await staff.countDocuments({ status: "active", deletedAt: null });
     const stats = summary(counts);
-    res.json({ staff: records, total, page, pages: Math.max(1, Math.ceil(total / limit)), date, stats: { ...stats, totalStaff, activeStaff, unmarked: Math.max(0, activeStaff - stats.totalRecordedDays) } });
+    const weeklyHolidays = [...new Set([0, ...(settings?.weeklyHolidays || [])])].sort();
+    res.json({ staff: records, total, page, pages: Math.max(1, Math.ceil(total / limit)), date, weeklyHolidays, stats: { ...stats, totalStaff, activeStaff, unmarked: Math.max(0, activeStaff - stats.totalRecordedDays) } });
   });
   router.post("/staff-attendance/bulk", ...guard("attendance"), async (req, res) => {
     const date = req.body?.date;
@@ -274,7 +276,8 @@ export function registerStaffRoutes({ management, db, requireAdmin, config }) {
         return people.map((person) => ({ staffId: person._id, name: person.name, employeeId: person.employeeId, department: person.department, designation: person.designation, records: recordsByStaff.get(person._id.toString()) || [] }));
       })()
       : undefined;
-    const weeklyHolidays = (await db.collection("staff_settings").findOne({ _id: "attendance" }))?.weeklyHolidays || [0];
+    const settings = await db.collection("staff_settings").findOne({ _id: "attendance" });
+    const weeklyHolidays = [...new Set([0, ...(settings?.weeklyHolidays || [])])].sort();
     res.json({ ...result, records: rows, daily: buckets(daily), monthly: buckets(monthly), weeklyHolidays, ...(calendar ? { calendar } : {}) });
   }
   const reportPermission = (req, res, next) => req.query.format ? guard("export")[1](req, res, next) : next();

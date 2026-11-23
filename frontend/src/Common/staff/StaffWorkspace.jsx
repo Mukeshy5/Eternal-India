@@ -14,6 +14,7 @@ import "../AdminTools.css";
 import "./staff.css";
 
 const sections = { staff: "Staff Management", "staff-attendance": "Staff Attendance", "staff-cards": "Download ID Card", "staff-reports": "Attendance Reports" };
+const weekdayForDate = (date) => new Date(`${date}T00:00:00Z`).getUTCDay();
 export default function StaffWorkspace({ apiBase, technical, admin, section, onSection, onBack, onUnauthorized, onLogout }) {
   const can = (key) => admin.staffPermissions?.includes(key);
   const today = indiaDate();
@@ -35,6 +36,9 @@ export default function StaffWorkspace({ apiBase, technical, admin, section, onS
   const requestKey = `${apiBase}${path}?${query}`;
   const data = response?.key === requestKey ? response.data : null;
   const loading = response?.key !== requestKey || response.loading;
+  const automaticOffDay = !!data?.weeklyHolidays?.includes(weekdayForDate(date));
+  const defaultAttendanceStatus = automaticOffDay ? "weekly_off" : "";
+  const displayStats = data?.stats ? { ...data.stats, weekly_off: data.stats.weekly_off + (automaticOffDay ? data.stats.unmarked : 0), unmarked: automaticOffDay ? 0 : data.stats.unmarked } : data?.stats;
   const dailyDirty = section === "staff-attendance" && !profileId && Object.values(attendanceDrafts).some((entry) => entry?.scope === requestKey && entry.dirty);
   const attendanceSubmitted = section === "staff-attendance" && !profileId && !!data?.staff?.length && data.staff.every((person) => !!person.attendance) && !dailyDirty;
   usePanelNavigationGuard(dailyDirty, busy, "Discard unsaved attendance choices and change section?");
@@ -81,11 +85,11 @@ export default function StaffWorkspace({ apiBase, technical, admin, section, onS
   }
   useEffect(() => {
     if (section !== "staff-attendance" || profileId || !Array.isArray(data?.staff)) return;
-    setAttendanceDrafts((previous) => Object.fromEntries(data.staff.map((person) => [person._id, previous[person._id]?.scope === requestKey && previous[person._id]?.dirty ? previous[person._id] : { status: person.attendance?.status || "", version: person.attendance?.version || 0, dirty: false, scope: requestKey }])));
-  }, [section, profileId, requestKey, data]);
+    setAttendanceDrafts((previous) => Object.fromEntries(data.staff.map((person) => [person._id, previous[person._id]?.scope === requestKey && previous[person._id]?.dirty ? previous[person._id] : { status: person.attendance?.status || defaultAttendanceStatus, version: person.attendance?.version || 0, dirty: false, scope: requestKey }])));
+  }, [section, profileId, requestKey, data, defaultAttendanceStatus]);
   async function submitAttendance() {
     if (attendanceSubmitted) return;
-    const attendance = data?.staff.map((person) => ({ staffId: person._id, status: attendanceDrafts[person._id]?.scope === requestKey ? attendanceDrafts[person._id].status : person.attendance?.status, version: attendanceDrafts[person._id]?.scope === requestKey ? attendanceDrafts[person._id].version : person.attendance?.version || 0 }));
+    const attendance = data?.staff.map((person) => ({ staffId: person._id, status: attendanceDrafts[person._id]?.scope === requestKey ? attendanceDrafts[person._id].status : person.attendance?.status || defaultAttendanceStatus, version: attendanceDrafts[person._id]?.scope === requestKey ? attendanceDrafts[person._id].version : person.attendance?.version || 0 }));
     if (!attendance?.length || attendance.some((entry) => !entry.status)) { setError("Choose Present, Absent or Leave for every staff member."); return; }
     const result = await perform((signal) => api(`${apiBase}/staff-attendance/bulk`, { method: "POST", body: JSON.stringify({ date, attendance }), signal }), "Attendance submitted successfully.");
     if (result) {
@@ -135,9 +139,9 @@ export default function StaffWorkspace({ apiBase, technical, admin, section, onS
     <div className="staff-filter-card">{!profileId && <Field label="Search staff name or employee ID"><input type="search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search staff…" /></Field>}
     {profileId || section === "staff-reports" ? <ReportFilters filters={filters} onChange={changeFilters} individual={!!profileId} /> : section === "staff-attendance" ? null : <Field label="Staff status"><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">All staff</option><option value="active">Active</option><option value="inactive">Inactive</option></select></Field>}</div>
     {loading ? <p className="admin-tool-empty" role="status">Loading saved records…</p> : !data ? <div className="admin-tool-card"><p>Records could not be loaded.</p><button className="dashboard-button" onClick={reload}>Retry</button></div> : profileId || section === "staff-reports" ? <AttendanceReport data={data} individual={!!profileId} canExport={can("export")} canEdit={can("attendance")} onExport={exportReport} busy={busy} periodDelete={reportDeletion} onProfile={profile} onEdit={(row) => editAttendance({ _id: row.staffId, name: row.name, employeeId: row.employeeId }, row, row.date)} onPage={setPage} /> : section === "staff-attendance" ? <>
-      <StaffStats stats={data.stats} />
-      <section className="admin-tool-card"><h3>Mark staff attendance</h3><p className="staff-note">Choose Present, Absent or Leave for every employee. Attendance for this page is submitted together for the selected date.</p>
-        <div className="admin-tool-table-wrap"><table className="admin-tool-table staff-attendance-table"><thead><tr><th>Staff</th><th>Attendance</th></tr></thead><tbody>{data.staff.map((person) => <StaffAttendanceRow key={`${person._id}:${date}`} person={person} status={attendanceDrafts[person._id]?.scope === requestKey ? attendanceDrafts[person._id].status : person.attendance?.status || ""} canEdit={can("attendance")} busy={busy} future={date > today} onProfile={profile} onChange={(id, value) => { setNotice(""); setAttendanceDrafts((previous) => ({ ...previous, [id]: { status: value, version: person.attendance?.version || 0, dirty: value !== (person.attendance?.status || ""), scope: requestKey } })); }} />)}</tbody></table></div>
+      <StaffStats stats={displayStats} />
+      <section className="admin-tool-card"><h3>Mark staff attendance</h3><p className="staff-note">Sundays and configured weekly holidays default to Weekly Off. Change a status only when an employee worked or needs another attendance status.</p>
+        <div className="admin-tool-table-wrap"><table className="admin-tool-table staff-attendance-table"><thead><tr><th>Staff</th><th>Attendance</th></tr></thead><tbody>{data.staff.map((person) => <StaffAttendanceRow key={`${person._id}:${date}`} person={person} status={attendanceDrafts[person._id]?.scope === requestKey ? attendanceDrafts[person._id].status : person.attendance?.status || defaultAttendanceStatus} canEdit={can("attendance")} busy={busy} future={date > today} onProfile={profile} onChange={(id, value) => { setNotice(""); setAttendanceDrafts((previous) => ({ ...previous, [id]: { status: value, version: person.attendance?.version || 0, dirty: value !== (person.attendance?.status || defaultAttendanceStatus), scope: requestKey } })); }} />)}</tbody></table></div>
         {!data.staff.length && <p className="admin-tool-empty">No active staff found. Add or activate staff in Staff Management.</p>}
         <div className="admin-tool-actions staff-attendance-submit"><Field label="Attendance date (Asia/Kolkata)"><input type="date" value={date} max={today} onChange={(event) => { if (!navigation || navigation.confirmNavigation()) { setDate(event.target.value); setPage(1); } }} /></Field><button type="button" className="dashboard-button dashboard-button-primary" disabled={busy || loading || !can("attendance") || !data.staff.length || date > today || attendanceSubmitted} onClick={submitAttendance}>{busy ? "Submitting…" : "Submit attendance"}</button></div>{attendanceSubmitted && <p className="admin-success staff-attendance-success" role="status">Attendance submitted successfully for {date}. Change a status to submit an update.</p>}
       </section>

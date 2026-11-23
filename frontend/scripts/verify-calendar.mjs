@@ -50,7 +50,7 @@ export async function verifyCalendar(vite) {
     assert.equal(await db.collection("staff_attendance").countDocuments(), 0);
     assert.ok(container.querySelector(".attendance-matrix .staff-avatar").getAttribute("src").includes("/photo"));
     for (const [date, status] of [["2026-01-05", "present"], ["2026-01-06", "absent"], ["2026-01-07", "leave"], ["2026-01-04", "weekly_off"], ["2026-01-08", "half_day"]]) {
-      await clickAria(`Calendar Alice, ${date}: Not marked${date === "2026-01-04" ? ", Sunday" : ""}`);
+      await clickAria(`Calendar Alice, ${date}: ${date === "2026-01-04" ? "Weekly Off, Sunday" : "Not marked"}`);
       await waitFor(() => container.querySelector(".attendance-calendar-dialog .staff-attendance-editor"), "cell editor");
       await act(async () => select('.attendance-calendar-dialog select[name=attendanceStatus]', status));
       if (["present", "half_day"].includes(status)) {
@@ -84,11 +84,11 @@ export async function verifyCalendar(vite) {
     assert.equal(await db.collection("staff_attendance").countDocuments(), 4, "cancelling weekly deletion preserves all records");
     testWindow.confirm = () => true;
     await click("Delete this week", container.querySelector(".attendance-period-delete"));
-    await waitFor(async () => await db.collection("staff_attendance").countDocuments() === 3 && container.querySelector('button[aria-label="Calendar Alice, 2026-01-04: Not marked, Sunday"]'), "weekly deletion updates MongoDB and calendar cells");
+    await waitFor(async () => await db.collection("staff_attendance").countDocuments() === 3 && container.querySelector('button[aria-label="Calendar Alice, 2026-01-04: Weekly Off, Sunday"]'), "weekly deletion updates MongoDB and calendar cells");
     await click("Monthly", container.querySelector(".attendance-view-switch"));
     await waitFor(() => container.querySelectorAll(".attendance-matrix thead th").length === 32, "month before deleting remaining attendance");
     await click("Delete this month", container.querySelector(".attendance-period-delete"));
-    await waitFor(async () => await db.collection("staff_attendance").countDocuments() === 0 && container.querySelectorAll(".attendance-cell.attendance-color-missing").length === 62 && container.querySelector(".attendance-calendar .admin-success")?.textContent.includes("3 attendance records"), "monthly deletion updates database, success message and every cell");
+    await waitFor(async () => await db.collection("staff_attendance").countDocuments() === 0 && container.querySelectorAll(".attendance-cell.attendance-color-missing").length === 54 && container.querySelectorAll(".attendance-cell.attendance-color-weekly_off").length === 8 && container.querySelector(".attendance-calendar .admin-success")?.textContent.includes("3 attendance records"), "monthly deletion updates database while default weekly offs remain visible");
     await click("Add hotel", container.querySelector(".panel-navigation")); await waitFor(() => container.querySelector(".admin-tool-form"), "persistent operations navigation");
     assert.equal(container.querySelector("#test-panel-route").textContent, "/technical/hotels");
     testWindow.dispatchEvent(new testWindow.Event("pagehide")); await act(async () => assert.equal((await globalThis.fetch("/api/technical/me")).status, 200, "refresh/navigation does not destroy the shared session"));

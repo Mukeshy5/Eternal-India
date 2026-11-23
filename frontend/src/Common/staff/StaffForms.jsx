@@ -61,11 +61,11 @@ export function StaffEditor({ staff, busy, errors, onSave, onCancel, apiBase }) 
   </form>;
 }
 
-export function AttendanceEditor({ staff, record, date, busy, errors, onSave, onCancel }) {
-  const [status, setStatus] = useState(record?.status || "present");
+export function AttendanceEditor({ staff, record, date, defaultStatus, busy, errors, onSave, onCancel }) {
+  const [status, setStatus] = useState(record?.status || defaultStatus || "present");
   const [checkIn, setCheckIn] = useState(record?.checkIn || ""), [checkOut, setCheckOut] = useState(record?.checkOut || "");
   const [leaveType, setLeaveType] = useState(record?.leaveType || ""), [remarks, setRemarks] = useState(record?.remarks || "");
-  usePanelNavigationGuard(status !== (record?.status || "present") || checkIn !== (record?.checkIn || "") || checkOut !== (record?.checkOut || "") || leaveType !== (record?.leaveType || "") || remarks !== (record?.remarks || ""), busy, "Discard unsaved attendance changes?");
+  usePanelNavigationGuard(status !== (record?.status || defaultStatus || "present") || checkIn !== (record?.checkIn || "") || checkOut !== (record?.checkOut || "") || leaveType !== (record?.leaveType || "") || remarks !== (record?.remarks || ""), busy, "Discard unsaved attendance changes?");
   return <form className="admin-tool-card staff-attendance-editor" aria-label="Mark attendance" onSubmit={(event) => { event.preventDefault(); onSave({ status, staffId: staff._id, date, checkIn, checkOut, leaveType, remarks, ...(record ? { version: record.version } : {}) }); }}>
     <h2>{record ? "Update attendance" : "Mark attendance"}</h2><p>{staff.name} · {staff.employeeId} · {date}</p><fieldset disabled={busy}><div className="admin-tool-grid">
       <Field label="Attendance" error={errors.status}><select name="attendanceStatus" value={status} onChange={(event) => { const value = event.target.value; setStatus(value); if (["absent", "leave", "weekly_off"].includes(value)) { setCheckIn(""); setCheckOut(""); } if (value !== "leave") setLeaveType(""); }}>{Object.entries(attendanceStatuses).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field>

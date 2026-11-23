@@ -141,7 +141,7 @@ export const offices = [
     city: "Varanasi",
     state: "UTTAR PRADESH",
     address:
-      "AF 2/20 Imlak II, Opposite Taksal Cinema, Nadser, Varanasi – 221002",
+      "coming soon",
     email: "varanasi@eternal-india.com",
     phone: "7408469374",
   },
