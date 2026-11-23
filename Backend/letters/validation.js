@@ -34,8 +34,8 @@ export function validateLetter(body, employee, current) {
     if (!validDate(fields.lastWorkingDate) || fields.lastWorkingDate < fields.joiningDate) errors.lastWorkingDate = "Last working date must be on or after joining date.";
     if (validDate(fields.issueDate) && fields.lastWorkingDate > fields.issueDate) errors.issueDate = "Issue date must be on or after the last working date.";
   }
-  for (const [key, max, required] of [["content", 16000, false], ["terms", 6000, false], ["responsibilities", 6000, fields.type === "experience"], ["performance", 4000, fields.type === "experience"]]) {
-    const value = body?.[key] ?? "";
+  for (const [key, max, required] of [["content", 16000, false], ["terms", 6000, false], ["responsibilities", 6000, false], ["performance", 4000, false]]) {
+    const value = fields.type === "experience" && ["responsibilities", "performance"].includes(key) ? "" : body?.[key] ?? "";
     fields[key] = typeof value === "string" ? value.trim().replace(/\r\n?/g, "\n") : "";
     if (typeof value !== "string" || fields[key].length > max || (required && !fields[key]) || /[\x00-\x08\x0b-\x1f\x7f<>]/.test(fields[key])) errors[key] = required ? `Enter ${key} (up to ${max} characters).` : `Use plain text up to ${max} characters.`;
     if (fields[key].split("\n").length > 150) errors[key] = "Use up to 150 lines per section.";

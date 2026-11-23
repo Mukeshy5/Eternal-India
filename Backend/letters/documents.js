@@ -54,16 +54,21 @@ export async function employmentLetterPdf(letter, { preview = false, certificati
       }
       doc.moveDown(0.6);
       paragraph(letter.content);
-      for (const [label, value] of [["Terms and conditions", letter.terms], ["Job responsibilities", letter.responsibilities], ["Performance and conduct", letter.performance]]) {
+      const optionalSections = letter.type === "joining"
+        ? [["Terms and conditions", letter.terms], ["Job responsibilities", letter.responsibilities], ["Performance and conduct", letter.performance]]
+        : [];
+      for (const [label, value] of optionalSections) {
         if (!value) continue;
         keep(60); paragraph(label.toUpperCase(), 10); paragraph(value);
       }
-      doc.font("Letter").fontSize(10);
-      const signatory = `${letter.company.signatory}${letter.company.signatoryTitle ? `\n${letter.company.signatoryTitle}` : ""}`;
-      const signatureHeight = doc.heightOfString(`For ${letter.company.name}`, { width }) + doc.heightOfString(signatory, { width }) + 30;
-      keep(signatureHeight); doc.moveDown(0.5);
-      paragraph(`For ${letter.company.name}`, 10);
-      doc.moveDown(0.7); paragraph(signatory, 10);
+      if (letter.type === "joining") {
+        doc.font("Letter").fontSize(10);
+        const signatory = `${letter.company.signatory}${letter.company.signatoryTitle ? `\n${letter.company.signatoryTitle}` : ""}`;
+        const signatureHeight = doc.heightOfString(`For ${letter.company.name}`, { width }) + doc.heightOfString(signatory, { width }) + 30;
+        keep(signatureHeight); doc.moveDown(0.5);
+        paragraph(`For ${letter.company.name}`, 10);
+        doc.moveDown(0.7); paragraph(signatory, 10);
+      }
       if (letter.type === "joining") { keep(49); doc.moveDown(0.3); paragraph("Employee acceptance\nSignature: ________________________    Date: ______________", 9); }
       const pages = doc.bufferedPageRange();
       for (let page = 0; page < pages.count; page++) {

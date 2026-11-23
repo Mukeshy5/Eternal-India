@@ -115,13 +115,12 @@ test("letters use real MongoDB, shared authenticated APIs and permanent atomic P
       assert.equal(createHash("sha256").update(pdf).digest("hex"), joining.pdfSha256); await persistQa(pdf, "joining-letter.pdf");
       const stored = await db.collection("employment_letters").findOne({ _id: new ObjectId(joining._id) }); assert.ok(stored.pdf); assert.equal(stored.version, 1);
     });
-    await t.test("experience letters validate employment dates and preserve responsibilities and performance", async () => {
+    await t.test("experience letters validate employment dates and omit responsibilities and performance", async () => {
       const draft = payload({ type: "experience", lastWorkingDate: "2026-10-31", responsibilities: "Managed bookings and coordinated guest itineraries.\nMaintained operational records.", performance: "Performed assigned duties professionally and reliably." });
       assert.equal((await request("/admin/letters", { method: "POST", body: { ...draft, lastWorkingDate: "2024-01-01" } })).status, 400);
-      assert.equal((await request("/admin/letters", { method: "POST", body: { ...draft, performance: "" } })).status, 400);
       assert.equal((await request("/admin/letters", { method: "POST", body: { ...draft, staffId: new ObjectId().toString() } })).status, 400);
       const reply = await request("/technical/letters", { method: "POST", body: draft }); assert.equal(reply.status, 201, await reply.clone().text()); experience = (await reply.json()).letter;
-      assert.match(experience.letterNumber, /^EI\/EL\/2026\/000001$/); assert.equal(experience.employmentDuration, "1 year, 10 months"); assert.equal(experience.responsibilities, draft.responsibilities);
+      assert.match(experience.letterNumber, /^EI\/EL\/2026\/000001$/); assert.equal(experience.employmentDuration, "1 year, 10 months"); assert.equal(experience.responsibilities, ""); assert.equal(experience.performance, "");
       const pdf = Buffer.from(await (await request(`/admin/letters/${experience._id}/pdf`)).arrayBuffer()); await persistQa(pdf, "experience-letter.pdf");
       assert.equal((pdf.toString("latin1").match(/\/Type \/Page\b/g) || []).length, 1, "A standard experience letter fits one A4 page");
       assert.equal(experience.company.certificationImageId, joining.company.certificationImageId); assert.match(pdf.toString("latin1"), /\/Width 1640/);
