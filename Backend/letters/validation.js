@@ -25,10 +25,14 @@ export function validateLetter(body, employee, current) {
   for (const key of ["joiningDate", "issueDate"]) if (!validDate(fields[key])) errors[key] = "Choose a valid date between 2000 and 2100.";
   fields.salaryPaise = 0; fields.salaryPeriod = "month"; fields.lastWorkingDate = "";
   if (fields.type === "joining") {
-    fields.salaryPaise = moneyToPaise(body?.salary);
-    fields.salaryPeriod = body?.salaryPeriod;
-    if (fields.salaryPaise === null) errors.salary = "Enter a salary of 0–99,999,999.99 with up to two decimals.";
-    if (!["month", "year"].includes(fields.salaryPeriod)) errors.salaryPeriod = "Choose per month or per year.";
+    if (body?.salary !== undefined && body.salary !== "") {
+      fields.salaryPaise = moneyToPaise(body.salary);
+      if (fields.salaryPaise === null) errors.salary = "Enter a salary of 0–99,999,999.99 with up to two decimals.";
+    }
+    if (body?.salaryPeriod !== undefined && body.salaryPeriod !== "") {
+      fields.salaryPeriod = body.salaryPeriod;
+      if (!["month", "year"].includes(fields.salaryPeriod)) errors.salaryPeriod = "Choose per month or per year.";
+    }
   } else if (fields.type === "experience") {
     fields.lastWorkingDate = body?.lastWorkingDate;
     if (!validDate(fields.lastWorkingDate) || fields.lastWorkingDate < fields.joiningDate) errors.lastWorkingDate = "Last working date must be on or after joining date.";
