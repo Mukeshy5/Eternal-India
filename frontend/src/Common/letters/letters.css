@@ -68,20 +68,17 @@
 .letter-employee-results > p { padding: 18px; font-size: 12px; line-height: 1.7; color: #6a798b; }
 .letter-preview-label { display: flex; justify-content: space-between; margin: 8px 0 14px; color: #7a8796; font-size: 10px; letter-spacing: .08em; }
 .letter-preview-label small { font-size: 10px; letter-spacing: 0; }
-.letter-paper { display: flex; flex-direction: column; aspect-ratio: 210 / 297; border: 1px solid #dfe6e9; border-top: 5px solid #58776c; background: white; box-shadow: 0 8px 25px #465c7310; padding: clamp(22px, 3vw, 45px); color: #334654; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.9; overflow-wrap: anywhere; }
+.letter-paper { display: flex; flex-direction: column; width: 100%; aspect-ratio: 210 / 297; border: 1px solid #dfe6e9; border-top: 5px solid #58776c; background: white; box-shadow: 0 8px 25px #465c7310; padding: clamp(22px, 3vw, 45px); color: #334654; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.75; overflow-wrap: anywhere; }
 .letter-document-content { flex: 1; }
-.letter-letterhead { display: flex; align-items: start; justify-content: space-between; gap: 16px; padding-bottom: 22px; border-bottom: 1px solid #dce5e4; }
+.letter-letterhead { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid #dce5e4; }
 .letter-letterhead img { width: 32%; max-width: 140px; object-fit: contain; }
 .letter-letterhead > div { text-align: right; max-width: 62%; }
 .letter-letterhead strong { display: block; font-size: 12px; }
 .letter-letterhead p { color: #6c7b81; font-size: 9px; line-height: 1.7; margin: 5px 0 0; white-space: pre-wrap; }
 .letter-draft-mark { text-align: right; font-size: 8px; letter-spacing: .09em; color: #a27647; }
-.letter-paper h2 { text-transform: uppercase; font-weight: 600; letter-spacing: .04em; font-size: 19px; margin: 28px 0 12px; }
+.letter-paper h2 { text-align: center; text-transform: uppercase; font-weight: 600; letter-spacing: .06em; font-size: 19px; margin: 22px 0 12px; color: #304c4a; }
 .letter-reference { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px; color: #6b7c88; font-size: 9px; border-bottom: 1px solid #edf1f2; padding-bottom: 18px; }
-.letter-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 22px 0 26px; padding: 18px; border-radius: 6px; background: #f7faf9; }
-.letter-facts div { min-width: 0; }
-.letter-facts dt { text-transform: uppercase; color: #78888e; letter-spacing: .04em; font-size: 8px; }
-.letter-facts dd { margin: 3px 0 0; font-size: 10px; color: #374e56; }
+.letter-facts { margin: 18px 0 22px; padding: 10px 13px; border-left: 3px solid #58776c; border-radius: 4px; background: #f7faf9; color: #374e56; font-size: 10px; line-height: 1.65; white-space: pre-line; }
 .letter-body { white-space: pre-wrap; margin: 18px 0; }
 .letter-paper h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin: 26px 0 8px; }
 .letter-signature { margin-top: 40px; font-size: 11px; }
@@ -113,43 +110,44 @@
 @media (min-width: 1400px) { .letter-live-preview { position: sticky; top: 24px; } }
 @media (max-width: 1200px) { .letter-compose { grid-template-columns: minmax(0, 1fr); } .letter-live-preview { max-width: 794px; width: 100%; margin: auto; } .letter-hero { align-items: start; } .letter-hero-actions { flex-shrink: 1; } }
 @media (max-width: 700px) { .letter-workspace { padding: 16px; } .letter-hero { flex-direction: column; padding: 22px; gap: 20px; } .letter-hero-actions { width: 100%; justify-content: start; } .letter-filters { grid-template-columns: 1fr 1fr; padding: 18px; gap: 12px; } .letter-filters > label:first-child { grid-column: 1 / -1; } .letter-card-heading, .letter-history-heading { padding: 18px; } .letter-editor fieldset { padding: 0 18px 18px; } .letter-pdf-overlay { padding: 8px; } .letter-pdf-dialog { height: 96dvh; } .letter-pdf-dialog > header { padding: 16px; } .letter-pdf-dialog .letter-actions { gap: 6px; } .letter-pdf-dialog button, .letter-pdf-dialog a { font-size: 11px; min-height: 38px; padding: 8px 10px; } }
-@media (max-width: 420px) { .letter-form-grid { grid-template-columns: minmax(0, 1fr); } .letter-selected-employee { flex-wrap: wrap; } .letter-paper { padding: 20px; font-size: 11px; } .letter-paper h2 { font-size: 16px; } .letter-facts { padding: 12px; } .letter-editor-actions > button { width: 100%; } .letter-detail-toolbar .letter-actions { width: 100%; } .letter-history-badge { display: none; } }
+@media (max-width: 420px) { .letter-form-grid { grid-template-columns: minmax(0, 1fr); } .letter-selected-employee { flex-wrap: wrap; } .letter-paper { padding: 20px; font-size: 11px; } .letter-paper h2 { font-size: 16px; } .letter-editor-actions > button { width: 100%; } .letter-detail-toolbar .letter-actions { width: 100%; } .letter-history-badge { display: none; } }
 
-@page { size: A4 portrait; margin: 12mm; }
+@page { size: A4 portrait; margin: 0; }
 @media print {
-  .letter-workspace { padding: 0 !important; }
+  .letter-workspace { width: 210mm; margin: 0 !important; padding: 0 !important; }
   .letter-workspace > :not(.letter-detail), .letter-detail-toolbar, .letter-pdf-overlay, .letter-footnote { display: none !important; }
-  .letter-detail { display: block !important; }
+  .letter-detail { display: block !important; width: 210mm; margin: 0; padding: 0; }
   .letter-detail > .letter-paper {
     display: flex !important;
-    width: 100%;
+    width: 210mm;
     max-width: none;
-    min-height: 273mm;
+    min-height: 297mm;
     height: auto;
     aspect-ratio: auto;
     margin: 0;
-    padding: 0;
+    padding: 15mm 18mm 12mm;
     border: 0;
+    border-top: 2mm solid #58776c;
     box-shadow: none;
     overflow: visible;
-    font-size: 9.5pt;
-    line-height: 1.5;
+    font-size: 10pt;
+    line-height: 1.55;
     color: #243d4b;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
-  .letter-letterhead { align-items: center; padding-bottom: 12px; }
-  .letter-paper h2 { margin: 18px 0 8px; font-size: 16pt; }
-  .letter-reference { padding-bottom: 10px; }
-  .letter-facts { gap: 8px 16px; margin: 14px 0 18px; padding: 12px; }
+  .letter-letterhead { padding-bottom: 10px; }
+  .letter-letterhead img { max-width: 38mm; }
+  .letter-letterhead strong { font-size: 11pt; }
+  .letter-letterhead p { font-size: 8pt; }
+  .letter-paper h2 { margin: 15px 0 8px; font-size: 16pt; }
+  .letter-reference { padding-bottom: 8px; }
+  .letter-facts { margin: 12px 0 16px; padding: 8px 11px; }
   .letter-body { margin: 12px 0; }
-  .letter-paper h3 { margin: 18px 0 6px; }
-  .letter-signature { margin-top: 22px; break-inside: avoid; }
-  .letter-signature strong { margin-top: 22px; }
-  .letter-acceptance { margin-top: 18px; break-inside: avoid; }
-  .letter-document-footer { margin-top: 16px; padding-top: 8px; }
+  .letter-acceptance { margin-top: 24px; break-inside: avoid; }
+  .letter-document-footer { margin-top: 14px; padding-top: 7px; }
   .letter-certification-heading { margin-bottom: 5px; }
-  .letter-certification-image { min-height: 52px; }
-  .letter-certification-image img { height: 58px; }
+  .letter-certification-image { min-height: 48px; }
+  .letter-certification-image img { height: 54px; }
   .letter-footer-contact { margin-top: 5px; padding-top: 6px; }
 }

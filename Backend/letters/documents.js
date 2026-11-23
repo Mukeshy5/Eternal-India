@@ -40,18 +40,21 @@ export async function employmentLetterPdf(letter, { preview = false, certificati
       header(); doc.on("pageAdded", header);
       const paragraph = (value, size = 10) => { doc.font("Letter").fontSize(size).fillColor(ink).text(value, 52, doc.y, { width, lineGap: 1.6, paragraphGap: 4 }); doc.moveDown(0.25); };
       const keep = (height) => { if (doc.y + height > doc.page.height - bottom) doc.addPage(); };
-      paragraph(letterTypes[letter.type].toUpperCase(), 19);
-      paragraph(`Reference: ${letter.letterNumber}\nIssue date: ${letterDate(letter.issueDate)}`, 9);
-      doc.moveDown(0.4);
-      const facts = letterFacts(letter), columnWidth = (width - 32) / 2;
-      for (let index = 0; index < facts.length; index += 2) {
-        doc.font("Letter").fontSize(9);
-        const values = facts.slice(index, index + 2).map(([label, value]) => `${label}: ${value}`);
-        const height = Math.max(...values.map((value) => doc.heightOfString(value, { width: columnWidth, lineGap: 2 }))) + 14;
-        keep(height); const y = doc.y;
-        values.forEach((value, column) => doc.font("Letter").fontSize(9).fillColor(ink).text(value, 52 + column * (columnWidth + 32), y, { width: columnWidth, lineGap: 2 }));
-        doc.x = 52; doc.y = y + height;
-      }
+      doc.font("Letter").fontSize(19).fillColor(ink).text(letterTypes[letter.type].toUpperCase(), 52, doc.y, { width, align: "center" });
+      doc.moveDown(0.7);
+      const referenceY = doc.y, halfWidth = width / 2;
+      doc.font("Letter").fontSize(9).fillColor(muted)
+        .text(`Reference: ${letter.letterNumber}`, 52, referenceY, { width: halfWidth - 8, lineBreak: false })
+        .text(`Issue date: ${letterDate(letter.issueDate)}`, 52 + halfWidth, referenceY, { width: halfWidth, align: "right", lineBreak: false });
+      doc.x = 52; doc.y = referenceY + 19; doc.moveDown(0.25);
+      const facts = letterFacts(letter).map(([label, value]) => `${label} — ${value || "—"}`).join("\n");
+      doc.font("Letter").fontSize(9).fillColor(ink);
+      const factsHeight = doc.heightOfString(facts, { width: width - 20, lineGap: 2 }) + 16;
+      keep(factsHeight);
+      const factsY = doc.y;
+      doc.save().roundedRect(52, factsY - 4, width, factsHeight, 4).fill("#f7faf9").restore();
+      doc.font("Letter").fontSize(9).fillColor(ink).text(facts, 62, factsY + 4, { width: width - 20, lineGap: 2 });
+      doc.x = 52; doc.y = factsY + factsHeight + 3;
       doc.moveDown(0.6);
       paragraph(letter.content);
       if (letter.type === "joining") { keep(49); doc.moveDown(0.3); paragraph("Employee acceptance\nSignature: ________________________    Date: ______________", 9); }

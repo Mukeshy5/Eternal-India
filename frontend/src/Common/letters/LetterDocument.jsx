@@ -8,8 +8,8 @@ export default function LetterDocument({ letter, apiBase, draft = false }) {
     <header className="letter-letterhead"><img src="/logo.webp" alt="Eternal India" /><div><strong>{letter.company.name}</strong><p>{letter.company.address}</p></div></header>
     {draft && <p className="letter-draft-mark">DRAFT PREVIEW · NOT ISSUED</p>}
     <h2>{letterTypes[letter.type]}</h2>
-    <div className="letter-reference"><span>{letter.letterNumber || "Reference assigned on generation"}</span><span>{letterDate(letter.issueDate)}</span></div>
-    <dl className="letter-facts">{letterFacts(document).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || "—"}</dd></div>)}</dl>
+    <div className="letter-reference">{letter.letterNumber && <span>Reference: {letter.letterNumber}</span>}<span>Issue date: {letterDate(letter.issueDate)}</span></div>
+    <p className="letter-facts">{letterFacts(document).map(([label, value]) => `${label} — ${value || "—"}`).join("\n")}</p>
     <p className="letter-body">{letter.content || defaultLetterContent(document)}</p>
     {letter.type === "joining" && <p className="letter-acceptance">Employee acceptance<br />Signature: ____________________ &nbsp; Date: ______________</p>}
     </div>
